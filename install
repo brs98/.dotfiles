@@ -1,8 +1,9 @@
-#!/usr/bin/env zsh
-pushd $DOTFILES
-for folder in $(echo $STOW_FOLDERS | sed "s/,/ /g")
-do
+#!/usr/bin/env bash
+STOW_FOLDERS=("vim" "tmux" "git")
+pushd $HOME/.dotfiles
+echo "Stowing..."
+for folder in ${STOW_FOLDERS[@]}; do
+    echo $folder
     stow -D $folder
     stow $folder
 done
-popd
