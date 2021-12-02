@@ -1,0 +1,225 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<!-- This manual describes GNU Stow version 2.3.1
+(28 July 2019), a program for managing farms of symbolic links.
+
+Software and documentation is copyrighted by the following:
+
+(C) 1993, 1994, 1995, 1996 Bob Glickstein <bobg+stow@zanshin.com>
+
+
+(C) 2000, 2001 Guillaume Morin <gmorin@gnu.org>
+
+
+(C) 2007 Kahlil (Kal) Hodgson <kahlil@internode.on.net>
+
+
+(C) 2011 Adam Spiers <stow@adamspiers.org>
+
+Permission is granted to make and distribute verbatim copies of this
+manual provided the copyright notice and this permission notice are
+preserved on all copies.
+
+
+Permission is granted to copy and distribute modified versions of this
+manual under the conditions for verbatim copying, provided also that the
+section entitled "GNU General Public License" is included with the
+modified manual, and provided that the entire resulting derived work is
+distributed under the terms of a permission notice identical to this
+one.
+
+Permission is granted to copy and distribute translations of this manual
+into another language, under the above conditions for modified versions,
+except that this permission notice may be stated in a translation
+approved by the Free Software Foundation. -->
+<!-- Created by GNU Texinfo 6.5, http://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Top (Stow)</title>
+
+<meta name="description" content="Top (Stow)">
+<meta name="keywords" content="Top (Stow)">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<link href="#Top" rel="start" title="Top">
+<link href="Index.html#Index" rel="index" title="Index">
+<link href="#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="../dir/index.html" rel="up" title="(dir)">
+<link href="Introduction.html#Introduction" rel="next" title="Introduction">
+<style type="text/css">
+<!--
+a.summary-letter {text-decoration: none}
+blockquote.indentedblock {margin-right: 0em}
+blockquote.smallindentedblock {margin-right: 0em; font-size: smaller}
+blockquote.smallquotation {font-size: smaller}
+div.display {margin-left: 3.2em}
+div.example {margin-left: 3.2em}
+div.lisp {margin-left: 3.2em}
+div.smalldisplay {margin-left: 3.2em}
+div.smallexample {margin-left: 3.2em}
+div.smalllisp {margin-left: 3.2em}
+kbd {font-style: oblique}
+pre.display {font-family: inherit}
+pre.format {font-family: inherit}
+pre.menu-comment {font-family: serif}
+pre.menu-preformatted {font-family: serif}
+pre.smalldisplay {font-family: inherit; font-size: smaller}
+pre.smallexample {font-size: smaller}
+pre.smallformat {font-family: inherit; font-size: smaller}
+pre.smalllisp {font-size: smaller}
+span.nolinebreak {white-space: nowrap}
+span.roman {font-family: initial; font-weight: normal}
+span.sansserif {font-family: sans-serif; font-weight: normal}
+ul.no-bullet {list-style: none}
+-->
+</style>
+
+
+</head>
+
+<body lang="en">
+<h1 class="settitle" align="center">Stow</h1>
+
+
+
+
+
+
+<a name="SEC_Contents"></a>
+<h2 class="contents-heading">Table of Contents</h2>
+
+<div class="contents">
+
+<ul class="no-bullet">
+  <li><a name="toc-Introduction-1" href="Introduction.html#Introduction">1 Introduction</a></li>
+  <li><a name="toc-Terminology-1" href="Terminology.html#Terminology">2 Terminology</a></li>
+  <li><a name="toc-Invoking-Stow-1" href="Invoking-Stow.html#Invoking-Stow">3 Invoking Stow</a></li>
+  <li><a name="toc-Ignore-Lists-1" href="Ignore-Lists.html#Ignore-Lists">4 Ignore Lists</a>
+  <ul class="no-bullet">
+    <li><a name="toc-Motivation-For-Ignore-Lists-1" href="Motivation-For-Ignore-Lists.html#Motivation-For-Ignore-Lists">4.1 Motivation For Ignore Lists</a></li>
+    <li><a name="toc-Types-And-Syntax-Of-Ignore-Lists-1" href="Types-And-Syntax-Of-Ignore-Lists.html#Types-And-Syntax-Of-Ignore-Lists">4.2 Types And Syntax Of Ignore Lists</a></li>
+    <li><a name="toc-Justification-For-Yet-Another-Set-Of-Ignore-Files-1" href="Justification-For-Yet-Another-Set-Of-Ignore-Files.html#Justification-For-Yet-Another-Set-Of-Ignore-Files">4.3 Justification For Yet Another Set Of Ignore Files</a></li>
+  </ul></li>
+  <li><a name="toc-Installing-Packages-1" href="Installing-Packages.html#Installing-Packages">5 Installing Packages</a>
+  <ul class="no-bullet">
+    <li><a name="toc-Tree-folding" href="Installing-Packages.html#Tree-folding">5.1 Tree folding</a></li>
+    <li><a name="toc-Tree-unfolding-1" href="Installing-Packages.html#Tree-unfolding-1">5.2 Tree unfolding</a></li>
+    <li><a name="toc-Ownership" href="Installing-Packages.html#Ownership">5.3 Ownership</a></li>
+    <li><a name="toc-Conflicts-during-installation" href="Installing-Packages.html#Conflicts-during-installation">5.4 Conflicts during installation</a></li>
+  </ul></li>
+  <li><a name="toc-Deleting-Packages-1" href="Deleting-Packages.html#Deleting-Packages">6 Deleting Packages</a>
+  <ul class="no-bullet">
+    <li><a name="toc-Refolding-_0060_0060foldable_0027_0027-trees_002e" href="Deleting-Packages.html#Refolding-_0060_0060foldable_0027_0027-trees_002e">6.1 Refolding &ldquo;foldable&rdquo; trees.</a></li>
+  </ul></li>
+  <li><a name="toc-Conflicts-1" href="Conflicts.html#Conflicts">7 Conflicts</a>
+  <ul class="no-bullet">
+    <li><a name="toc-Deferred-Operation-1" href="Conflicts.html#Deferred-Operation-1">7.1 Deferred Operation</a></li>
+  </ul></li>
+  <li><a name="toc-Mixing-Operations-1" href="Mixing-Operations.html#Mixing-Operations">8 Mixing Operations</a></li>
+  <li><a name="toc-Multiple-Stow-Directories-1" href="Multiple-Stow-Directories.html#Multiple-Stow-Directories">9 Multiple Stow Directories</a></li>
+  <li><a name="toc-Target-Maintenance-1" href="Target-Maintenance.html#Target-Maintenance">10 Target Maintenance</a></li>
+  <li><a name="toc-Resource-Files-1" href="Resource-Files.html#Resource-Files">11 Resource Files</a></li>
+  <li><a name="toc-Compile_002dtime-vs-Install_002dtime-1" href="Compile_002dtime-vs-Install_002dtime.html#Compile_002dtime-vs-Install_002dtime">12 Compile-time vs Install-time</a>
+  <ul class="no-bullet">
+    <li><a name="toc-Advice-on-changing-compilation-and-installation-parameters" href="Compile_002dtime-vs-Install_002dtime.html#Advice-on-changing-compilation-and-installation-parameters">12.1 Advice on changing compilation and installation parameters</a></li>
+    <li><a name="toc-GNU-Emacs-1" href="GNU-Emacs.html#GNU-Emacs">12.2 GNU Emacs</a></li>
+    <li><a name="toc-Other-FSF-Software-1" href="Other-FSF-Software.html#Other-FSF-Software">12.3 Other FSF Software</a></li>
+    <li><a name="toc-Cygnus-Software-1" href="Cygnus-Software.html#Cygnus-Software">12.4 Cygnus Software</a></li>
+    <li><a name="toc-Perl-and-Perl-5-Modules-1" href="Perl-and-Perl-5-Modules.html#Perl-and-Perl-5-Modules">12.5 Perl and Perl 5 Modules</a></li>
+  </ul></li>
+  <li><a name="toc-Bootstrapping-1" href="Bootstrapping.html#Bootstrapping">13 Bootstrapping</a></li>
+  <li><a name="toc-Reporting-Bugs-1" href="Reporting-Bugs.html#Reporting-Bugs">14 Reporting Bugs</a></li>
+  <li><a name="toc-Known-Bugs-1" href="Known-Bugs.html#Known-Bugs">15 Known Bugs</a></li>
+  <li><a name="toc-GNU-General-Public-License-1" href="GNU-General-Public-License.html#GNU-General-Public-License">GNU General Public License</a></li>
+  <li><a name="toc-Index-1" href="Index.html#Index">Index</a></li>
+</ul>
+</div>
+
+
+<a name="Top"></a>
+<div class="header">
+<p>
+Next: <a href="Introduction.html#Introduction" accesskey="n" rel="next">Introduction</a>, Up: <a href="../dir/index.html" accesskey="u" rel="up">(dir)</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Index.html#Index" title="Index" rel="index">Index</a>]</p>
+</div>
+<hr>
+<a name="SEC_Top"></a>
+
+<p>This manual describes GNU Stow 2.3.1 (28 July 2019), a
+symlink farm manager which takes distinct sets of software and/or data
+located in separate directories on the filesystem, and makes them
+appear to be installed in a single directory tree.
+</p>
+<table class="menu" border="0" cellspacing="0">
+<tr><td align="left" valign="top">&bull; <a href="Introduction.html#Introduction" accesskey="1">Introduction</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Description of Stow.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Terminology.html#Terminology" accesskey="2">Terminology</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Terms used by this manual.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Invoking-Stow.html#Invoking-Stow" accesskey="3">Invoking Stow</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Option summary.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Ignore-Lists.html#Ignore-Lists" accesskey="4">Ignore Lists</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Controlling what gets stowed.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Installing-Packages.html#Installing-Packages" accesskey="5">Installing Packages</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Using Stow to install.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Deleting-Packages.html#Deleting-Packages" accesskey="6">Deleting Packages</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Using Stow to uninstall.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Conflicts.html#Conflicts" accesskey="7">Conflicts</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">When Stow can&rsquo;t stow.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Mixing-Operations.html#Mixing-Operations" accesskey="8">Mixing Operations</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Multiple actions per invocation.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Multiple-Stow-Directories.html#Multiple-Stow-Directories" accesskey="9">Multiple Stow Directories</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Further segregating software.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Target-Maintenance.html#Target-Maintenance">Target Maintenance</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Cleaning up mistakes.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Resource-Files.html#Resource-Files">Resource Files</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Setting default command line options.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Compile_002dtime-vs-Install_002dtime.html#Compile_002dtime-vs-Install_002dtime">Compile-time vs Install-time</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Faking out &lsquo;make install&rsquo;.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Bootstrapping.html#Bootstrapping">Bootstrapping</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">When stow and perl are not yet stowed.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Reporting-Bugs.html#Reporting-Bugs">Reporting Bugs</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">How, what, where, and when to report.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Known-Bugs.html#Known-Bugs">Known Bugs</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Don&rsquo;t report any of these.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="GNU-General-Public-License.html#GNU-General-Public-License">GNU General Public License</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Copying terms.
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Index.html#Index">Index</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">Index of concepts.
+</td></tr>
+<tr><th colspan="3" align="left" valign="top"><pre class="menu-comment">
+
+</pre></th></tr><tr><th colspan="3" align="left" valign="top"><pre class="menu-comment"> &mdash; The Detailed Node Listing &mdash;
+
+Ignore Lists
+
+</pre></th></tr><tr><td align="left" valign="top">&bull; <a href="Motivation-For-Ignore-Lists.html#Motivation-For-Ignore-Lists">Motivation For Ignore Lists</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Types-And-Syntax-Of-Ignore-Lists.html#Types-And-Syntax-Of-Ignore-Lists">Types And Syntax Of Ignore Lists</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Justification-For-Yet-Another-Set-Of-Ignore-Files.html#Justification-For-Yet-Another-Set-Of-Ignore-Files">Justification For Yet Another Set Of Ignore Files</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><th colspan="3" align="left" valign="top"><pre class="menu-comment">
+
+Advice on changing compilation and installation parameters
+
+</pre></th></tr><tr><td align="left" valign="top">&bull; <a href="GNU-Emacs.html#GNU-Emacs">GNU Emacs</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Other-FSF-Software.html#Other-FSF-Software">Other FSF Software</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Cygnus-Software.html#Cygnus-Software">Cygnus Software</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><td align="left" valign="top">&bull; <a href="Perl-and-Perl-5-Modules.html#Perl-and-Perl-5-Modules">Perl and Perl 5 Modules</a>:</td><td>&nbsp;&nbsp;</td><td align="left" valign="top">
+</td></tr>
+<tr><th colspan="3" align="left" valign="top"><pre class="menu-comment">
+
+</pre></th></tr></table>
+
+<hr>
+<div class="header">
+<p>
+Next: <a href="Introduction.html#Introduction" accesskey="n" rel="next">Introduction</a>, Up: <a href="../dir/index.html" accesskey="u" rel="up">(dir)</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="Index.html#Index" title="Index" rel="index">Index</a>]</p>
+</div>
+
+
+
+</body>
+</html>
