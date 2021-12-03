@@ -1,0 +1,34 @@
+---
+abstract: 'manage farms of symbolic links'
+author:
+  - unknown
+build_requires:
+  IO::Scalar: '0'
+  Test::More: '0'
+  Test::Output: '0'
+configure_requires:
+  Module::Build: '0'
+dynamic_config: 1
+generated_by: 'Module::Build version 0.4224, CPAN::Meta::Converter version 2.150010'
+license: gpl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: '1.4'
+name: Stow
+provides:
+  Stow:
+    file: lib/Stow.pm
+    version: v2.3.1
+  Stow::Util:
+    file: lib/Stow/Util.pm
+    version: v2.3.1
+requires:
+  Carp: '0'
+  IO::File: '0'
+  perl: '5.006'
+resources:
+  homepage: https://savannah.gnu.org/projects/stow
+  license: http://www.gnu.org/licenses/gpl-2.0.html
+  repository: git://git.savannah.gnu.org/stow.git
+version: v2.3.1
+x_serialization_backend: 'CPAN::Meta::YAML version 0.018'
