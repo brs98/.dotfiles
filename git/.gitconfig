@@ -1,7 +1,0 @@
-[user]
-	name = brs98
-	email = southwick.brandon21gmail.com
-[pull]
-	rebase = false
-[init]
-	defaultBranch = main

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-STOW_FOLDERS=("vim" "tmux" "git")
+STOW_FOLDERS=("vim" "tmux")
 pushd $HOME/.dotfiles
 echo "Stowing..."
 for folder in ${STOW_FOLDERS[@]}; do
     echo $folder
-    stow -D $folder
-    stow $folder
+    stow --adopt $folder
 done
