@@ -1,0 +1,4 @@
+Add install for neovim
+Add PlugInstall to bash script so vim plugins are installed
+Add branches for different types of machines (mac, linux)
+For Mac, add iTerm2 and Rectangle configs
