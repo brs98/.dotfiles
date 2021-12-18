@@ -30,6 +30,9 @@ vmap <leader>cc <plug>NERDCommenterToggle
 nmap <leader>cc <plug>NERDCommenterToggle
 
 "Telescope mappings
+"Fuzzy find only custom vimrc files - TODO: create custom lua module and
+"create functions there so vimrc stuff looks cleaner
+nnoremap <leader>vc <cmd>lua require("telescope.builtin").find_files({hidden=true, cwd="~/.dotfiles/vim/.vim/custom/", prompt_title="<VimRC>"})<cr>
 nnoremap <leader>ff <cmd>Telescope find_files<cr>
 nnoremap <leader>fg <cmd>Telescope live_grep<cr>
 nnoremap <leader>fb <cmd>Telescope buffers<cr>

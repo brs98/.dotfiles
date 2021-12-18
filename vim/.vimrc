@@ -1,10 +1,10 @@
 syntax on
 
 " This script contains my mappings
-source ~/.vim/mappings.vim
+source ~/.vim/custom/mappings.vim
 
 " This script contains my plugin settings and mappings
-source ~/.vim/plugins.vim
+source ~/.vim/custom/plugins.vim
 
 " This script contains my sets
-source ~/.vim/sets.vim
+source ~/.vim/custom/sets.vim

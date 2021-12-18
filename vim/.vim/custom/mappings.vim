@@ -6,9 +6,6 @@ let mapleader=" "
 inoremap jj <ESC>
 vnoremap jk <ESC>
 
-"Open vimrc in vertical split
-nnoremap <leader>vc :vsplit ~/.vimrc<CR>
-
 "Toogle NerdTree
 nmap mm :NERDTreeToggle<CR>
 
