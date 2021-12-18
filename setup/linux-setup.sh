@@ -21,8 +21,7 @@ install_neovim () {
 
 if ! [ -x "$(command -v nvim)" ]; then
   echo 'Intalling neovim...' >&2
-  install_neovim()
-  exit 1
+  install_neovim
 else
   echo 'nvim is already installed'
 fi
