@@ -74,5 +74,8 @@ keymap("n", "<leader>fg", "<cmd>Telescope live_grep<cr>", opts)
 keymap("n", "<leader>fb", "<cmd>Telescope buffers<cr>", opts)
 keymap("n", "<leader>fh", "<cmd>Telescope help_tags<cr>", opts)
 
---- Nvim-Tree
+-- Nvim-Tree
 keymap("n", "<leader>a", ":NvimTreeToggle<cr>", opts)
+
+-- Formatting
+keymap("n", "<leader>fm", ":lua vim.lsp.buf.formatting_sync()<cr> 1<cr>", opts)

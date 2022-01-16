@@ -54,6 +54,9 @@ return packer.startup(function(use)
    use 'hrsh7th/nvim-cmp'
    use 'hrsh7th/cmp-nvim-lsp'
 
+   use "williamboman/nvim-lsp-installer" -- simple to use language server installer
+   use "jose-elias-alvarez/null-ls.nvim" -- for formatters and linters
+
    use 'saadparwaiz1/cmp_luasnip' -- Snippets source for nvim-cmp
    use 'L3MON4D3/LuaSnip' -- Snippets plugin
    use 'windwp/nvim-autopairs' -- Autopairs (), {}, etc.
@@ -70,6 +73,10 @@ return packer.startup(function(use)
      "nvim-treesitter/nvim-treesitter",
       run = ":TSUpdate",
    }
+
+   -- ToggleTerm
+   use {"akinsho/toggleterm.nvim"}
+
   -- Automatically set up your configuration after cloning packer.nvim
   -- Put this at the end after all plugins
   if PACKER_BOOTSTRAP then
