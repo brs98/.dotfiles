@@ -48,6 +48,8 @@ return packer.startup(function(use)
   use "ellisonleao/gruvbox.nvim" -- Colorscheme
   use "kyazdani42/nvim-web-devicons"
   use "kyazdani42/nvim-tree.lua"
+  use "akinsho/bufferline.nvim"
+  use "moll/vim-bbye"
 
    -- Neovim Lsp
    use 'neovim/nvim-lspconfig'
@@ -76,6 +78,11 @@ return packer.startup(function(use)
 
    -- ToggleTerm
    use {"akinsho/toggleterm.nvim"}
+
+   use {
+     'nvim-lualine/lualine.nvim',
+     requires = { 'kyazdani42/nvim-web-devicons', opt = true }
+   }
 
   -- Automatically set up your configuration after cloning packer.nvim
   -- Put this at the end after all plugins

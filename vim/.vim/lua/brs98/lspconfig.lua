@@ -1,5 +1,5 @@
 local nvim_lsp = require('lspconfig') -- require builtin lspconfig file
-local servers = { 'tsserver', 'pyright' }
+local servers = { 'tsserver', 'pyright', 'angularls' }
 local on_attach = function(client, bufnr)
   local function buf_set_keymap(...) vim.api.nvim_buf_set_keymap(bufnr, ...) end
   local function buf_set_option(...) vim.api.nvim_buf_set_option(bufnr, ...) end

@@ -32,6 +32,11 @@ keymap("n", "<C-Down>", ":resize 2<CR>", opts)
 keymap("n", "<C-Left>", ":vertical resize -2<CR>", opts)
 keymap("n", "<C-Right>", ":vertical resize +2<CR>", opts)
 
+-- Navigate buffers
+keymap("n", "<S-l>", ":bnext<CR>", opts)
+keymap("n", "<S-h>", ":bprevious<CR>", opts)
+keymap("n", "<leader>d", ":Bdelete!<CR>", opts)
+
 -- Keep jumps centered
 keymap("n", "n", "nzzzv", opts)
 keymap("n", "N", "Nzzzv", opts)
@@ -69,6 +74,7 @@ keymap("x", "<leader>k", ":move '<-2<CR>gv-gv", opts)
 -- Telescope
 keymap("n", "<leader>vc", "<cmd>lua require('telescope.builtin').find_files({hidden=true, cwd='~/.dotfiles/vim/.vim/custom/', prompt_title='<VimRC>'})<cr>", opts)
 keymap("n", "<leader>lu", "<cmd>lua require('telescope.builtin').find_files({hidden=true, cwd='~/.dotfiles/vim/.vim/lua/', prompt_title='<Lua Files>'})<cr>", opts)
+keymap("n", "<leader>byu", "<cmd>lua require('telescope.builtin').find_files({hidden=true, cwd='~/BYU/winter2022/', prompt_title='<BYU>'})<cr>", opts)
 keymap("n", "<leader>ff", "<cmd>Telescope find_files<cr>", opts)
 keymap("n", "<leader>fg", "<cmd>Telescope live_grep<cr>", opts)
 keymap("n", "<leader>fb", "<cmd>Telescope buffers<cr>", opts)
