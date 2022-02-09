@@ -1,19 +1,9 @@
 #!/usr/bin/env bash
 
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then # Linux
-  source "./setup/linux-setup.sh"
-
-elif [[ "$OSTYPE" == "darwin"* ]]; then # Mac
-  source "./setup/mac-setup.sh"
-
-else
-  echo "OSTYPE is neither linux or mac"
-fi
-
-#STOW_FOLDERS=("vim" "nvim" "tmux")
-#pushd $HOME/.dotfiles
-#echo "Stowing..."
-#for folder in ${STOW_FOLDERS[@]}; do
-    #echo $folder
-    #stow --adopt $folder
-#done
+STOW_FOLDERS=("vim" "nvim" "tmux")
+pushd $HOME/.dotfiles
+echo "Stowing..."
+for folder in ${STOW_FOLDERS[@]}; do
+    echo $folder
+    stow --adopt $folder
+done

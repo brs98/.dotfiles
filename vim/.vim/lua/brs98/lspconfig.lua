@@ -1,5 +1,5 @@
 local nvim_lsp = require('lspconfig') -- require builtin lspconfig file
-local servers = { 'tsserver', 'pyright', 'angularls', 'cssls', 'sumneko_lua'}
+local servers = {'pyright', 'angularls', 'cssls', 'sumneko_lua'}
 
   -- Add additional capabilities supported by nvim-cmp
   local capabilities = vim.lsp.protocol.make_client_capabilities()
