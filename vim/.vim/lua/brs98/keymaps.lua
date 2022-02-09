@@ -66,8 +66,8 @@ keymap("v", "p", '"_dP', opts)
 
 -- Visual Block --
 -- Move text up and down
-keymap("x", "J", ":move '>+1<CR>gv-gv", opts)
-keymap("x", "K", ":move '<-2<CR>gv-gv", opts)
+keymap("x", "<C-j>", ":move '>+1<CR>gv-gv", opts)
+keymap("x", "<C-k>", ":move '<-2<CR>gv-gv", opts)
 keymap("x", "<leader>j", ":move '>+1<CR>gv-gv", opts)
 keymap("x", "<leader>k", ":move '<-2<CR>gv-gv", opts)
 
@@ -82,6 +82,7 @@ keymap("n", "<leader>fh", "<cmd>Telescope help_tags<cr>", opts)
 
 -- Nvim-Tree
 keymap("n", "<leader>a", ":NvimTreeToggle<cr>", opts)
+keymap("n", "<leader>r", ":NvimTreeRefresh<cr>", opts)
 
 -- Formatting
 keymap("n", "<leader>fm", ":lua vim.lsp.buf.formatting_sync()<cr> 1<cr>", opts)

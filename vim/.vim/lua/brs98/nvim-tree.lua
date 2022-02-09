@@ -29,7 +29,7 @@ nvim_tree.setup {
   auto_close = true,
   open_on_tab = false,
   hijack_cursor = false,
-  update_cwd = true,
+  update_cwd = false,
   update_to_buf_dir = {
     enable = true,
     auto_open = true,
@@ -44,8 +44,8 @@ nvim_tree.setup {
     },
   },
   update_focused_file = {
-    enable = true,
-    update_cwd = true,
+    enable = false,
+    update_cwd = false,
     ignore_list = {},
   },
   git = {
@@ -54,8 +54,8 @@ nvim_tree.setup {
     timeout = 500,
   },
   view = {
-    width = 30,
-    height = 30,
+    width = 45,
+    height = 45,
     hide_root_folder = false,
     side = "left",
     auto_resize = true,
@@ -68,7 +68,7 @@ nvim_tree.setup {
       },
     },
     number = false,
-    relativenumber = false,
+    relativenumber = true,
   },
   quit_on_open = 0,
   git_hl = 1,

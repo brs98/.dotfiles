@@ -1,5 +1,5 @@
--- function set_background(content)
---   osascript -e 'tell application "Finder" to set desktop picture to POSIX file "/Users/Brandon/Pictures/background-images/\"' .. content ..'\""'
--- end
---
--- set_background("zelda.jpeg")
+require('telescope').setup{
+  defaults = {
+    file_ignore_patterns = {"node_modules", ".git", ".DS_Store", ".idea", ".vscode"}
+  }
+}

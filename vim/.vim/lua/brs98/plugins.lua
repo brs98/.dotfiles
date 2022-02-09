@@ -53,14 +53,21 @@ return packer.startup(function(use)
 
    -- Neovim Lsp
    use 'neovim/nvim-lspconfig'
-   use 'hrsh7th/nvim-cmp'
-   use 'hrsh7th/cmp-nvim-lsp'
 
+   -- cmp plugins
+   use "hrsh7th/nvim-cmp" -- The completion plugin
+   use "hrsh7th/cmp-buffer" -- buffer completions
+   use "hrsh7th/cmp-path" -- path completions
+   use "hrsh7th/cmp-cmdline" -- cmdline completions
+   use "hrsh7th/cmp-nvim-lsp"
    use "williamboman/nvim-lsp-installer" -- simple to use language server installer
    use "jose-elias-alvarez/null-ls.nvim" -- for formatters and linters
 
-   use 'saadparwaiz1/cmp_luasnip' -- Snippets source for nvim-cmp
+   -- snippets
    use 'L3MON4D3/LuaSnip' -- Snippets plugin
+   use "saadparwaiz1/cmp_luasnip" -- snippet completions
+   use "rafamadriz/friendly-snippets" -- a bunch of snippets to use
+
    use 'windwp/nvim-autopairs' -- Autopairs (), {}, etc.
 
    -- Make comments easier
@@ -73,6 +80,7 @@ return packer.startup(function(use)
    -- Tree Sitter
    use {
      "nvim-treesitter/nvim-treesitter",
+      commit = '668de0951a36ef17016074f1120b6aacbe6c4515',
       run = ":TSUpdate",
    }
 
