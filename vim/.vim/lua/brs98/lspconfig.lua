@@ -1,14 +1,21 @@
 local nvim_lsp = require('lspconfig') -- require builtin lspconfig file
-local servers = {'pyright', 'angularls', 'cssls', 'sumneko_lua'}
+local servers = {'tsserver', 'pyright', 'cssls', 'angularls', 'sumneko_lua', 'html'}
 
-  -- Add additional capabilities supported by nvim-cmp
-  local capabilities = vim.lsp.protocol.make_client_capabilities()
-  capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
-  capabilities.textDocument.completion.completionItem.snippetSupport = true
+-- Add additional capabilities supported by nvim-cmp
+local capabilities = vim.lsp.protocol.make_client_capabilities()
+capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
+capabilities.textDocument.completion.completionItem.snippetSupport = true
+
+local on_attach_disable_formatting = function(client)
+  if client.name == 'tsserver' then
+    client.resolved_capabilities.document_formatting = false
+    client.resolved_capabilities.document_range_formatting = false
+  end
+end
 
 for _, lsp in ipairs(servers) do
   nvim_lsp[lsp].setup {
-    -- on_attach = on_attach,
+    on_attach = on_attach_disable_formatting,
     capabilities = capabilities,
     flags = {
       debounce_text_changes = 150,
