@@ -1,5 +1,5 @@
 local nvim_lsp = require('lspconfig') -- require builtin lspconfig file
-local servers = {'tsserver', 'pyright', 'cssls', 'angularls', 'sumneko_lua', 'html'}
+local servers = {'tsserver', 'pyright', 'cssls', 'sumneko_lua', 'html'}
 
 -- Add additional capabilities supported by nvim-cmp
 local capabilities = vim.lsp.protocol.make_client_capabilities()
@@ -7,10 +7,8 @@ capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
 capabilities.textDocument.completion.completionItem.snippetSupport = true
 
 local on_attach_disable_formatting = function(client)
-  if client.name == 'tsserver' then
-    client.resolved_capabilities.document_formatting = false
-    client.resolved_capabilities.document_range_formatting = false
-  end
+  client.resolved_capabilities.document_formatting = false
+  client.resolved_capabilities.document_range_formatting = false
 end
 
 for _, lsp in ipairs(servers) do
