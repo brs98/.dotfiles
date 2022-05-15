@@ -90,3 +90,7 @@ keymap("n", "<leader>r", ":NvimTreeRefresh<cr>", opts)
 
 -- Formatting
 keymap("n", "<leader>fm", ":lua vim.lsp.buf.formatting_sync()<cr> 1<cr>", opts)
+
+-- Github Copilot
+-- vim.g.copilot_no_tab_map = true;
+-- vim.api.nvim_set_keymap("i", "<C-i>", 'copilot#Accept("<CR>")', { silent = true, expr = true })
