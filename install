@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-STOW_FOLDERS=("nvim" "tmux" "fish")
+STOW_FOLDERS=("nvim" "tmux" "fish" "bin")
 pushd $HOME/.dotfiles
 echo "Stowing..."
 for folder in ${STOW_FOLDERS[@]}; do
