@@ -45,6 +45,3 @@ vim.keymap.set("v", "p", '"_dP"', default_opts)
 vim.keymap.set("v", "<C-j>", ":move '>+1<CR>gv-gv", default_opts)
 vim.keymap.set("v", "<C-k>", ":move '<-2<CR>gv-gv", default_opts)
 vim.keymap.set("v", "s", "^", default_opts)
-
--- lsp
-vim.keymap.set("n", "<leader>xo", vim.diagnostic.open_float, { silent = true, noremap = true, desc = "Open float" })
