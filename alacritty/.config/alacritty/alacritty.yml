@@ -1,0 +1,31 @@
+env:
+  TERM: xterm-256color
+
+import:
+  - ~/.config/alacritty/catppuccin/catppuccin-mocha.yml
+
+window:
+  decorations: "none"
+  opacity: 0.8
+
+  padding:
+    x: 6
+    y: 6
+
+font:
+  size: 16.0
+  normal:
+    family: Hack Nerd Font
+    style: Regular
+  bold:
+    family: Hack Nerd Font
+    style: Bold
+  italic:
+    family: Hack Nerd Font
+    style: Italic
+  bold_italic:
+    family: Hack Nerd Font
+    style: Bold Italic
+
+key_bindings:
+  - { key: J, mods: Command, chars: "\x02" }
