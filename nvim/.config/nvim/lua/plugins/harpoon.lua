@@ -1,7 +1,6 @@
 return {
   {
-    {
-      "ThePrimeagen/harpoon",
+    "ThePrimeagen/harpoon",
     --stylua: ignore
     keys = {
       { "<leader>ha", function() require("harpoon.mark").add_file() end, desc = "Add File" },
@@ -11,19 +10,10 @@ return {
       { "<leader>3", function() require("harpoon.ui").nav_file(3) end, desc = "File 3" },
       { "<leader>4", function() require("harpoon.ui").nav_file(4) end, desc = "File 4" },
     },
-      opts = {
-        global_settings = {
-          save_on_toggle = true,
-          enter_on_sendcmd = true,
-        },
-      },
-    },
-  },
-  {
-    "nvim-neo-tree/neo-tree.nvim",
     opts = {
-      window = {
-        position = "right",
+      global_settings = {
+        save_on_toggle = true,
+        enter_on_sendcmd = true,
       },
     },
   },

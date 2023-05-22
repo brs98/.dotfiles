@@ -24,5 +24,14 @@ return {
       noremap = true,
       desc = "Grep (root dir)",
     },
+    {
+      "<leader>fh",
+      function()
+        require("telescope.builtin").find_files({ cwd = false, hidden = true })
+      end,
+      silent = true,
+      noremap = true,
+      desc = "Find files (include hidden)",
+    },
   },
 }
