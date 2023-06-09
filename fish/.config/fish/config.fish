@@ -2,6 +2,7 @@ alias v="nvim"
 alias vim="nvim"
 alias sd='cd $(fd . ~/ -E ~/opt/ -t d | fzf)'
 alias ts='tmux-sessionizer'
+alias lg='lazygit'
 
 nvm use default --silent
 
