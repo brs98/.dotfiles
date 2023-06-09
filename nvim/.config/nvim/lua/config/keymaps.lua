@@ -33,10 +33,6 @@ vim.keymap.set("n", "n", "nzzzv", default_opts)
 vim.keymap.set("n", "N", "Nzzzv", default_opts)
 vim.keymap.set("n", "J", "mzJ`z", default_opts)
 vim.keymap.set("n", "s", "^", default_opts)
-vim.keymap.set("n", "<C-h>", "<cmd> TmuxNavigateLeft<CR>", default_opts)
-vim.keymap.set("n", "<C-j>", "<cmd> TmuxNavigateDown<CR>", default_opts)
-vim.keymap.set("n", "<C-k>", "<cmd> TmuxNavigateUp<CR>", default_opts)
-vim.keymap.set("n", "<C-l>", "<cmd> TmuxNavigateRight<CR>", default_opts)
 vim.keymap.set("n", "dD", '"_dd', default_opts)
 
 -- visual mode
