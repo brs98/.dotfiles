@@ -1,5 +1,7 @@
 alias v="nvim"
 alias vim="nvim"
+alias sd='cd $(fd . ~/ -E ~/opt/ -t d | fzf)'
+alias ts='tmux-sessionizer'
 
 nvm use default --silent
 
@@ -17,3 +19,6 @@ set --export PATH $BUN_INSTALL/bin $PATH
 set -gx PNPM_HOME "/Users/Brandon/Library/pnpm"
 set -gx PATH "$PNPM_HOME" $PATH
 # pnpm end
+
+# local scripts
+set --export PATH ~/.local/scripts/ $PATH
