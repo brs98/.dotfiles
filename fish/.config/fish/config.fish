@@ -1,6 +1,6 @@
 alias v="nvim"
 alias vim="nvim"
-alias sd='cd $(fd . ~/ -E ~/opt/ -t d | fzf)'
+alias ff='find_directories'
 alias ts='tmux-sessionizer'
 alias lg='lazygit'
 alias fdf='find_dotfiles'
