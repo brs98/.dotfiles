@@ -3,6 +3,8 @@ alias vim="nvim"
 alias sd='cd $(fd . ~/ -E ~/opt/ -t d | fzf)'
 alias ts='tmux-sessionizer'
 alias lg='lazygit'
+alias fdf='find_dotfiles'
+
 
 nvm use default --silent
 
@@ -23,3 +25,6 @@ set -gx PATH "$PNPM_HOME" $PATH
 
 # local scripts
 set --export PATH ~/.local/scripts/ $PATH
+
+# The next line updates PATH for the Google Cloud SDK.
+if [ -f '/Users/Brandon/Downloads/google-cloud-sdk/path.fish.inc' ]; . '/Users/Brandon/Downloads/google-cloud-sdk/path.fish.inc'; end

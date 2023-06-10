@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+nvim $(fd -H -E **/.git . ~/.dotfiles/ -t f | fzf)
