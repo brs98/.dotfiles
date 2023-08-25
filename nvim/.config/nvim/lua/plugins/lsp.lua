@@ -21,7 +21,7 @@ return {
       opts.sources = cmp.config.sources({
         { name = "nvim_lsp" },
         -- { name = "luasnip" }, // remove luasnip
-        { name = "buffer" },
+        -- { name = "buffer" },
         { name = "path" },
       })
     end,

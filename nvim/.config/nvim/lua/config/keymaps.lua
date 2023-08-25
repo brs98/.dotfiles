@@ -34,6 +34,7 @@ vim.keymap.set("n", "N", "Nzzzv", default_opts)
 vim.keymap.set("n", "J", "mzJ`z", default_opts)
 vim.keymap.set("n", "s", "^", default_opts)
 vim.keymap.set("n", "dD", '"_dd', default_opts)
+vim.keymap.set("n", "<leader>rl", ":LspRestart<cr>", default_opts)
 
 -- visual mode
 vim.keymap.set("v", "<leader>j", ":m .+1<CR>==", { silent = true, noremap = true, desc = "Move selection down" })
