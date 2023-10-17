@@ -10,7 +10,9 @@ nvm use default --silent
 
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
-eval /Users/Brandon/opt/anaconda3/bin/conda "shell.fish" "hook" $argv | source
+if test -f /Users/Brandon/miniconda3/bin/conda
+    eval /Users/Brandon/miniconda3/bin/conda "shell.fish" "hook" $argv | source
+end
 # <<< conda initialize <<<
 
 
