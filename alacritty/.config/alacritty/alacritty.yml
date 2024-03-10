@@ -4,6 +4,9 @@ env:
 import:
   - ~/.config/alacritty/catppuccin/catppuccin-mocha.yml
 
+shell:
+  program: /opt/homebrew/bin/fish
+
 window:
   decorations: "none"
   opacity: 0.8

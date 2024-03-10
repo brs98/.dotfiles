@@ -35,6 +35,12 @@ vim.keymap.set("n", "J", "mzJ`z", default_opts)
 vim.keymap.set("n", "s", "^", default_opts)
 vim.keymap.set("n", "dD", '"_dd', default_opts)
 vim.keymap.set("n", "<leader>rl", ":LspRestart<cr>", default_opts)
+vim.keymap.set(
+  "n",
+  "<leader>fp",
+  ':let @+ = expand("%")<cr>',
+  { silent = true, noremap = true, desc = "Copy file path to clipboard" }
+)
 
 -- visual mode
 vim.keymap.set("v", "<leader>j", ":m .+1<CR>==", { silent = true, noremap = true, desc = "Move selection down" })
