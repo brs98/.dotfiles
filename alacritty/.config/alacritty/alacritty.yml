@@ -33,4 +33,5 @@ font:
 key_bindings:
   - { key: K, mods: Command, chars: "\x02\x0c" }
   - { key: J, mods: Command, chars: "\x02" }
+  - { key: T, mods: Command, chars: "\x02" }
   - { key: S, mods: Command, chars: "\x13" }
