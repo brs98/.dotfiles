@@ -105,6 +105,11 @@
     };
   };
 
+  # gh configuration
+  programs.gh = {
+    enable = true;
+  };
+
   # Tmux configuration
   programs.tmux = {
     enable = true;
