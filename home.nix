@@ -224,12 +224,29 @@
       };
       keyboard = {
         bindings = [
-          { key = "K"; mods = "Command"; chars = "\x02\x0c"; }
-          { key = "J"; mods = "Command"; chars = "\x02"; }
-          { key = "T"; mods = "Command"; chars = "\x02"; }
-          { key = "S"; mods = "Command"; chars = "\x13"; }
+          { key = "K"; mods = "Command"; chars = "\u02\u0c"; }
+          { key = "J"; mods = "Command"; chars = "\u02"; }
+          { key = "T"; mods = "Command"; chars = "\u02"; }
+          { key = "S"; mods = "Command"; chars = "\u13"; }
         ];
       };
+    };
+  };
+
+  # Kitty configuration
+  programs.kitty = {
+    enable = true;
+    font = {
+      name = "Hack Nerd Font";
+      size = 16.0;
+    };
+    keybindings = {
+      "cmd+t" = "send_key all ctrl+b";
+      "cmd+j" = "send_key all ctrl+b";
+    };
+    settings = {
+      background_opacity = "0.8";
+      hide_window_decorations = "yes";
     };
   };
 
