@@ -86,6 +86,9 @@
       p = "push";
     };
     extraConfig = {
+      credential = {
+        helper = "osxkeychain";
+      };
       core = {
         editor = "nvim";
         ignorecase = false;
