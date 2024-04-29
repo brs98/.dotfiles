@@ -181,58 +181,6 @@
     '';
   };
 
-  # Alacritty configuration
-  # TODO: This isn't working yet. Still using old yaml config
-  programs.alacritty = {
-    enable = true;
-    settings = {
-      env = {
-        TERM = "xterm-256color";
-      };
-      import = [
-        "~/.config/alacritty/catppuccin/catppuccin-mocha.toml"
-      ];
-      shell = {
-        program = "${pkgs.fish}/bin/fish";
-      };
-      window = {
-        decorations = "none";
-        opacity = 0.8;
-        padding = {
-          x = 6;
-          y = 6;
-        };
-      };
-      font = {
-        size = 16.0;
-        normal = {
-          family = "Hack Nerd Font";
-          style = "Regular";
-        };
-        bold = {
-          family = "Hack Nerd Font";
-          style = "Bold";
-        };
-        italic = {
-          family = "Hack Nerd Font";
-          style = "Italic";
-        };
-        bold_italic = {
-          family = "Hack Nerd Font";
-          style = "Bold Italic";
-        };
-      };
-      keyboard = {
-        bindings = [
-          { key = "K"; mods = "Command"; chars = "\u02\u0c"; }
-          { key = "J"; mods = "Command"; chars = "\u02"; }
-          { key = "T"; mods = "Command"; chars = "\u02"; }
-          { key = "S"; mods = "Command"; chars = "\u13"; }
-        ];
-      };
-    };
-  };
-
   # Kitty configuration
   programs.kitty = {
     enable = true;
@@ -243,6 +191,7 @@
     keybindings = {
       "cmd+t" = "send_key all ctrl+b";
       "cmd+j" = "send_key all ctrl+b";
+      "cmd+s" = "send_key all ctrl+s";
     };
     settings = {
       background_opacity = "0.8";
