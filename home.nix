@@ -113,6 +113,11 @@
     enable = true;
   };
 
+  # lazygit configuration
+  programs.lazygit = {
+    enable = true;
+  };
+
   # Tmux configuration
   programs.tmux = {
     enable = true;
