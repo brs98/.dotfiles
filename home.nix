@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
 
 {
   home.username = "brandonsouthwick";
@@ -193,6 +193,7 @@
       "cmd+j" = "send_key all ctrl+b";
       "cmd+s" = "send_key all ctrl+s";
     };
+    theme = "Catppuccin-Mocha";
     settings = {
       background_opacity = "0.8";
       hide_window_decorations = "yes";
