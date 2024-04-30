@@ -201,7 +201,7 @@
   };
 
   xdg.configFile.nvim = {
-    source = ~/.config/nvim;
+    source = ~/.dotfiles/nvim/.config/nvim;
     recursive = true;
     enable = false;
   };
