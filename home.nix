@@ -10,6 +10,7 @@
     pkgs.neovim
     pkgs.nodejs_20
     (pkgs.nerdfonts.override { fonts = [ "Hack" ]; })
+    pkgs.rustup
 
     # # It is sometimes useful to fine-tune packages, for example, by applying
     # # overrides. You can do that directly here, just don't forget the
@@ -162,8 +163,7 @@
   programs.fish = {
     enable = true;
     shellAliases = {
-      v = "NVIM_APPNAME=\"nvim-kickstart\" nvim";
-      v-old = "nvim";
+      v = "nvim";
       vim = "nvim";
       ff = "find_directories";
       ts = "tmux-sessionizer";
@@ -192,6 +192,7 @@
       "cmd+t" = "send_key all ctrl+b";
       "cmd+j" = "send_key all ctrl+b";
       "cmd+s" = "send_key all ctrl+s";
+      "cmd+k" = "send_key all ctrl+b ctrl+l";
     };
     theme = "Catppuccin-Mocha";
     settings = {
@@ -200,9 +201,24 @@
     };
   };
 
+  programs.fzf = {
+    enable = true;
+    enableFishIntegration = true;
+  };
+
+  programs.bat = {
+    enable = true;
+    themes = {
+      catppuccin = {
+        src = ~/.dotfiles/bat/themes/catppuccin.tmTheme;
+        file = "catppuccin.tmTheme";
+      };
+    };
+  };
+
   xdg.configFile.nvim = {
-    source = ~/.dotfiles/nvim/.config/nvim;
+    source = ~/.dotfiles/nvim;
     recursive = true;
-    enable = false;
+    enable = true;
   };
 }
