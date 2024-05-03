@@ -66,152 +66,145 @@
     "/opt/homebrew/bin/"
   ];
 
-  # Let Home Manager install and manage itself.
-  programs.home-manager = {
-    enable = true;
-  };
-
-  # Git configuration
-  programs.git = {
-    enable = true;
-    userName = "brs98";
-    userEmail = "southwick.brandon21@gmail.com";
-    aliases = {
-      co = "checkout";
-      br = "branch";
-      st = "status";
-      f = "fetch";
-      a = "add";
-      c = "commit";
-      cm = "commit -m";
-      p = "push";
-    };
-    extraConfig = {
-      credential = {
-        helper = "osxkeychain";
+  programs = {
+    home-manager.enable = true;
+    # Git configuration
+    git = {
+      enable = true;
+      userName = "brs98";
+      userEmail = "southwick.brandon21@gmail.com";
+      aliases = {
+        co = "checkout";
+        br = "branch";
+        st = "status";
+        f = "fetch";
+        a = "add";
+        c = "commit";
+        cm = "commit -m";
+        p = "push";
       };
-      core = {
-        editor = "nvim";
-        ignorecase = false;
-      };
-      pull = {
-        rebase = true;
-      };
-      push = {
-        autoSetupRemote = true;
-      };
-      init = {
-        defaultBranch = "main";
-      };
-      rebase = {
-        updateRefs = true;
+      extraConfig = {
+        credential = {
+          helper = "osxkeychain";
+        };
+        core = {
+          editor = "nvim";
+          ignorecase = false;
+        };
+        pull = {
+          rebase = true;
+        };
+        push = {
+          autoSetupRemote = true;
+        };
+        init = {
+          defaultBranch = "main";
+        };
+        rebase = {
+          updateRefs = true;
+        };
       };
     };
-  };
-
-  # gh configuration
-  programs.gh = {
-    enable = true;
-  };
-
-  # lazygit configuration
-  programs.lazygit = {
-    enable = true;
-  };
-
-  # Tmux configuration
-  programs.tmux = {
-    enable = true;
-    escapeTime = 0;
-    mouse = true;
-    keyMode = "vi";
-    shell = "${pkgs.fish}/bin/fish";
-    terminal = "screen-256color";
-    baseIndex = 1;
-    sensibleOnTop = true;
-    plugins = with pkgs;
-      [
-        tmuxPlugins.better-mouse-mode
-        tmuxPlugins.catppuccin
-        tmuxPlugins.vim-tmux-navigator
-      ];
-    extraConfig = ''
-      set-option -ga terminal-overrides ',*-256color*:RGB'
-      set-option -g renumber-windows on
-      bind-key -T copy-mode-vi v send-keys -X begin-selection
-      bind-key -T copy-mode-vi C-v send-keys -X rectangle-toggle
-      bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel
-      bind-key - split-window -v
-      bind-key | split-window -h
-      bind h split-window -v -c "#{pane_current_path}"
-      bind v split-window -h -c "#{pane_current_path}"
-      unbind-key -T copy-mode-vi v
-      bind-key -T copy-mode-vi v send-keys -X begin-selection
-      bind-key -T copy-mode-vi 'C-v' send-keys -X rectangle-toggle
-      bind-key -T copy-mode-vi y send-keys -X copy-pipe "pbcopy"
-      bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
-      bind-key -T copy-mode-vi Escape send-keys -X cancel
-      bind C-l send-keys 'C-l'
-      bind-key -r f run-shell "tmux neww ~/.local/scripts/tmux-sessionizer"
-      bind-key -r W run-shell "~/.local/scripts/tmux-sessionizer ~/remi/roofworx-monorepo"
-      bind-key -r D run-shell "~/.local/scripts/tmux-sessionizer ~/.dotfiles"
-      run '~/.tmux/plugins/tpm/tpm'
-    '';
-  };
-
-  # Fish configuration
-  programs.fish = {
-    enable = true;
-    shellAliases = {
-      v = "nvim";
-      vim = "nvim";
-      ff = "find_directories";
-      ts = "tmux-sessionizer";
-      lg = "lazygit";
-      fdf = "find_dotfiles";
-      gt-done = "gh pr create --base (git branch | sed 's/^\* //' | fzf --ansi | sed 's/^ *//')";
-      sync-dotfiles = "home-manager -f ~/.dotfiles/home.nix switch";
-      home = "v ~/.dotfiles/home.nix";
+    # gh configuration
+    gh = {
+      enable = true;
     };
-    shellInit = ''
-      set -gx PNPM_HOME /Users/brandonsouthwick/Library/pnpm
-      if not string match -q -- $PNPM_HOME $PATH
-          set -gx PATH "$PNPM_HOME" $PATH
-      end
-    '';
-  };
-
-  # Kitty configuration
-  programs.kitty = {
-    enable = true;
-    font = {
-      name = "Hack Nerd Font";
-      size = 16.0;
+    # lazygit configuration
+    lazygit = {
+      enable = true;
     };
-    keybindings = {
-      "cmd+t" = "send_key all ctrl+b";
-      "cmd+j" = "send_key all ctrl+b";
-      "cmd+s" = "send_key all ctrl+s";
-      "cmd+k" = "send_key all ctrl+b ctrl+l";
+    # Tmux configuration
+    tmux = {
+      enable = true;
+      escapeTime = 0;
+      mouse = true;
+      keyMode = "vi";
+      shell = "${pkgs.fish}/bin/fish";
+      terminal = "screen-256color";
+      baseIndex = 1;
+      sensibleOnTop = true;
+      plugins = with pkgs;
+        [
+          tmuxPlugins.better-mouse-mode
+          tmuxPlugins.catppuccin
+          tmuxPlugins.vim-tmux-navigator
+        ];
+      extraConfig = ''
+        set-option -ga terminal-overrides ',*-256color*:RGB'
+        set-option -g renumber-windows on
+        bind-key -T copy-mode-vi v send-keys -X begin-selection
+        bind-key -T copy-mode-vi C-v send-keys -X rectangle-toggle
+        bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel
+        bind-key - split-window -v
+        bind-key | split-window -h
+        bind h split-window -v -c "#{pane_current_path}"
+        bind v split-window -h -c "#{pane_current_path}"
+        unbind-key -T copy-mode-vi v
+        bind-key -T copy-mode-vi v send-keys -X begin-selection
+        bind-key -T copy-mode-vi 'C-v' send-keys -X rectangle-toggle
+        bind-key -T copy-mode-vi y send-keys -X copy-pipe "pbcopy"
+        bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
+        bind-key -T copy-mode-vi Escape send-keys -X cancel
+        bind C-l send-keys 'C-l'
+        bind-key -r f run-shell "tmux neww ~/.local/scripts/tmux-sessionizer"
+        bind-key -r W run-shell "~/.local/scripts/tmux-sessionizer ~/remi/roofworx-monorepo"
+        bind-key -r D run-shell "~/.local/scripts/tmux-sessionizer ~/.dotfiles"
+        run '~/.tmux/plugins/tpm/tpm'
+      '';
     };
-    theme = "Catppuccin-Mocha";
-    settings = {
-      background_opacity = "0.8";
-      hide_window_decorations = "yes";
+    # Fish configuration
+    fish = {
+      enable = true;
+      shellAliases = {
+        v = "nvim";
+        vim = "nvim";
+        ff = "find_directories";
+        ts = "tmux-sessionizer";
+        lg = "lazygit";
+        fdf = "find_dotfiles";
+        gt-done = "gh pr create --base (git branch | sed 's/^\* //' | fzf --ansi | sed 's/^ *//')";
+        sync-dotfiles = "home-manager -f ~/.dotfiles/home.nix switch";
+        home = "v ~/.dotfiles/home.nix";
+      };
+      shellInit = ''
+        set -gx PNPM_HOME /Users/brandonsouthwick/Library/pnpm
+        if not string match -q -- $PNPM_HOME $PATH
+            set -gx PATH "$PNPM_HOME" $PATH
+        end
+      '';
     };
-  };
-
-  programs.fzf = {
-    enable = true;
-    enableFishIntegration = true;
-  };
-
-  programs.bat = {
-    enable = true;
-    themes = {
-      catppuccin = {
-        src = ~/.dotfiles/bat/themes/catppuccin.tmTheme;
-        file = "catppuccin.tmTheme";
+    # Kitty configuration
+    kitty = {
+      enable = true;
+      font = {
+        name = "Hack Nerd Font";
+        size = 16.0;
+      };
+      keybindings = {
+        "cmd+t" = "send_key all ctrl+b";
+        "cmd+j" = "send_key all ctrl+b";
+        "cmd+s" = "send_key all ctrl+s";
+        "cmd+k" = "send_key all ctrl+b ctrl+l";
+      };
+      theme = "Catppuccin-Mocha";
+      settings = {
+        background_opacity = "0.8";
+        hide_window_decorations = "yes";
+      };
+    };
+    # fzf configuration
+    fzf = {
+      enable = true;
+      enableFishIntegration = true;
+    };
+    # bat configuration
+    bat = {
+      enable = true;
+      themes = {
+        catppuccin = {
+          src = ~/.dotfiles/bat/themes/catppuccin.tmTheme;
+          file = "catppuccin.tmTheme";
+        };
       };
     };
   };
