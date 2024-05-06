@@ -103,6 +103,10 @@
         rebase = {
           updateRefs = true;
         };
+        delta = {
+          navigate = true;
+          side-by-side = true;
+        };
       };
     };
     # gh configuration
@@ -165,6 +169,9 @@
         gt-done = "gh pr create --base (git branch | sed 's/^\* //' | fzf --ansi | sed 's/^ *//')";
         sync-dotfiles = "home-manager -f ~/.dotfiles/home.nix switch";
         home = "v ~/.dotfiles/home.nix";
+        cat = "bat --theme=base16";
+        ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
+        # cd = "z";
       };
       shellInit = ''
         set -gx PNPM_HOME /Users/brandonsouthwick/Library/pnpm
@@ -183,8 +190,8 @@
       keybindings = {
         "cmd+t" = "send_key all ctrl+b";
         "cmd+j" = "send_key all ctrl+b";
-        "cmd+s" = "send_key all ctrl+s";
-        "cmd+k" = "send_key all ctrl+b ctrl+l";
+        "cmd+s" = "send_key all alt+s";
+        "cmd+k" = "send_key all ctrl+l";
       };
       theme = "Catppuccin-Mocha";
       settings = {
@@ -200,13 +207,53 @@
     # bat configuration
     bat = {
       enable = true;
-      themes = {
-        catppuccin = {
-          src = ~/.dotfiles/bat/themes/catppuccin.tmTheme;
-          file = "catppuccin.tmTheme";
-        };
-      };
     };
+    # zoxide configuration
+    zoxide = {
+      enable = true;
+      enableFishIntegration = true;
+    };
+    # delta configuration
+    git.delta = {
+      enable = true;
+    };
+
+    # eza configuration
+    eza = {
+      enable = true;
+      enableFishIntegration = true;
+    };
+
+    # zellij configuration
+    zellij = {
+      enable = true;
+    };
+  };
+
+  home.file.zellij = {
+    target = ".config/zellij/config.kdl";
+    text = ''
+      simplified_ui true
+      pane_frames false
+      default_layout "compact"
+      copy_on_select true
+      theme "catppuccin-mocha"
+      themes {
+        catppuccin-mocha {
+          bg "#585b70"
+          black "#181825"
+          blue "#89b4fa"
+          cyan "#89dceb"
+          fg "#cdd6f4"
+          green "#a6e3a1"
+          magenta "#f5c2e7"
+          orange "#fab387"
+          red "#f38ba8"
+          white "#cdd6f4"
+          yellow "#f9e2af"
+        }
+      }
+    '';
   };
 
   xdg.configFile.nvim = {
