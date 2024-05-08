@@ -123,7 +123,7 @@
       escapeTime = 0;
       mouse = true;
       keyMode = "vi";
-      shell = "${pkgs.fish}/bin/fish";
+      shell = "${pkgs.zsh}/bin/zsh";
       terminal = "screen-256color";
       baseIndex = 1;
       sensibleOnTop = true;
@@ -157,8 +157,42 @@
       '';
     };
     # Fish configuration
-    fish = {
+    # fish = {
+    #   enable = true;
+    #   shellAliases = {
+    #     v = "nvim";
+    #     vim = "nvim";
+    #     ff = "find_directories";
+    #     ts = "tmux-sessionizer";
+    #     lg = "lazygit";
+    #     fdf = "find_dotfiles";
+    #     gt-done = "gh pr create --base (git branch | sed 's/^\* //' | fzf --ansi | sed 's/^ *//')";
+    #     sync-dotfiles = "home-manager -f ~/.dotfiles/home.nix switch";
+    #     home = "v ~/.dotfiles/home.nix";
+    #     cat = "bat --theme=base16";
+    #     ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
+    #     # cd = "z";
+    #   };
+    #   shellInit = ''
+    #     set -gx PNPM_HOME /Users/brandonsouthwick/Library/pnpm
+    #     if not string match -q -- $PNPM_HOME $PATH
+    #         set -gx PATH "$PNPM_HOME" $PATH
+    #     end
+    #   '';
+    # };
+    # zsh configuration
+    zsh = {
       enable = true;
+      enableCompletion = true;
+      autosuggestion.enable = true;
+      syntaxHighlighting.enable = true;
+      oh-my-zsh = {
+        enable = true;
+        theme = "robbyrussell";
+        plugins = [
+          "git"
+        ];
+      };
       shellAliases = {
         v = "nvim";
         vim = "nvim";
@@ -171,14 +205,12 @@
         home = "v ~/.dotfiles/home.nix";
         cat = "bat --theme=base16";
         ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
-        # cd = "z";
+        cd = "z";
       };
-      shellInit = ''
-        set -gx PNPM_HOME /Users/brandonsouthwick/Library/pnpm
-        if not string match -q -- $PNPM_HOME $PATH
-            set -gx PATH "$PNPM_HOME" $PATH
-        end
-      '';
+      # shellInit = ''
+      #   export PNPM_HOME=/Users/brandonsouthwick/Library/pnpm
+      #   export PATH="$PNPM_HOME:$PATH"
+      # '';
     };
     # Kitty configuration
     kitty = {
@@ -202,7 +234,12 @@
     # fzf configuration
     fzf = {
       enable = true;
-      enableFishIntegration = true;
+      enableZshIntegration = true;
+      # enableFishIntegration = true;
+    };
+    # fd configuration
+    fd = {
+      enable = true;
     };
     # bat configuration
     bat = {
@@ -211,7 +248,8 @@
     # zoxide configuration
     zoxide = {
       enable = true;
-      enableFishIntegration = true;
+      enableZshIntegration = true;
+      # enableFishIntegration = true;
     };
     # delta configuration
     git.delta = {
@@ -221,7 +259,8 @@
     # eza configuration
     eza = {
       enable = true;
-      enableFishIntegration = true;
+      enableZshIntegration = true;
+      # enableFishIntegration = true;
     };
 
     # zellij configuration
@@ -237,6 +276,16 @@
       pane_frames false
       default_layout "compact"
       copy_on_select true
+      keybinds {
+        locked {
+          bind "Ctrl b" { SwitchToMode "tmux"; }
+          bind "Ctrl g" { SwitchToMode "normal"; }
+          bind "Alt Left" { MoveFocusOrTab "Left"; }
+          bind "Alt Right" { MoveFocusOrTab "Right"; }
+          bind "Alt Up" { MoveFocusOrTab "Up"; }
+          bind "Alt Down" { MoveFocusOrTab "Down"; }
+        }
+      }
       theme "catppuccin-mocha"
       themes {
         catppuccin-mocha {
