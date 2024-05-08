@@ -286,6 +286,19 @@ require("lazy").setup({
 	"github/copilot.vim",
 
 	{
+		"nvim-pack/nvim-spectre",
+		opts = { open_cmd = "noswapfile vnew" },
+		init = function()
+			vim.keymap.set(
+				"n",
+				"<leader>sR",
+				"<cmd>lua require('spectre').open()<cr>",
+				{ desc = "[S]earch and [R]eplace" }
+			)
+		end,
+	},
+
+	{
 		"nvim-tree/nvim-tree.lua",
 		version = "*",
 		lazy = false,
@@ -299,7 +312,7 @@ require("lazy").setup({
 					sorter = "case_sensitive",
 				},
 				view = {
-					width = 35,
+					width = 60,
 					relativenumber = true,
 					side = "right",
 				},
