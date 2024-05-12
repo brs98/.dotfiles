@@ -527,7 +527,7 @@ require("lazy").setup({
 			require("which-key").register({
 				["<leader>c"] = { name = "[C]ode", _ = "which_key_ignore" },
 				["<leader>d"] = { name = "[D]ocument", _ = "which_key_ignore" },
-				["<leader>r"] = { name = "[R]ename", _ = "which_key_ignore" },
+				["<leader>r"] = { name = "[R]ename / [R]emove", _ = "which_key_ignore" },
 				["<leader>s"] = { name = "[S]earch", _ = "which_key_ignore" },
 				["<leader>w"] = { name = "[W]orkspace", _ = "which_key_ignore" },
 			})
@@ -747,6 +747,17 @@ require("lazy").setup({
 					-- Rename the variable under your cursor
 					--  Most Language Servers support renaming across files, etc.
 					map("<leader>rn", vim.lsp.buf.rename, "[R]e[n]ame")
+
+					-- Remove unused imports
+					map("<leader>ru", function()
+						vim.lsp.buf.code_action({
+							apply = true,
+							context = {
+								only = { "source.removeUnused.ts" },
+								diagnostics = {},
+							},
+						})
+					end, "[R]emove [U]nused Imports")
 
 					-- Execute a code action, usually your cursor needs to be on top of an error
 					-- or a suggestion from your LSP for this to activate.
