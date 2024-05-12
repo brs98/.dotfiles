@@ -11,6 +11,7 @@
     pkgs.nodejs_20
     (pkgs.nerdfonts.override { fonts = [ "Hack" ]; })
     pkgs.rustup
+    pkgs.tree
 
     # # It is sometimes useful to fine-tune packages, for example, by applying
     # # overrides. You can do that directly here, just don't forget the
@@ -117,69 +118,6 @@
     lazygit = {
       enable = true;
     };
-    # Tmux configuration
-    tmux = {
-      enable = true;
-      escapeTime = 0;
-      mouse = true;
-      keyMode = "vi";
-      shell = "${pkgs.zsh}/bin/zsh";
-      terminal = "screen-256color";
-      baseIndex = 1;
-      sensibleOnTop = true;
-      plugins = with pkgs;
-        [
-          tmuxPlugins.better-mouse-mode
-          tmuxPlugins.catppuccin
-          tmuxPlugins.vim-tmux-navigator
-        ];
-      extraConfig = ''
-        set-option -ga terminal-overrides ',*-256color*:RGB'
-        set-option -g renumber-windows on
-        bind-key -T copy-mode-vi v send-keys -X begin-selection
-        bind-key -T copy-mode-vi C-v send-keys -X rectangle-toggle
-        bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel
-        bind-key - split-window -v
-        bind-key | split-window -h
-        bind h split-window -v -c "#{pane_current_path}"
-        bind v split-window -h -c "#{pane_current_path}"
-        unbind-key -T copy-mode-vi v
-        bind-key -T copy-mode-vi v send-keys -X begin-selection
-        bind-key -T copy-mode-vi 'C-v' send-keys -X rectangle-toggle
-        bind-key -T copy-mode-vi y send-keys -X copy-pipe "pbcopy"
-        bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
-        bind-key -T copy-mode-vi Escape send-keys -X cancel
-        bind C-l send-keys 'C-l'
-        bind-key -r f run-shell "tmux neww ~/.local/scripts/tmux-sessionizer"
-        bind-key -r W run-shell "~/.local/scripts/tmux-sessionizer ~/remi/roofworx-monorepo"
-        bind-key -r D run-shell "~/.local/scripts/tmux-sessionizer ~/.dotfiles"
-        run '~/.tmux/plugins/tpm/tpm'
-      '';
-    };
-    # Fish configuration
-    # fish = {
-    #   enable = true;
-    #   shellAliases = {
-    #     v = "nvim";
-    #     vim = "nvim";
-    #     ff = "find_directories";
-    #     ts = "tmux-sessionizer";
-    #     lg = "lazygit";
-    #     fdf = "find_dotfiles";
-    #     gt-done = "gh pr create --base (git branch | sed 's/^\* //' | fzf --ansi | sed 's/^ *//')";
-    #     sync-dotfiles = "home-manager -f ~/.dotfiles/home.nix switch";
-    #     home = "v ~/.dotfiles/home.nix";
-    #     cat = "bat --theme=base16";
-    #     ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
-    #     # cd = "z";
-    #   };
-    #   shellInit = ''
-    #     set -gx PNPM_HOME /Users/brandonsouthwick/Library/pnpm
-    #     if not string match -q -- $PNPM_HOME $PATH
-    #         set -gx PATH "$PNPM_HOME" $PATH
-    #     end
-    #   '';
-    # };
     # zsh configuration
     zsh = {
       enable = true;
@@ -207,10 +145,6 @@
         ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
         cd = "z";
       };
-      # shellInit = ''
-      #   export PNPM_HOME=/Users/brandonsouthwick/Library/pnpm
-      #   export PATH="$PNPM_HOME:$PATH"
-      # '';
     };
     # Kitty configuration
     kitty = {

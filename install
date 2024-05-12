@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-
-STOW_FOLDERS=("nvim" "tmux" "fish" "bin" "yabai" "skhd" "alacritty")
-pushd $HOME/.dotfiles
-echo "Stowing..."
-for folder in ${STOW_FOLDERS[@]}; do
-	echo $folder
-	stow --adopt $folder
-done
