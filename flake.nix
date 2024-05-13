@@ -15,6 +15,19 @@
         environment.systemPackages =
           [
             pkgs.vim
+
+            # example of how to write an executable shell script
+            (
+              pkgs.writeShellApplication {
+                name = "abcd";
+
+                runtimeInputs = [ pkgs.curl pkgs.w3m ];
+
+                text = ''
+                  curl -s 'https://nixos.org' | w3m -dump -T text/html
+                '';
+              }
+            )
           ];
 
         # Auto upgrade nix package and the daemon service.
@@ -152,6 +165,7 @@
 
         # The platform the configuration will be used on.
         nixpkgs.hostPlatform = "x86_64-darwin";
+
       };
     in
     {
