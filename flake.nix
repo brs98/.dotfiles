@@ -19,12 +19,18 @@
             # example of how to write an executable shell script
             (
               pkgs.writeShellApplication {
-                name = "abcd";
-
-                runtimeInputs = [ pkgs.curl pkgs.w3m ];
-
+                name = "dev";
+                # runtimeInputs = [ pkgs.curl pkgs.w3m ];
                 text = ''
-                  curl -s 'https://nixos.org' | w3m -dump -T text/html
+                  current_dir=$(basename "$PWD")
+
+                  if [[ "$current_dir" = "roofworx-monorepo" ]]; then
+                      # If in 'roofworx-monorepo', run 'pnpm dev:next'
+                      pnpm dev:next
+                  else
+                      # Otherwise, run 'pnpm dev'
+                      pnpm dev
+                  fi
                 '';
               }
             )
