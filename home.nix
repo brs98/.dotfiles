@@ -140,10 +140,16 @@
         fdf = "find_dotfiles";
         gt-done = "gh pr create --base (git branch | sed 's/^\* //' | fzf --ansi | sed 's/^ *//')";
         sync-dotfiles = "home-manager -f ~/.dotfiles/home.nix switch";
+        sdf = "home-manager -f ~/.dotfiles/home.nix switch";
         home = "v ~/.dotfiles/home.nix";
+        flake = "v ~/.dotfiles/flake.nix";
+        sync-flake = "darwin-rebuild switch --flake ~/.dotfiles";
+        sf = "darwin-rebuild switch --flake ~/.dotfiles";
         cat = "bat --theme=base16";
         ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
         cd = "z";
+        cdd = "cd ~/.dotfiles/";
+        zel = "zellij --layout ~/.config/zellij/layouts/default.kdl";
       };
     };
     # Kitty configuration
@@ -211,6 +217,10 @@
       default_layout "compact"
       copy_on_select true
       keybinds {
+        unbind "Ctrl o"
+        shared {
+          bind "Ctrl s" { SwitchToMode "session"; }
+        }
         locked {
           bind "Ctrl b" { SwitchToMode "tmux"; }
           bind "Ctrl g" { SwitchToMode "normal"; }
@@ -234,6 +244,29 @@
           red "#f38ba8"
           white "#cdd6f4"
           yellow "#f9e2af"
+        }
+      }
+    '';
+  };
+
+  home.file.zellij-layout = {
+    target = ".config/zellij/layouts/default.kdl";
+    text = ''
+      layout {
+        tab name="nvim" focus=true {
+          pane command="nvim"
+          pane size=1 borderless=true {
+            plugin location="compact-bar"
+          }
+        }
+        tab name="shell" {
+          pane split_direction="vertical" {
+            pane command="dev"
+            pane
+          }
+          pane size=1 borderless=true {
+            plugin location="compact-bar"
+          }
         }
       }
     '';
