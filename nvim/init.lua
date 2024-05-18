@@ -201,8 +201,14 @@ vim.keymap.set(
 	{ silent = true, noremap = true, desc = "Delete file and buffer" }
 )
 
+-- insert mode
+vim.keymap.set("i", "jk", "<esc>", default_keymap_opts)
+vim.keymap.set("i", "kj", "<esc>", default_keymap_opts)
+
 -- visual mode
 vim.keymap.set("v", "<leader>j", ":m .+1<CR>==", { silent = true, noremap = true, desc = "Move selection down" })
+vim.keymap.set("v", "JK", "<esc>", default_keymap_opts)
+vim.keymap.set("v", "KJ", "<esc>", default_keymap_opts)
 vim.keymap.set("v", "<leader>k", ":m .-2<CR>==", { silent = true, noremap = true, desc = "Move selection up" })
 vim.keymap.set("v", "p", '"_dP"', default_keymap_opts)
 vim.keymap.set("v", "<C-j>", ":move '>+1<CR>gv-gv", default_keymap_opts)
