@@ -157,10 +157,7 @@
       shellAliases = {
         v = "nvim";
         vim = "nvim";
-        ff = "find_directories";
-        ts = "tmux-sessionizer";
         lg = "lazygit";
-        fdf = "find_dotfiles";
         gt-done = "gh pr create --base (git branch | sed 's/^\* //' | fzf --ansi | sed 's/^ *//')";
         sync-dotfiles = "home-manager -f ~/.dotfiles/home.nix switch";
         sdf = "home-manager -f ~/.dotfiles/home.nix switch";
@@ -200,7 +197,6 @@
     fzf = {
       enable = true;
       enableZshIntegration = true;
-      # enableFishIntegration = true;
     };
     # fd configuration
     fd = {
@@ -214,7 +210,6 @@
     zoxide = {
       enable = true;
       enableZshIntegration = true;
-      # enableFishIntegration = true;
     };
     # delta configuration
     git.delta = {
@@ -225,7 +220,6 @@
     eza = {
       enable = true;
       enableZshIntegration = true;
-      # enableFishIntegration = true;
     };
 
     # zellij configuration
