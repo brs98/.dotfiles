@@ -158,6 +158,11 @@
         # Necessary for using flakes on this system.
         nix.settings.experimental-features = "nix-command flakes";
 
+        nix.extraOptions = ''
+          extra-platforms = aarch64-darwin x86_64-darwin
+          experimental-features = nix-command flakes
+        '';
+
         # Create /etc/zshrc that loads the nix-darwin environment.
         programs.zsh.enable = true; # default shell on catalina
         # programs.fish.enable = true;
@@ -170,7 +175,10 @@
         system.stateVersion = 4;
 
         # The platform the configuration will be used on.
-        nixpkgs.hostPlatform = "aarch64-darwin";
+        # nixpkgs.hostPlatform = "aarch64-darwin";
+        # nixpkgs.hostPlatform = "aarch64-darwin";
+        nixpkgs.hostPlatform = "x86_64-darwin";
+
 
       };
     in
