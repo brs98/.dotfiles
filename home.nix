@@ -6,12 +6,35 @@
   home.stateVersion = "23.11";
 
   home.packages = [
+    pkgs.gnused
     pkgs.htop
     pkgs.neovim
     pkgs.nodejs_20
     (pkgs.nerdfonts.override { fonts = [ "Hack" ]; })
     pkgs.rustup
     pkgs.tree
+    pkgs.vimPlugins.nvim-treesitter-parsers.bash
+    pkgs.vimPlugins.nvim-treesitter-parsers.c
+    pkgs.vimPlugins.nvim-treesitter-parsers.html
+    pkgs.vimPlugins.nvim-treesitter-parsers.lua
+    pkgs.vimPlugins.nvim-treesitter-parsers.markdown
+    pkgs.vimPlugins.nvim-treesitter-parsers.vim
+    pkgs.vimPlugins.nvim-treesitter-parsers.vimdoc
+    pkgs.vimPlugins.nvim-treesitter-parsers.css
+    pkgs.vimPlugins.nvim-treesitter-parsers.csv
+    pkgs.vimPlugins.nvim-treesitter-parsers.dockerfile
+    pkgs.vimPlugins.nvim-treesitter-parsers.hoon
+    pkgs.vimPlugins.nvim-treesitter-parsers.javascript
+    pkgs.vimPlugins.nvim-treesitter-parsers.json
+    pkgs.vimPlugins.nvim-treesitter-parsers.kdl
+    pkgs.vimPlugins.nvim-treesitter-parsers.nix
+    pkgs.vimPlugins.nvim-treesitter-parsers.prisma
+    pkgs.vimPlugins.nvim-treesitter-parsers.python
+    pkgs.vimPlugins.nvim-treesitter-parsers.rust
+    pkgs.vimPlugins.nvim-treesitter-parsers.sql
+    pkgs.vimPlugins.nvim-treesitter-parsers.svelte
+    pkgs.vimPlugins.nvim-treesitter-parsers.typescript
+    pkgs.vimPlugins.nvim-treesitter-parsers.yaml
 
     # # It is sometimes useful to fine-tune packages, for example, by applying
     # # overrides. You can do that directly here, just don't forget the
@@ -59,7 +82,7 @@
   #  /etc/profiles/per-user/brandonsouthwick/etc/profile.d/hm-session-vars.sh
   #
   home.sessionVariables = {
-    # EDITOR = "emacs";
+    EDITOR = "nvim";
   };
 
   home.sessionPath = [
@@ -151,7 +174,7 @@
         ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
         cd = "z";
         cdd = "cd ~/.dotfiles/";
-        zel = "zellij --layout ~/.config/zellij/layouts/default.kdl";
+        zel = "zellij --layout ~/.config/zellij/layouts/nextjs.kdl";
       };
     };
     # Kitty configuration
@@ -164,13 +187,13 @@
       keybindings = {
         "cmd+t" = "send_key all ctrl+b";
         "cmd+j" = "send_key all ctrl+b";
-        "cmd+s" = "send_key all alt+s";
         "cmd+k" = "send_key all ctrl+l";
       };
       theme = "Catppuccin-Mocha";
       settings = {
         background_opacity = "0.8";
         hide_window_decorations = "yes";
+        zel = "zellij --layout ~/.config/zellij/layouts/nextjs.kdl";
       };
     };
     # fzf configuration
@@ -216,12 +239,13 @@
     text = ''
       simplified_ui true
       pane_frames false
-      default_layout "compact"
       copy_on_select true
       keybinds {
         unbind "Ctrl o"
+        unbind "Cmd s"
         shared {
           bind "Ctrl s" { SwitchToMode "session"; }
+          bind "Ctrl f" { SwitchToMode "scroll"; }
         }
         locked {
           bind "Ctrl b" { SwitchToMode "tmux"; }
@@ -252,7 +276,7 @@
   };
 
   home.file.zellij-layout = {
-    target = ".config/zellij/layouts/default.kdl";
+    target = ".config/zellij/layouts/nextjs.kdl";
     text = ''
       layout {
         tab name="nvim" focus=true {
@@ -274,9 +298,7 @@
     '';
   };
 
-  xdg.configFile.nvim = {
-    source = ~/.dotfiles/nvim;
-    recursive = true;
-    enable = true;
+  home.file.".config/nvim" = {
+    source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/nvim";
   };
 }
