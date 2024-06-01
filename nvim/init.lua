@@ -94,6 +94,9 @@ vim.g.maplocalleader = " "
 vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1
 
+-- Disable gitblame by default (can be toggled with <leader>gb)
+vim.g.gitblame_enabled = 0
+
 -- Set bash
 vim.opt.shell = "/bin/bash"
 
@@ -103,6 +106,9 @@ vim.opt.swapfile = false
 -- Set to true if you have a Nerd Font installed
 vim.g.have_nerd_font = true
 
+-- Set 24-bit true color in the terminal
+vim.opt.termguicolors = true
+
 -- [[ Setting options ]]
 -- See `:help vim.opt`
 -- NOTE: You can change these options as you wish!
@@ -110,6 +116,7 @@ vim.g.have_nerd_font = true
 
 -- Make line numbers default
 vim.opt.number = true
+
 -- You can also add relative line numbers, for help with jumping.
 --  Experiment for yourself to see if you like it!
 vim.opt.relativenumber = true
@@ -177,7 +184,7 @@ vim.keymap.set("n", "<leader><Down>", "<C-w><Down>", { silent = true, noremap = 
 -- end
 
 -- normal mode
-vim.keymap.set("n", "<M-s>", ":w<CR>", default_keymap_opts)
+vim.keymap.set("n", "<D-s>", ":w<CR>", default_keymap_opts)
 vim.keymap.set("n", "<leader>x", ":wa<CR>:qa<CR>", default_keymap_opts)
 vim.keymap.set("n", "<leader>j", ":m .+1<CR>==", { silent = true, noremap = true, desc = "Move line down" })
 vim.keymap.set("n", "<leader>k", ":m .-2<CR>==", { silent = true, noremap = true, desc = "Move line up" })
@@ -343,6 +350,13 @@ require("lazy").setup({
 	},
 
 	{
+		"f-person/git-blame.nvim",
+		init = function()
+			vim.keymap.set("n", "<leader>gb", "<cmd>GitBlameToggle<cr>", { desc = "Toggle [G]it [B]lame" })
+		end,
+	},
+
+	{
 		"nvim-tree/nvim-tree.lua",
 		version = "*",
 		lazy = false,
@@ -445,7 +459,6 @@ require("lazy").setup({
 				},
 			},
 		},
-		version = "*",
 		dependencies = "nvim-tree/nvim-web-devicons",
 		init = function()
 			vim.keymap.set("n", "<S-Left>", ":BufferLineCyclePrev<cr>", default_keymap_opts)
@@ -466,7 +479,7 @@ require("lazy").setup({
 	{
 		"kdheepak/lazygit.nvim",
 		init = function()
-			vim.keymap.set("n", "<leader>gg", "<cmd>LazyGit<cr>", { desc = "Open [L]azy [G]it" })
+			vim.keymap.set("n", "<leader>gg", "<cmd>LazyGit<cr>", { desc = "Open [G]it [G]ui" })
 		end,
 		cmd = {
 			"LazyGit",
@@ -500,8 +513,6 @@ require("lazy").setup({
 		},
 	},
 
-	{ "JoosepAlviste/nvim-ts-context-commentstring", opts = {} },
-
 	-- NOTE: Plugins can also be added by using a table,
 	-- with the first argument being the link and the following
 	-- keys can be used to configure plugin behavior/loading/etc.
@@ -509,25 +520,6 @@ require("lazy").setup({
 	-- Use `opts = {}` to force a plugin to be loaded.
 	--
 	--
-	--  This is equivalent to:
-	--    require('Comment').setup({})
-
-	-- "gc" to comment visual regions/lines
-	{
-		"numToStr/Comment.nvim",
-		config = function()
-			require("Comment").setup({
-				pre_hook = function()
-					return vim.bo.commentstring
-				end,
-			})
-		end,
-		lazy = false,
-		dependencies = {
-			"JoosepAlviste/nvim-ts-context-commentstring",
-			"nvim-treesitter/nvim-treesitter",
-		},
-	},
 	-- Here is a more advanced example where we pass configuration
 	-- options to `gitsigns.nvim`. This is equivalent to the following lua:
 	--    require('gitsigns').setup({ ... })
@@ -797,6 +789,7 @@ require("lazy").setup({
 						vim.lsp.buf.code_action({
 							apply = true,
 							context = {
+								---@diagnostic disable-next-line: assign-type-mismatch
 								only = { "source.removeUnused.ts" },
 								diagnostics = {},
 							},
