@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-
-nvim $(fd . /Users/Brandon -E **/opt/** -E **/Library/** -E **/node_modules/** -E **/Downloads/** -t d | fzf)
