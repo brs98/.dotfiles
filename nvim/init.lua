@@ -186,6 +186,8 @@ vim.keymap.set("n", "<leader><Down>", "<C-w><Down>", { silent = true, noremap = 
 -- normal mode
 vim.keymap.set("n", "<D-s>", ":w<CR>", default_keymap_opts)
 vim.keymap.set("n", "<leader>x", ":wa<CR>:qa<CR>", default_keymap_opts)
+vim.keymap.set("n", "<leader>p", 'A<CR><C-r>"', default_keymap_opts)
+vim.keymap.set("n", "<leader>P", 'kA<CR><C-r>"', default_keymap_opts)
 vim.keymap.set("n", "<leader>j", ":m .+1<CR>==", { silent = true, noremap = true, desc = "Move line down" })
 vim.keymap.set("n", "<leader>k", ":m .-2<CR>==", { silent = true, noremap = true, desc = "Move line up" })
 vim.keymap.set("n", "n", "nzzzv", default_keymap_opts)
@@ -217,7 +219,8 @@ vim.keymap.set("v", "<leader>j", ":m .+1<CR>==", { silent = true, noremap = true
 vim.keymap.set("v", "JK", "<esc>", default_keymap_opts)
 vim.keymap.set("v", "KJ", "<esc>", default_keymap_opts)
 vim.keymap.set("v", "<leader>k", ":m .-2<CR>==", { silent = true, noremap = true, desc = "Move selection up" })
-vim.keymap.set("v", "p", '"_dP"', default_keymap_opts)
+vim.keymap.set("v", "p", '"_dp"', default_keymap_opts)
+vim.keymap.set("v", "P", '"_dP"', default_keymap_opts)
 vim.keymap.set("v", "<C-j>", ":move '>+1<CR>gv-gv", default_keymap_opts)
 vim.keymap.set("v", "<C-k>", ":move '<-2<CR>gv-gv", default_keymap_opts)
 vim.keymap.set("v", "s", "^", default_keymap_opts)
@@ -297,6 +300,8 @@ require("lazy").setup({
 	"tpope/vim-sleuth", -- Detect tabstop and shiftwidth automatically
 
 	"github/copilot.vim",
+
+	"mg979/vim-visual-multi",
 
 	{
 		"nvim-pack/nvim-spectre",
@@ -477,6 +482,132 @@ require("lazy").setup({
 	},
 
 	{
+		"mxsdev/nvim-dap-vscode-js",
+		requires = { "mfussenegger/nvim-dap" },
+		dependencies = {
+			"microsoft/vscode-js-debug",
+			opt = true,
+			run = "npm install --legacy-peer-deps && npx gulp vsDebugServerBundle && mv dist out",
+		},
+	},
+
+	{
+		"mfussenegger/nvim-dap",
+		dependencies = {
+			"rcarriga/nvim-dap-ui",
+			"nvim-neotest/nvim-nio",
+		},
+		init = function()
+			vim.keymap.set("n", "<leader>dc", "<cmd>lua require('dap').continue()<cr>", { desc = "Continue" })
+			vim.keymap.set(
+				"n",
+				"<leader>db",
+				"<cmd>lua require('dap').toggle_breakpoint()<cr>",
+				{ desc = "Toggle breakpoint" }
+			)
+			vim.keymap.set("n", "<leader>dr", "<cmd>lua require('dap').repl.toggle()<cr>", { desc = "Toggle REPL" })
+			vim.keymap.set("n", "<leader>ds", "<cmd>lua require('dap').step_over()<cr>", { desc = "Step over" })
+			vim.keymap.set("n", "<leader>di", "<cmd>lua require('dap').step_into()<cr>", { desc = "Step into" })
+			vim.keymap.set("n", "<leader>do", "<cmd>lua require('dap').step_out()<cr>", { desc = "Step out" })
+			vim.keymap.set("n", "<leader>dl", "<cmd>lua require('dap').run_last()<cr>", { desc = "Run last" })
+		end,
+		config = function()
+			require("dap-vscode-js").setup({
+				node_path = "node", -- Path of node executable. Defaults to $NODE_PATH, and then "node"
+				debugger_path = vim.fn.resolve(vim.fn.stdpath("data") .. "/lazy/vscode-js-debug"),
+				debugger_cmd = { "js-debug-adapter" }, -- Command to use to launch the debug server. Takes precedence over `node_path` and `debugger_path`.
+				adapters = { "pwa-node", "pwa-chrome", "pwa-msedge", "node-terminal", "pwa-extensionHost" }, -- which adapters to register in nvim-dap
+				log_file_path = "(stdpath cache)/dap_vscode_js.log", -- Path for file logging
+				log_file_level = false, -- Logging level for output to file. Set to false to disable file logging.
+				log_console_level = vim.log.levels.ERROR, -- Logging level for output to console. Set to false to disable console output.
+			})
+
+			for _, language in ipairs({ "typescript", "javascript", "typescriptreact" }) do
+				require("dap").configurations[language] = {
+					-- Debug single nodejs files
+					{
+						name = "Launch file",
+						type = "pwa-node",
+						request = "launch",
+						program = "${file}",
+						rootPath = "${workspaceFolder}",
+						cwd = "${workspaceFolder}",
+						sourceMaps = true,
+						port = 8123,
+						skipFiles = { "<node_internals>/**" },
+						protocol = "inspector",
+						console = "integratedTerminal",
+						runtimeArgs = { "--loader=ts-node/esm" },
+						runtimeExecutable = "node",
+					},
+					-- Debug node processes (make sure to add --inspect when you run the process)
+					{
+						name = "Attach to node process",
+						type = "pwa-node",
+						request = "attach",
+						rootPath = "${workspaceFolder}",
+						processId = require("dap.utils").pick_process,
+						cwd = "${workspaceFolder}",
+						port = 8123,
+						sourceMaps = true,
+						runtimeArgs = { "--loader=ts-node/esm" },
+						program = "${file}",
+						runtimeExecutable = "node",
+					},
+					-- Debug web applications (client-side)
+					{
+						name = "Launch & Debug Chrome",
+						type = "pwa-chrome",
+						request = "launch",
+						url = function()
+							local co = coroutine.running()
+							return coroutine.create(function()
+								vim.ui.input({
+									prompt = "Enter URL: ",
+									default = "http://localhost:3000",
+								}, function(url)
+									if url == nil or url == "" then
+										return
+									else
+										coroutine.resume(co, url)
+									end
+								end)
+							end)
+						end,
+						webRoot = "${workspaceFolder}",
+						skipFiles = { "<node_internals>/**" },
+						protocol = "inspector",
+						port = 8123,
+						sourceMaps = true,
+						userDataDir = false,
+						runtimeArgs = { "--loader=ts-node/esm" },
+						program = "${file}",
+						runtimeExecutable = "node",
+					},
+				}
+			end
+		end,
+	},
+	{
+		"rcarriga/nvim-dap-ui",
+		event = "VeryLazy",
+		dependencies = "mfussenegger/nvim-dap",
+		config = function()
+			local dap = require("dap")
+			local dapui = require("dapui")
+			require("dapui").setup()
+			dap.listeners.after.event_initialized["dapui_config"] = function()
+				dapui.open()
+			end
+			dap.listeners.before.event_terminated["dapui_config"] = function()
+				dapui.close()
+			end
+			dap.listeners.before.event_exited["dapui_config"] = function()
+				dapui.close()
+			end
+		end,
+	},
+	{
 		"kdheepak/lazygit.nvim",
 		init = function()
 			vim.keymap.set("n", "<leader>gg", "<cmd>LazyGit<cr>", { desc = "Open [G]it [G]ui" })
@@ -492,6 +623,19 @@ require("lazy").setup({
 		dependencies = {
 			"nvim-lua/plenary.nvim",
 		},
+	},
+
+	-- lazydocker.nvim
+	{
+		"mgierada/lazydocker.nvim",
+		init = function()
+			vim.keymap.set("n", "<leader>ld", "<cmd>Lazydocker<cr>", { desc = "Open [L]azy [D]ocker" })
+		end,
+		dependencies = { "akinsho/toggleterm.nvim" },
+		config = function()
+			require("lazydocker").setup({})
+		end,
+		event = "VimEnter", -- or any other event you might want to use.
 	},
 
 	{
@@ -623,10 +767,37 @@ require("lazy").setup({
 
 			-- [[ Configure Telescope ]]
 			-- See `:help telescope` and `:help telescope.setup()`
+			local previewers = require("telescope.previewers")
+
+			local new_maker = function(filepath, bufnr, opts)
+				opts = opts or {}
+
+				filepath = vim.fn.expand(filepath)
+				vim.loop.fs_stat(filepath, function(_, stat)
+					if not stat then
+						return
+					end
+					if stat.size > 100000 then
+						return
+					else
+						previewers.buffer_previewer_maker(filepath, bufnr, opts)
+					end
+				end)
+			end
+
 			require("telescope").setup({
 				-- You can put your default mappings / updates / etc. in here
 				--  All the info you're looking for is in `:help telescope.setup()`
-				--
+				defaults = {
+					buffer_previewer_maker = new_maker,
+					preview = {
+						filesize_hook = function(filepath, bufnr, opts)
+							local max_bytes = 10000
+							local cmd = { "head", "-c", max_bytes, filepath }
+							require("telescope.previewers.utils").job_maker(cmd, bufnr, opts)
+						end,
+					},
+				},
 				-- defaults = {
 				--   mappings = {
 				--     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
@@ -661,13 +832,13 @@ require("lazy").setup({
 
 			vim.keymap.set("n", "<leader>sg", function()
 				builtin.live_grep({
-					file_ignore_patterns = { "expo/" },
+					file_ignore_patterns = { "expo/", "node_modules/" },
 				})
 			end, { desc = "[S]earch by [G]rep" })
 
 			vim.keymap.set("n", "<leader><leader>", function()
 				builtin.find_files({
-					file_ignore_patterns = { "expo/" },
+					file_ignore_patterns = { "expo/", "node_modules/" },
 				})
 			end, { desc = "[S]earch Files" })
 
@@ -855,7 +1026,9 @@ require("lazy").setup({
 				--    https://github.com/pmizio/typescript-tools.nvim
 				--
 				-- But for many setups, the LSP (`tsserver`) will work just fine
-				tsserver = {},
+				tsserver = {
+					root_dir = require("lspconfig/util").root_pattern(".git"),
+				},
 
 				prismals = {
 					cmd = { "prisma-language-server", "--stdio" },
@@ -918,6 +1091,7 @@ require("lazy").setup({
 						-- by the server configuration above. Useful when disabling
 						-- certain features of an LSP (for example, turning off formatting for tsserver)
 						server.capabilities = vim.tbl_deep_extend("force", {}, capabilities, server.capabilities or {})
+						server.root_dir = require("lspconfig/util").root_pattern(".git")
 						require("lspconfig")[server_name].setup(server)
 					end,
 				},
@@ -928,7 +1102,7 @@ require("lazy").setup({
 	{ -- Autoformat
 		"stevearc/conform.nvim",
 		opts = {
-			notify_on_error = false,
+			notify_on_error = true,
 			format_on_save = {
 				timeout_ms = 1000,
 				lsp_fallback = true,
@@ -1094,26 +1268,6 @@ require("lazy").setup({
 			--  - yinq - [Y]ank [I]nside [N]ext [']quote
 			--  - ci'  - [C]hange [I]nside [']quote
 			require("mini.ai").setup({ n_lines = 500 })
-
-			-- Add/delete/replace surroundings (brackets, quotes, etc.)
-			--
-			-- - saiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
-			-- - sd'   - [S]urround [D]elete [']quotes
-			-- - sr)'  - [S]urround [R]eplace [)] [']
-			require("mini.surround").setup({
-				mappings = {
-					add = "<C-a>", -- Add surrounding in Normal and Visual modes
-					delete = "<C-x>", -- Delete surrounding
-					find = "", -- Find surrounding (to the right)
-					find_left = "", -- Find surrounding (to the left)
-					highlight = "", -- Highlight surrounding
-					replace = "<C-a><C-a>", -- Replace surrounding
-					update_n_lines = "", -- Update `n_lines`
-
-					suffix_last = "l", -- Suffix to search with "prev" method
-					suffix_next = "n", -- Suffix to search with "next" method
-				},
-			})
 
 			-- Pair matching () {} [] '' "" `` etc.
 			require("mini.pairs").setup({})
