@@ -5,36 +5,48 @@
   home.homeDirectory = "/Users/brandonsouthwick";
   home.stateVersion = "23.11";
 
-  home.packages = [
-    pkgs.gnused
-    pkgs.htop
-    pkgs.neovim
-    pkgs.nodejs_20
-    (pkgs.nerdfonts.override { fonts = [ "Hack" ]; })
-    pkgs.rustup
-    pkgs.tree
-    pkgs.vimPlugins.nvim-treesitter-parsers.bash
-    pkgs.vimPlugins.nvim-treesitter-parsers.c
-    pkgs.vimPlugins.nvim-treesitter-parsers.html
-    pkgs.vimPlugins.nvim-treesitter-parsers.lua
-    pkgs.vimPlugins.nvim-treesitter-parsers.markdown
-    pkgs.vimPlugins.nvim-treesitter-parsers.vim
-    pkgs.vimPlugins.nvim-treesitter-parsers.vimdoc
-    pkgs.vimPlugins.nvim-treesitter-parsers.css
-    pkgs.vimPlugins.nvim-treesitter-parsers.csv
-    pkgs.vimPlugins.nvim-treesitter-parsers.dockerfile
-    pkgs.vimPlugins.nvim-treesitter-parsers.hoon
-    pkgs.vimPlugins.nvim-treesitter-parsers.javascript
-    pkgs.vimPlugins.nvim-treesitter-parsers.json
-    pkgs.vimPlugins.nvim-treesitter-parsers.kdl
-    pkgs.vimPlugins.nvim-treesitter-parsers.nix
-    pkgs.vimPlugins.nvim-treesitter-parsers.prisma
-    pkgs.vimPlugins.nvim-treesitter-parsers.python
-    pkgs.vimPlugins.nvim-treesitter-parsers.rust
-    pkgs.vimPlugins.nvim-treesitter-parsers.sql
-    pkgs.vimPlugins.nvim-treesitter-parsers.svelte
-    pkgs.vimPlugins.nvim-treesitter-parsers.typescript
-    pkgs.vimPlugins.nvim-treesitter-parsers.yaml
+  home.packages = with pkgs; [
+    gnused
+    htop
+    wget
+    sketchybar
+    procps
+    neovim
+    typescript
+    lazydocker
+
+    nodejs_20
+    corepack_20
+
+    (nerdfonts.override { fonts = [ "Hack" ]; })
+    rustup
+    tree
+    nodePackages.typescript-language-server
+    nodePackages.ts-node
+
+    sshfs
+    # vimPlugins.nvim-treesitter-parsers.bash
+    # vimPlugins.nvim-treesitter-parsers.c
+    # vimPlugins.nvim-treesitter-parsers.html
+    # vimPlugins.nvim-treesitter-parsers.lua
+    # vimPlugins.nvim-treesitter-parsers.markdown
+    # vimPlugins.nvim-treesitter-parsers.vim
+    # vimPlugins.nvim-treesitter-parsers.vimdoc
+    # vimPlugins.nvim-treesitter-parsers.css
+    # vimPlugins.nvim-treesitter-parsers.csv
+    # vimPlugins.nvim-treesitter-parsers.dockerfile
+    # vimPlugins.nvim-treesitter-parsers.hoon
+    # vimPlugins.nvim-treesitter-parsers.javascript
+    # vimPlugins.nvim-treesitter-parsers.json
+    # vimPlugins.nvim-treesitter-parsers.kdl
+    # vimPlugins.nvim-treesitter-parsers.nix
+    # vimPlugins.nvim-treesitter-parsers.prisma
+    # vimPlugins.nvim-treesitter-parsers.python
+    # vimPlugins.nvim-treesitter-parsers.rust
+    # vimPlugins.nvim-treesitter-parsers.sql
+    # vimPlugins.nvim-treesitter-parsers.svelte
+    # vimPlugins.nvim-treesitter-parsers.typescript
+    # vimPlugins.nvim-treesitter-parsers.yaml
 
     # # It is sometimes useful to fine-tune packages, for example, by applying
     # # overrides. You can do that directly here, just don't forget the
@@ -85,7 +97,7 @@
     EDITOR = "nvim";
   };
 
-  home.sessionPath = [
+  home.sessionPath = with pkgs; [
     "~/.local/scripts/"
     "/opt/homebrew/bin/"
   ];
@@ -158,6 +170,7 @@
         v = "nvim";
         vim = "nvim";
         lg = "lazygit";
+        ldk = "lazydocker";
         gt-done = "gh pr create --base (git branch | sed 's/^\* //' | fzf --ansi | sed 's/^ *//')";
         sync-dotfiles = "home-manager -f ~/.dotfiles/home.nix switch";
         sdf = "home-manager -f ~/.dotfiles/home.nix switch";
@@ -191,6 +204,7 @@
         background_opacity = "0.8";
         hide_window_decorations = "yes";
         zel = "zellij --layout ~/.config/zellij/layouts/nextjs.kdl";
+        macos_option_as_alt = "yes";
       };
     };
     # fzf configuration
@@ -225,6 +239,29 @@
     # zellij configuration
     zellij = {
       enable = true;
+    };
+
+    helix = {
+      enable = true;
+      settings = {
+        theme = "catppuccin_mocha";
+        editor = {
+          line-number = "relative";
+          # lsp.display-messages = true;
+        };
+        keys.normal = {
+          space.space = "file_picker";
+          space.w = ":w";
+          space.x = ":wqa";
+        };
+        keys.insert = {
+          j.k = "normal_mode";
+          k.j = "normal_mode";
+        };
+      };
+      languages = {
+        typescript.enable = true;
+      };
     };
   };
 
@@ -292,7 +329,13 @@
     '';
   };
 
+  # sketchybar configuration
+  home.file.".config/sketchybar" = {
+    source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/sketchybar";
+  };
+
   home.file.".config/nvim" = {
     source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/nvim";
   };
 }
+
