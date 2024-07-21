@@ -175,13 +175,65 @@
         "cmd+j" = "send_key all ctrl+b";
         "cmd+k" = "send_key all ctrl+l";
       };
-      theme = "Catppuccin-Mocha";
       settings = {
+        background = "#1a1b26";
         background_opacity = "0.8";
         hide_window_decorations = "yes";
         zel = "zellij --layout ~/.config/zellij/layouts/nextjs.kdl";
         macos_option_as_alt = "yes";
       };
+      extraConfig = ''
+        # vim:ft=kitty
+
+        ## name: Tokyo Night
+        ## license: MIT
+        ## author: Folke Lemaitre
+        ## upstream: https://github.com/folke/tokyonight.nvim/raw/main/extras/kitty/tokyonight_night.conf
+
+
+        background #1a1b26
+        foreground #c0caf5
+        selection_background #283457
+        selection_foreground #c0caf5
+        url_color #73daca
+        cursor #c0caf5
+        cursor_text_color #1a1b26
+
+        # Tabs
+        active_tab_background #7aa2f7
+        active_tab_foreground #16161e
+        inactive_tab_background #292e42
+        inactive_tab_foreground #545c7e
+        #tab_bar_background #15161e
+
+        # Windows
+        active_border_color #7aa2f7
+        inactive_border_color #292e42
+
+        # normal
+        color0 #15161e
+        color1 #f7768e
+        color2 #9ece6a
+        color3 #e0af68
+        color4 #7aa2f7
+        color5 #bb9af7
+        color6 #7dcfff
+        color7 #a9b1d6
+
+        # bright
+        color8 #414868
+        color9 #f7768e
+        color10 #9ece6a
+        color11 #e0af68
+        color12 #7aa2f7
+        color13 #bb9af7
+        color14 #7dcfff
+        color15 #c0caf5
+
+        # extended colors
+        color16 #ff9e64
+        color17 #db4b4b
+      '';
     };
     # fzf configuration
     fzf = {
@@ -240,20 +292,31 @@
           bind "Alt Down" { MoveFocusOrTab "Down"; }
         }
       }
-      theme "catppuccin-mocha"
+      theme "tokyonight"
       themes {
-        catppuccin-mocha {
-          bg "#585b70"
-          black "#181825"
-          blue "#89b4fa"
-          cyan "#89dceb"
-          fg "#cdd6f4"
-          green "#a6e3a1"
-          magenta "#f5c2e7"
-          orange "#fab387"
-          red "#f38ba8"
-          white "#cdd6f4"
-          yellow "#f9e2af"
+        tokyonight {
+          background "#1a1b26"
+          foreground "#c0caf5"
+          selection_background "#283457"
+          selection_foreground "#c0caf5"
+          cursor "#c0caf5"
+          cursor_text "#1a1b26"
+          black "#15161e"
+          red "#f7768e"
+          green "#9ece6a"
+          yellow "#e0af68"
+          blue "#7aa2f7"
+          magenta "#bb9af7"
+          cyan "#7dcfff"
+          white "#a9b1d6"
+          bright_black "#414868"
+          bright_red "#f7768e"
+          bright_green "#9ece6a"
+          bright_yellow "#e0af68"
+          bright_blue "#7aa2f7"
+          bright_magenta "#bb9af7"
+          bright_cyan "#7dcfff"
+          bright_white "#c0caf5"
         }
       }
     '';

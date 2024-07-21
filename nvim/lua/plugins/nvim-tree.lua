@@ -12,7 +12,7 @@ return {
 				sorter = "case_sensitive",
 			},
 			view = {
-				width = 60,
+				width = 45,
 				relativenumber = true,
 				side = "right",
 			},

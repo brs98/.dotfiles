@@ -1,5 +1,6 @@
 return {
 	"ggandor/flit.nvim",
+	dependencies = "ggandor/leap.nvim",
 	enabled = true,
 	keys = function()
 		local ret = {}

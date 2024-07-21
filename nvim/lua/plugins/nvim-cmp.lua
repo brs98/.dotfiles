@@ -32,6 +32,7 @@ return { -- Autocompletion
 	config = function()
 		-- See `:help cmp`
 		local cmp = require("cmp")
+
 		local luasnip = require("luasnip")
 		luasnip.config.setup({})
 
@@ -43,6 +44,17 @@ return { -- Autocompletion
 			},
 			completion = { completeopt = "menu,menuone,noinsert" },
 
+			window = {
+				completion = { -- rounded border; thin-style scrollbar
+					border = "rounded",
+					scrollbar = "║",
+				},
+				documentation = { -- rounded border; thin-style scrollbar
+					border = "rounded",
+					scrollbar = "║",
+				},
+			},
+
 			-- For an understanding of why these mappings were
 			-- chosen, you will need to read `:help ins-completion`
 			--
@@ -53,7 +65,7 @@ return { -- Autocompletion
 				-- Select the [p]revious item
 				["<C-p>"] = cmp.mapping.select_prev_item(),
 
-				-- Accept ([y]es) the completion.
+				-- Accept the completion.
 				--  This will auto-import if your LSP supports it.
 				--  This will expand snippets if the LSP sent a snippet.
 				["<CR>"] = cmp.mapping.confirm({ select = true }),
