@@ -292,21 +292,21 @@
           bind "Alt Down" { MoveFocusOrTab "Down"; }
         }
       }
-      theme "tokyonight"
+      theme "tokyo-night-dark"
       themes {
-        tokyonight {
-          bg "#1a1b26"
-          black "#15161e"
-          blue "#7aa2f7"
-          cyan "#7dcfff"
-          fg "#c0caf5"
-          green "#9ece6a"
-          magenta "#bb9af7"
-          orange "#e0af68"
-          red "#f7768e"
-          white "#a9b1d6"
-          yellow "#e0af68"
-        }
+          tokyo-night-dark {
+              fg 169 177 214
+              bg 26 27 38
+              black 56 62 90
+              red 249 51 87
+              green 158 206 106
+              yellow 224 175 104
+              blue 122 162 247
+              magenta 187 154 247
+              cyan 42 195 222
+              white 192 202 245
+              orange 255 158 100
+          }
       }
     '';
   };
@@ -326,6 +326,11 @@
             pane command="dev"
             pane
           }
+          pane size=1 borderless=true {
+            plugin location="compact-bar"
+          }
+        }
+        default_tab_template {
           pane size=1 borderless=true {
             plugin location="compact-bar"
           }
