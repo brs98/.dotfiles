@@ -123,6 +123,9 @@ function __icon_map() {
     "Terminal" | "终端")
         icon_result=":terminal:"
         ;;
+    "WezTerm")
+        icon_result=":terminal:"
+        ;;
     "Xcode")
         icon_result=":xcode:"
         ;;

@@ -348,5 +348,10 @@
   home.file.".config/nvim" = {
     source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/nvim";
   };
+
+  # wezterm configuration
+  home.file.".config/wezterm" = {
+    source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/wezterm";
+  };
 }
 
