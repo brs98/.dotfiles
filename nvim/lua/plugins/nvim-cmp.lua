@@ -33,6 +33,31 @@ return { -- Autocompletion
 		-- See `:help cmp`
 		local cmp = require("cmp")
 
+		local function accept_all_and_output_comma_separated()
+			local entries = cmp.get_entries()
+			local items = {}
+			for _, entry in ipairs(entries) do
+				table.insert(items, entry.completion_item.label)
+			end
+
+			-- Get the current cursor position
+			local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+
+			-- Clear the current line's content
+			vim.api.nvim_buf_set_lines(0, row - 1, row, false, { "" })
+			col = 0
+
+			-- Loop through the items and insert each one followed by a comma and newline
+			for i, item in ipairs(items) do
+				vim.api.nvim_buf_set_text(0, row - 1, col, row - 1, col, { item })
+				if i < #items then
+					vim.api.nvim_buf_set_text(0, row - 1, col + #item, row - 1, col + #item, { "," })
+					row = row + 1
+					col = 0
+					vim.api.nvim_buf_set_lines(0, row - 1, row - 1, false, { "" })
+				end
+			end
+		end
 		local luasnip = require("luasnip")
 		luasnip.config.setup({})
 
@@ -64,6 +89,11 @@ return { -- Autocompletion
 				["<C-n>"] = cmp.mapping.select_next_item(),
 				-- Select the [p]revious item
 				["<C-p>"] = cmp.mapping.select_prev_item(),
+
+				["<C-a>"] = cmp.mapping(function(fallback)
+					accept_all_and_output_comma_separated()
+					fallback()
+				end, { "i", "s" }),
 
 				-- Accept the completion.
 				--  This will auto-import if your LSP supports it.
