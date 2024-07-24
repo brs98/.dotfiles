@@ -119,6 +119,13 @@ return { -- Fuzzy Finder (files, lsp, etc)
 			})
 		end, { desc = "[S]earch Files" })
 
+		vim.keymap.set("n", "<leader>sf", function()
+			builtin.find_files({
+				file_ignore_patterns = { "expo/", "node_modules/", ".git", ".DS_Store" },
+				hidden = true,
+			})
+		end, { desc = "[S]earch Hidden [F]iles" })
+
 		-- Slightly advanced example of overriding default behavior and theme
 		vim.keymap.set("n", "<leader>/", function()
 			-- You can pass additional configuration to telescope to change theme, layout, etc.
