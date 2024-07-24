@@ -6,13 +6,13 @@ return {
 		local dashboard = require("alpha.themes.dashboard")
 
 		-- Define and set highlight groups for each logo line
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo1", { fg = "#253093" }) -- Indigo
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo2", { fg = "#3f2089" }) -- Deep Purple
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo3", { fg = "#661379" }) -- Deep Purple
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo4", { fg = "#791672" }) -- Medium Purple
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo5", { fg = "#87196f" }) -- Light Purple
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo6", { fg = "#1c469d" }) -- Very Light Purple
-		vim.api.nvim_set_hl(0, "NeovimDashboardUsername", { fg = "#1c469d" }) -- light purple
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo1", { fg = "#253093" })
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo2", { fg = "#3f2089" })
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo3", { fg = "#661379" })
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo4", { fg = "#791672" })
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo5", { fg = "#87196f" })
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo6", { fg = "#1c469d" })
+		vim.api.nvim_set_hl(0, "NeovimDashboardUsername", { fg = "#1c469d" })
 		dashboard.section.header.type = "group"
 		dashboard.section.header.val = {
 			{
@@ -68,8 +68,8 @@ return {
     dashboard.button("q", " " .. " Quit",            "<cmd> qa <cr>"),
   }
 
-		vim.api.nvim_set_hl(0, "AlphaButtons", { fg = "#8aa9f9" }) -- Light Purple
-		vim.api.nvim_set_hl(0, "AlphaShortcut", { fg = "#5fcfe5" }) -- Greenish
+		vim.api.nvim_set_hl(0, "AlphaButtons", { fg = "#8aa9f9" })
+		vim.api.nvim_set_hl(0, "AlphaShortcut", { fg = "#5fcfe5" })
 
 		for _, button in ipairs(dashboard.section.buttons.val) do
 			button.opts.hl = "AlphaButtons"
