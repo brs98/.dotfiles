@@ -67,9 +67,9 @@ config.keys = {
 		key = "3",
 		mods = "SUPER|ALT",
 		action = act.SwitchToWorkspace({
-			name = "monitoring",
+			name = "Remi",
 			spawn = {
-				args = { os.getenv("SHELL"), "-c", "htop" },
+				args = { os.getenv("SHELL"), "-c", "cd ~/remi/roofworx-monorepo && nvim" },
 			},
 		}),
 	},
