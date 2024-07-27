@@ -16,7 +16,9 @@ return {
 			"nvim-neotest/nvim-nio",
 		},
 		init = function()
-			vim.keymap.set("n", "<leader>dc", "<cmd>lua require('dap').continue()<cr>", { desc = "Continue" })
+			vim.keymap.set("n", "<leader>dc", function()
+				require("dap").continue()
+			end, { desc = "Continue" })
 			vim.keymap.set(
 				"n",
 				"<leader>db",

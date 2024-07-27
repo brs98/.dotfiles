@@ -8,7 +8,7 @@ config.color_scheme = "tokyonight_night"
 config.font = wezterm.font("Hack Nerd Font")
 config.font_size = 16.0
 config.window_decorations = "RESIZE"
-config.window_background_opacity = 0.8
+-- config.window_background_opacity = 0.8
 config.enable_kitty_keyboard = true
 config.enable_csi_u_key_encoding = false
 
