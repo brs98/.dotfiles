@@ -12,6 +12,10 @@ vim.keymap.set("n", "<leader><Right>", "<C-w><Right>", addDescription("Move to r
 vim.keymap.set("n", "<leader><Up>", "<C-w><Up>", addDescription("Move to upper pane"))
 vim.keymap.set("n", "<leader><Down>", "<C-w><Down>", addDescription("Move to lower pane"))
 
+-- Easier line movement on CharaChorder / Master's Forge
+vim.keymap.set("n", "<D-Up>", ":m .-2<CR>==", addDescription("Move line up"))
+vim.keymap.set("n", "<D-Down>", ":m .+1<CR>==", addDescription("Move line down"))
+
 -- Easier window navigation on QWERTY
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>", addDescription("Move to left pane"))
 vim.keymap.set("n", "<C-l>", "<C-w><C-l>", addDescription("Move to right pane"))
