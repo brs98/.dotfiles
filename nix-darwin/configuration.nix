@@ -1,6 +1,7 @@
 { pkgs, self, ... }: {
         imports = [
           ./modules/yabai.nix
+          ./modules/skhd.nix
         ];
 
         # List packages installed in system profile. To search by name, run:
