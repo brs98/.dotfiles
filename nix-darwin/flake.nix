@@ -15,6 +15,9 @@
         modules = [
           ./configuration.nix
         ];
+        specialArgs = {
+          inherit self;
+        };
       };
 
       # Expose the package set, including overlays, for convenience.
