@@ -207,6 +207,7 @@ return { -- LSP Configuration & Plugins
 			"stylua",
 			"shfmt",
 			"markdownlint",
+			"tailwindcss-language-server",
 		})
 		require("mason-tool-installer").setup({ ensure_installed = ensure_installed })
 

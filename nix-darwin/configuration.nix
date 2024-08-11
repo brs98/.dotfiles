@@ -1,8 +1,5 @@
 { pkgs, self, ... }: {
-        imports = [
-          ./modules/yabai.nix
-          ./modules/skhd.nix
-        ];
+        imports = [];
 
         # List packages installed in system profile. To search by name, run:
         # $ nix-env -qaP | grep wget
@@ -30,9 +27,12 @@
             )
           ];
 
+        services.sketchybar = {
+          enable = true;
+        };
+
         # Auto upgrade nix package and the daemon service.
         services.nix-daemon.enable = true;
-
 
         # nix.package = pkgs.nix;
 
@@ -57,7 +57,26 @@
 
         # The platform the configuration will be used on.
         nixpkgs.hostPlatform = "aarch64-darwin";
-        # nixpkgs.hostPlatform = "x86_64-darwin";
 
+
+        homebrew = {
+          enable = true;
+          brews = [
+            "gnu-sed"
+            "nixpacks"
+          ];
+          casks = [
+            "dbeaver-community" # SQL GUI
+            "flycut" # Clipboard manager
+            "font-hack-nerd-font" # Nerd font
+            "ngrok" # Tunneling
+            "postman" # API testing
+            "obs" # Screen recording
+            "wezterm" # Terminal
+            "slack" # Communication
+            "linear-linear" # Project management
+            "nikitabobko/tap/aerospace" # Window management
+          ];
+        };
 
       }

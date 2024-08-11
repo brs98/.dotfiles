@@ -62,7 +62,7 @@ config.keys = {
 			},
 		}),
 	},
-	-- Switch to monitoring workspace
+	-- Switch to remi workspace
 	{
 		key = "3",
 		mods = "SUPER|ALT",

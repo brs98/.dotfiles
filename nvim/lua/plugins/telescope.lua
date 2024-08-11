@@ -1,3 +1,31 @@
+local function search_wordA_from_visual()
+	-- Get the visual selection
+	local _, line_start, col_start, _ = unpack(vim.fn.getpos("'<"))
+	local _, line_end, col_end, _ = unpack(vim.fn.getpos("'>"))
+
+	local lines = vim.fn.getline(line_start, line_end)
+	if #lines == 0 then
+		return
+	end
+
+	print(lines)
+
+	-- Since the selection is a single line, we only need to handle the first line
+	local selection = string.sub(lines[1], col_start, col_end)
+
+	print(selection)
+
+	-- Extract "wordA" from "wordA.wordB"
+	local first_word = selection:match("([^%.]+)")
+
+	if not first_word then
+		print("No valid selection found")
+		return
+	end
+
+	return "test"
+end
+
 return { -- Fuzzy Finder (files, lsp, etc)
 	"nvim-telescope/telescope.nvim",
 	event = "VimEnter",
@@ -148,5 +176,20 @@ return { -- Fuzzy Finder (files, lsp, etc)
 		vim.keymap.set("n", "<leader>sn", function()
 			builtin.find_files({ cwd = "~/.dotfiles/nvim" })
 		end, { desc = "[S]earch [N]eovim files" })
+
+		-- Shortcut for searching tRPC router procedures
+		-- uses visual selection as input
+		vim.keymap.set("v", "gd", function()
+			local first_word = search_wordA_from_visual()
+			print(first_word)
+			-- builtin.find_files({
+			-- 	cwd = "~/remi/roofworx-monorepo/packages/api/src/router",
+			-- 	-- expects two words concatenated with a dot
+			-- 	-- e.g. "user.create"
+			-- 	-- grab the first word from the visual selection
+			-- 	-- accept the first occurrence that telescope returns
+			-- 	search_file = first_word,
+			-- })
+		end, { desc = "[G]oto [D]efinition (trpc procedures)" })
 	end,
 }

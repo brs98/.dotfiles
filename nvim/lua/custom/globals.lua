@@ -11,3 +11,5 @@ vim.g.gitblame_enabled = 0
 
 -- Set to true if you have a Nerd Font installed
 vim.g.have_nerd_font = true
+
+vim.cmd("packadd cfilter")

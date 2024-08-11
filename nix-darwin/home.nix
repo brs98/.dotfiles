@@ -285,5 +285,10 @@
   home.file.".config/wezterm" = {
     source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/wezterm";
   };
+
+  # aerospace configuration
+  home.file.".config/aerospace" = {
+    source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/aerospace";
+  };
 }
 

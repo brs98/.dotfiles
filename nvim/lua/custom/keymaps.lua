@@ -16,6 +16,10 @@ vim.keymap.set("n", "<leader><Down>", "<C-w><Down>", addDescription("Move to low
 vim.keymap.set("n", "<D-Up>", ":m .-2<CR>==", addDescription("Move line up"))
 vim.keymap.set("n", "<D-Down>", ":m .+1<CR>==", addDescription("Move line down"))
 
+-- Easier line movement on QWERTY
+vim.keymap.set("n", "<leader>j", ":m .+1<CR>==", addDescription("Move line down"))
+vim.keymap.set("n", "<leader>k", ":m .-2<CR>==", addDescription("Move line up"))
+
 -- Easier window navigation on QWERTY
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>", addDescription("Move to left pane"))
 vim.keymap.set("n", "<C-l>", "<C-w><C-l>", addDescription("Move to right pane"))
@@ -37,10 +41,6 @@ vim.keymap.set("n", "<leader>p", 'A<CR><C-r>"', addDescription("Create new line 
 
 -- Create new line above and paste
 vim.keymap.set("n", "<leader>P", 'kA<CR><C-r>"', addDescription("Create new line above and paste"))
-
--- Move line up and down
-vim.keymap.set("n", "<leader>j", ":m .+1<CR>==", addDescription("Move line down"))
-vim.keymap.set("n", "<leader>k", ":m .-2<CR>==", addDescription("Move line up"))
 
 -- Keep cursor in the middle of the screen when finding next search occurrence
 vim.keymap.set("n", "n", "nzzzv", default_keymap_opts)
@@ -89,7 +89,11 @@ vim.keymap.set("i", "kj", "<esc>", default_keymap_opts)
 -------------------------------------------------------------
 ------------------------ VISUAL MODE ------------------------
 -------------------------------------------------------------
--- Move selection up and down
+-- Easier line movement on CharaChorder / Master's Forge
+vim.keymap.set("v", "<D-Up>", ":m .-2<CR>==", addDescription("Move line up"))
+vim.keymap.set("v", "<D-Down>", ":m .+1<CR>==", addDescription("Move line down"))
+
+-- Easier line movement on QWERTY
 vim.keymap.set("v", "<leader>j", ":m .+1<CR>==", addDescription("Move selection down"))
 vim.keymap.set("v", "<leader>k", ":m .-2<CR>==", addDescription("Move selection up"))
 
