@@ -13,8 +13,14 @@ config.enable_kitty_keyboard = true
 config.enable_csi_u_key_encoding = false
 
 -- Listen for workspace updates and update the status bar
-wezterm.on("update-right-status", function(window, _)
-	window:set_right_status(window:active_workspace())
+wezterm.on("update-status", function(window, _)
+	-- window:set_right_status(wezterm.pad_right(window:active_workspace(), 8))
+	local status = wezterm.format({
+		{ Attribute = { Intensity = "Bold" } },
+		{ Foreground = { AnsiColor = "Purple" } },
+		{ Text = "  " .. window:active_workspace() .. "  " },
+	})
+	window:set_right_status(status)
 end)
 
 -- Handles same key for navigating panes and tabs

@@ -200,6 +200,12 @@
     zellij = {
       enable = true;
     };
+
+    # yazi configuration
+    yazi = {
+      enable = true;
+      enableZshIntegration = true;
+    };
   };
 
   home.file.zellij = {
