@@ -6,6 +6,7 @@
         environment.systemPackages =
           [
             pkgs.vim
+            pkgs.pass
 
             # example of how to write an executable shell script
             (
