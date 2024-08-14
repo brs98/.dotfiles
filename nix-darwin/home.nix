@@ -206,6 +206,9 @@
       enable = true;
       enableZshIntegration = true;
     };
+
+    ripgrep.enable = true;
+    jq.enable = true;
   };
 
   home.file.zellij = {
