@@ -60,10 +60,9 @@ return { -- Autocompletion
 		end
 
 		-- Setup vim-dadbod
-		cmp.setup.filetype({ "sql" }, {
+		cmp.setup.filetype({ "mysql" }, {
 			sources = {
 				{ name = "vim-dadbod-completion" },
-				{ name = "buffer" },
 			},
 		})
 
