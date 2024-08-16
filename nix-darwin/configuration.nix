@@ -59,7 +59,6 @@
         # The platform the configuration will be used on.
         nixpkgs.hostPlatform = "aarch64-darwin";
 
-
         homebrew = {
           enable = true;
           brews = [
@@ -68,7 +67,7 @@
           ];
           casks = [
             "dbeaver-community" # SQL GUI
-            "flycut" # Clipboard manager
+            "maccy" # Clipboard manager
             "font-hack-nerd-font" # Nerd font
             "ngrok" # Tunneling
             "postman" # API testing

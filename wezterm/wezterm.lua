@@ -45,6 +45,12 @@ end
 
 local act = wezterm.action
 config.keys = {
+	-- Move tab to the left
+	{ key = "LeftArrow", mods = "SUPER|CTRL", action = act.MoveTabRelative(-1) },
+
+	-- Move tab to the right
+	{ key = "RightArrow", mods = "SUPER|CTRL", action = act.MoveTabRelative(1) },
+
 	-- Switch to the default workspace
 	{
 		key = "1",
@@ -117,16 +123,16 @@ config.keys = {
 
 	{ key = "Enter", mods = "ALT", action = act.ToggleFullScreen },
 
-	{ key = "1", mods = "CTRL", action = act.ActivateTab(0) },
-	{ key = "2", mods = "CTRL", action = act.ActivateTab(1) },
-	{ key = "3", mods = "CTRL", action = act.ActivateTab(2) },
-	{ key = "4", mods = "CTRL", action = act.ActivateTab(3) },
-	{ key = "5", mods = "CTRL", action = act.ActivateTab(4) },
-	{ key = "6", mods = "CTRL", action = act.ActivateTab(5) },
-	{ key = "7", mods = "CTRL", action = act.ActivateTab(6) },
-	{ key = "8", mods = "CTRL", action = act.ActivateTab(7) },
-	{ key = "9", mods = "CTRL", action = act.ActivateTab(8) },
-	{ key = "0", mods = "CTRL", action = act.ActivateTab(9) },
+	{ key = "1", mods = "ALT", action = act.ActivateTab(0) },
+	{ key = "2", mods = "ALT", action = act.ActivateTab(1) },
+	{ key = "3", mods = "ALT", action = act.ActivateTab(2) },
+	{ key = "4", mods = "ALT", action = act.ActivateTab(3) },
+	{ key = "5", mods = "ALT", action = act.ActivateTab(4) },
+	{ key = "6", mods = "ALT", action = act.ActivateTab(5) },
+	{ key = "7", mods = "ALT", action = act.ActivateTab(6) },
+	{ key = "8", mods = "ALT", action = act.ActivateTab(7) },
+	{ key = "9", mods = "ALT", action = act.ActivateTab(8) },
+	{ key = "0", mods = "ALT", action = act.ActivateTab(9) },
 
 	{
 		key = "LeftArrow",
@@ -135,6 +141,16 @@ config.keys = {
 	},
 	{
 		key = "RightArrow",
+		mods = "ALT",
+		action = navigate_pane_or_tab("Right"),
+	},
+	{
+		key = "h",
+		mods = "ALT",
+		action = navigate_pane_or_tab("Left"),
+	},
+	{
+		key = "l",
 		mods = "ALT",
 		action = navigate_pane_or_tab("Right"),
 	},

@@ -58,6 +58,15 @@ return { -- Autocompletion
 				end
 			end
 		end
+
+		-- Setup vim-dadbod
+		cmp.setup.filetype({ "sql" }, {
+			sources = {
+				{ name = "vim-dadbod-completion" },
+				{ name = "buffer" },
+			},
+		})
+
 		local luasnip = require("luasnip")
 		luasnip.config.setup({})
 

@@ -6,6 +6,7 @@
   home.stateVersion = "23.11";
 
   home.packages = with pkgs; [
+    go
     gnused
     htop
     wget
@@ -78,7 +79,6 @@
   };
 
   home.sessionPath = with pkgs; [
-    "~/.local/scripts/"
     "/opt/homebrew/bin/"
   ];
 
@@ -129,6 +129,11 @@
     gh = {
       enable = true;
     };
+
+    gpg = {
+      enable = true;
+    };
+
     # lazygit configuration
     lazygit = {
       enable = true;
@@ -165,6 +170,7 @@
         cd = "z";
         cdd = "cd ~/.dotfiles/";
         zel = "zellij --layout ~/.config/zellij/layouts/nextjs.kdl";
+        pw = "~/.dotfiles/scripts/pw";
       };
     };
     # fzf configuration

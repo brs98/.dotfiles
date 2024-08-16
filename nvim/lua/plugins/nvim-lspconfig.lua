@@ -208,6 +208,8 @@ return { -- LSP Configuration & Plugins
 			"shfmt",
 			"markdownlint",
 			"tailwindcss-language-server",
+			"sqls",
+			"rust-analyzer",
 		})
 		require("mason-tool-installer").setup({ ensure_installed = ensure_installed })
 
