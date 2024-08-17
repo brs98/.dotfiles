@@ -76,6 +76,7 @@
             "slack" # Communication
             "linear-linear" # Project management
             "nikitabobko/tap/aerospace" # Window management
+            "macrorecorder" # Macro recording
           ];
         };
 
