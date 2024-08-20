@@ -138,19 +138,19 @@
     lazygit = {
       enable = true;
     };
+
+    # starship configuration (prompt)
+    starship = {
+      enable = true;
+      enableZshIntegration = true;
+    };
+
     # zsh configuration
     zsh = {
       enable = true;
       enableCompletion = true;
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
-      oh-my-zsh = {
-        enable = true;
-        theme = "robbyrussell";
-        plugins = [
-          "git"
-        ];
-      };
       shellAliases = {
         v = "nvim";
         vim = "nvim";
