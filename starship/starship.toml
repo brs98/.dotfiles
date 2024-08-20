@@ -1,0 +1,35 @@
+
+"$schema" = 'https://starship.rs/config-schema.json'
+format = """$all $fill $cmd_duration
+$character"""
+
+add_newline = true
+
+[character]
+success_symbol = "[❯](green)"
+error_symbol = "[❯](red)"
+
+[fill]
+symbol = ' '
+
+[line_break]
+disabled = true
+
+[nodejs]
+format = '| [$symbol($version )]($style)' 
+
+[git_branch]
+format = '[$symbol$branch(:$remote_branch)]($style)'
+
+[git_metrics]
+disabled = false
+format = ' [+$added]($added_style)/[-$deleted]($deleted_style) '
+
+[git_status]
+disabled = true
+
+[jobs]
+disabled = true
+
+[battery]
+disabled = true

@@ -305,5 +305,10 @@
   home.file.".config/aerospace" = {
     source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/aerospace";
   };
+
+  # starship configuration
+  home.file.".config/starship.toml" = {
+    source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/starship/starship.toml";
+  };
 }
 
