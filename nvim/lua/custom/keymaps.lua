@@ -13,8 +13,8 @@ vim.keymap.set("n", "<leader><Up>", "<C-w><Up>", addDescription("Move to upper p
 vim.keymap.set("n", "<leader><Down>", "<C-w><Down>", addDescription("Move to lower pane"))
 
 -- Easier line movement on CharaChorder / Master's Forge
-vim.keymap.set("n", "<D-Up>", ":m .-2<CR>==", addDescription("Move line up"))
-vim.keymap.set("n", "<D-Down>", ":m .+1<CR>==", addDescription("Move line down"))
+vim.keymap.set("n", "<C-Up>", ":m .-2<CR>==", addDescription("Move line up"))
+vim.keymap.set("n", "<C-Down>", ":m .+1<CR>==", addDescription("Move line down"))
 
 -- Easier line movement on QWERTY
 vim.keymap.set("n", "<leader>j", ":m .+1<CR>==", addDescription("Move line down"))

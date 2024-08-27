@@ -15,6 +15,9 @@ bar.apply_to_config(config, {
 		clock = false,
 		hostname = false,
 	},
+	ansi_colors = {
+		active_tab = 3,
+	},
 })
 
 config.font = wezterm.font("Hack Nerd Font")

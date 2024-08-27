@@ -7,6 +7,7 @@
           [
             pkgs.vim
             pkgs.pass
+            pkgs.glow
 
             # example of how to write an executable shell script
             (
@@ -76,7 +77,7 @@
             "slack" # Communication
             "linear-linear" # Project management
             "nikitabobko/tap/aerospace" # Window management
-            "macrorecorder" # Macro recording
+            "1password" # Password manager
           ];
         };
 
