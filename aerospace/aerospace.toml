@@ -57,7 +57,7 @@ inner.horizontal = 12
 inner.vertical =   12
 outer.left =       12
 outer.bottom =     12
-outer.top =        12
+outer.top =        39
 outer.right =      12
 
 # 'main' binding mode declaration
@@ -89,10 +89,10 @@ cmd-slash = 'layout tiles horizontal vertical'
 cmd-comma = 'layout accordion horizontal vertical'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#focus
-cmd-left = 'focus left'
-cmd-down = 'focus down'
-cmd-up = 'focus up'
-cmd-right = 'focus right'
+ctrl-alt-left = 'focus left'
+ctrl-alt-down = 'focus down'
+ctrl-alt-up = 'focus up'
+ctrl-alt-right = 'focus right'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#move
 cmd-shift-h = 'move left'

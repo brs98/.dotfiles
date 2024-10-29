@@ -11,6 +11,9 @@ return { -- LSP Configuration & Plugins
 		{ "j-hui/fidget.nvim", opts = {} },
 	},
 	config = function()
+		vim.diagnostic.config({
+			float = { border = "rounded" },
+		})
 		-- Brief Aside: **What is LSP?**
 		--
 		-- LSP is an acronym you've probably heard, but might not understand what it is.
@@ -210,6 +213,7 @@ return { -- LSP Configuration & Plugins
 			"tailwindcss-language-server",
 			"sqls",
 			"rust-analyzer",
+			"eslint-lsp",
 		})
 		require("mason-tool-installer").setup({ ensure_installed = ensure_installed })
 

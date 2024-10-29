@@ -17,6 +17,9 @@
     lazydocker
 
     trunk
+    protobuf
+    grpcurl
+    grpcui
 
     nodejs_20
     corepack_20

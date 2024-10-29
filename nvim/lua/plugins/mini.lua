@@ -10,7 +10,7 @@ return { -- Collection of various small independent plugins/modules
 		require("mini.ai").setup({ n_lines = 500 })
 
 		-- Pair matching () {} [] '' "" `` etc.
-		require("mini.pairs").setup({})
+		-- require("mini.pairs").setup({})
 
 		-- Commenting
 		require("mini.comment").setup({

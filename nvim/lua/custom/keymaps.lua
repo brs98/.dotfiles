@@ -5,6 +5,8 @@ local addDescription = utils.addDescription
 -------------------------------------------------------------
 ------------------------ NORMAL MODE ------------------------
 -------------------------------------------------------------
+-- Don't jump to next search occurrence when selecting text
+vim.keymap.set("n", "*", "*``", default_keymap_opts)
 
 -- Easier window navigation on CharaChorder / Master's Forge
 vim.keymap.set("n", "<leader><Left>", "<C-w><Left>", addDescription("Move to left pane"))
@@ -89,13 +91,6 @@ vim.keymap.set("i", "kj", "<esc>", default_keymap_opts)
 -------------------------------------------------------------
 ------------------------ VISUAL MODE ------------------------
 -------------------------------------------------------------
--- Easier line movement on CharaChorder / Master's Forge
-vim.keymap.set("v", "<D-Up>", ":m .-2<CR>==", addDescription("Move line up"))
-vim.keymap.set("v", "<D-Down>", ":m .+1<CR>==", addDescription("Move line down"))
-
--- Easier line movement on QWERTY
-vim.keymap.set("v", "<leader>j", ":m .+1<CR>==", addDescription("Move selection down"))
-vim.keymap.set("v", "<leader>k", ":m .-2<CR>==", addDescription("Move selection up"))
 
 -- Exit visual mode with JK or KJ
 vim.keymap.set("v", "JK", "<esc>", default_keymap_opts)
@@ -105,9 +100,13 @@ vim.keymap.set("v", "KJ", "<esc>", default_keymap_opts)
 vim.keymap.set("v", "p", '"_dp"', default_keymap_opts)
 vim.keymap.set("v", "P", '"_dP"', default_keymap_opts)
 
+-- CharaChorder / Master's Forge move selection up and down
+vim.keymap.set("v", "<C-Down>", ":move '>+1<CR>gv-gv", addDescription("Move selection down"))
+vim.keymap.set("v", "<C-Up>", ":move '<-2<CR>gv-gv", addDescription("Move selection up"))
+
 -- Move selection up and down
-vim.keymap.set("v", "<C-j>", ":move '>+1<CR>gv-gv", default_keymap_opts)
-vim.keymap.set("v", "<C-k>", ":move '<-2<CR>gv-gv", default_keymap_opts)
+vim.keymap.set("v", "<C-j>", ":move '>+1<CR>gv-gv", addDescription("Move selection down"))
+vim.keymap.set("v", "<C-k>", ":move '<-2<CR>gv-gv", addDescription("Move selection up"))
 
 -- Move to start of line
 vim.keymap.set("v", "s", "^", default_keymap_opts)
