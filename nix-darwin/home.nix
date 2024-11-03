@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, ... }:
 
 {
   home.username = "brandonsouthwick";
@@ -81,7 +81,7 @@
     EDITOR = "nvim";
   };
 
-  home.sessionPath = with pkgs; [
+  home.sessionPath = [
     "/opt/homebrew/bin/"
   ];
 

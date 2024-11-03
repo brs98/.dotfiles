@@ -1,5 +1,5 @@
 {
-  description = "Example Darwin system flake";
+  description = "My Nix Darwin configuration";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -14,6 +14,8 @@
       darwinConfigurations."Brandons-MacBook-Pro" = nix-darwin.lib.darwinSystem {
         modules = [
           ./configuration.nix
+          ./packages.nix
+          ./shell-applications.nix
         ];
         specialArgs = {
           inherit self;
