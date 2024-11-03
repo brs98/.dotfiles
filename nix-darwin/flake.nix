@@ -16,6 +16,7 @@
           ./configuration.nix
           ./packages.nix
           ./shell-applications.nix
+          ./services.nix
         ];
         specialArgs = {
           inherit self;
