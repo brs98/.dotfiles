@@ -37,6 +37,11 @@
 
   programs = {
     home-manager.enable = true;
+    programs.wezterm = {
+      enable = true;
+      enableZshIntegration = true;
+      extraConfig = builtins.readFile ../wezterm/wezterm.lua
+    };
     # Git configuration
     git = {
       enable = true;
