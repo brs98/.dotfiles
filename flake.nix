@@ -5,12 +5,13 @@
     nixpkgs.url = "github:NixOS/nixpkgs";
     nix-darwin.url = "github:LnL7/nix-darwin";
     home-manager.url = "github:nix-community/home-manager";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = { self, nixpkgs, nix-darwin, home-manager }: {
     # Define configurations for different systems
     nixosConfigurations = {
-      brandon = nixpkgs.lib.nixosSystem {
+      brandon-linux = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ./nixos/configuration.nix
@@ -43,7 +44,7 @@
 
     # Define a home-manager configuration for non-root user environments
     homeConfigurations = {
-      "brandon" = home-manager.lib.homeManagerConfiguration {
+      "brandon-linux" = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs { system = "x86_64-linux"; };
         modules = [
           ./home-manager/linux.nix
