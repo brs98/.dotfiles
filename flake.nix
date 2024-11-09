@@ -1,4 +1,4 @@
-    {
+{
   description = "Dotfiles for both NixOS and Nix-Darwin";
 
   inputs = {
