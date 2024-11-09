@@ -7,7 +7,6 @@
 
   home.packages = with pkgs; [
     gh
-    wezterm
     gnused
     htop
     wget
@@ -37,10 +36,9 @@
 
   programs = {
     home-manager.enable = true;
-    programs.wezterm = {
+    wezterm = {
       enable = true;
       enableZshIntegration = true;
-      extraConfig = builtins.readFile ../wezterm/wezterm.lua
     };
     # Git configuration
     git = {
