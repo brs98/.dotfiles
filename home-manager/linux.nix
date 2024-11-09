@@ -18,7 +18,6 @@
     corepack_20
 
     trunk
-    cargo
     rustup
 
     (nerdfonts.override { fonts = [ "Hack" ]; })
