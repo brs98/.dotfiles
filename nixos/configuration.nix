@@ -78,16 +78,16 @@
   # services.xserver.libinput.enable = true;
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
-  users.users.brandon = {
+  users.users.brandon = with pkgs; {
     isNormalUser = true;
     description = "Brandon";
+    shell = pkgs.zsh;
     extraGroups = [ "networkmanager" "wheel" ];
-    packages = with pkgs; [
+    packages = [
     #  thunderbird
     	gh
 	git
 	neovim
-	wezterm
     ];
   };
 

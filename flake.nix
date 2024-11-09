@@ -24,10 +24,10 @@
     # $ darwin-rebuild build --flake .#Brandons-MacBook-Pro
     darwinConfigurations."Brandons-MacBook-Pro" = nix-darwin.lib.darwinSystem {
       modules = [
-        ./configuration.nix
-        ./packages.nix
-        ./shell-applications.nix
-        ./services.nix
+        ./nix-darwin/configuration.nix
+        ./nix-darwin/packages.nix
+        ./nix-darwin/shell-applications.nix
+        ./nix-darwin/services.nix
       ];
       specialArgs = {
         inherit self;

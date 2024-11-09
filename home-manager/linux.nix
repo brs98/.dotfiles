@@ -6,13 +6,16 @@
   home.stateVersion = "23.11";
 
   home.packages = with pkgs; [
+    gh
+    wezterm
     gnused
     htop
     wget
-    # sketchybar
     neovim
     typescript
     lazydocker
+
+    gcc
 
     nodejs_20
     corepack_20
@@ -31,10 +34,6 @@
   home.sessionVariables = {
     EDITOR = "nvim";
   };
-
-  home.sessionPath = [
-    "/opt/homebrew/bin/"
-  ];
 
   programs = {
     home-manager.enable = true;
