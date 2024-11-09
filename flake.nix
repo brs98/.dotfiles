@@ -14,8 +14,12 @@
         system = "x86_64-linux";
         modules = [
           ./nixos/configuration.nix
-          home-manager.nixosModules.home-manager
-          { home-manager.useUserPackages = true; }
+          { 
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+            home-manager.users.brandon = import ./home-manager/linux.nix;
+
+          }
         ];
       };
     };
