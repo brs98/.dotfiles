@@ -5,7 +5,6 @@
     nixpkgs.url = "github:NixOS/nixpkgs";
     nix-darwin.url = "github:LnL7/nix-darwin";
     home-manager.url = "github:nix-community/home-manager";
-    home-manager.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = { self, nixpkgs, nix-darwin, home-manager }: {
@@ -15,12 +14,6 @@
         system = "x86_64-linux";
         modules = [
           ./nixos/configuration.nix
-          { 
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.users.brandon = import ./home-manager/linux.nix;
-
-          }
         ];
       };
     };
