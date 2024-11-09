@@ -170,11 +170,6 @@
     jq.enable = true;
   };
 
-  # sketchybar configuration
-  #home.file.".config/sketchybar" = {
-  #  source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/sketchybar";
-  #};
-
   # neovim configuration
   home.file.".config/nvim" = {
     source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/nvim";
@@ -184,11 +179,6 @@
   home.file.".config/wezterm" = {
     source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/wezterm";
   };
-
-  # aerospace configuration
-  #home.file.".config/aerospace" = {
-  #  source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/aerospace";
-  #};
 
   # starship configuration
   home.file.".config/starship.toml" = {

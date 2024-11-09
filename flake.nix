@@ -10,7 +10,7 @@
   outputs = { self, nixpkgs, nix-darwin, home-manager }: {
     # Define configurations for different systems
     nixosConfigurations = {
-      brandon-linux = nixpkgs.lib.nixosSystem {
+      brandon = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ./nixos/configuration.nix
@@ -43,7 +43,7 @@
 
     # Define a home-manager configuration for non-root user environments
     homeConfigurations = {
-      "brandon-linux" = home-manager.lib.homeManagerConfiguration {
+      "brandon" = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs { system = "x86_64-linux"; };
         modules = [
           ./home-manager/linux.nix
