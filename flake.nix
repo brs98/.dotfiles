@@ -10,7 +10,7 @@
   outputs = { self, nixpkgs, nix-darwin, home-manager }: {
     # Define configurations for different systems
     nixosConfigurations = {
-      brandon = nixpkgs.lib.nixosSystem {
+      brandon-linux = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ./nixos/configuration.nix
@@ -36,6 +36,23 @@
 
     # Expose the package set, including overlays, for convenience.
     darwinPackages = self.darwinConfigurations."Brandons-MacBook-Pro".pkgs;
+
+    # Define a home-manager configuration for non-root user environments
+    homeConfigurations = {
+      "brandon-linux" = home-manager.lib.homeManagerConfiguration {
+        pkgs = import nixpkgs { system = "x86_64-linux"; };
+        modules = [
+          ./home-manager/linux.nix
+        ];
+      };
+
+      "brandon-mac" = home-manager.lib.homeManagerConfiguration {
+        pkgs = import nixpkgs { system = "x86_64-darwin"; };
+        modules = [
+          ./home-manager/mac.nix
+        ];
+      };
+    };
   };
 }
 
