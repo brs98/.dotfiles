@@ -34,12 +34,36 @@
     EDITOR = "nvim";
   };
 
+  gtk = {
+    enable = true;
+    cursorTheme = {
+      package = pkgs.vanilla-dmz;
+      name = "Vanilla-DMZ";
+    };
+    theme = {
+      name = "Dracula";
+      package = pkgs.dracula-theme;
+    };
+  };
+
   programs = {
     home-manager.enable = true;
-    wezterm = {
+
+    obs-studio.enable = true;
+
+    kitty = {
       enable = true;
-      enableZshIntegration = true;
+      shellIntegration.enableZshIntegration = true;
+      settings = {
+        background_opacity = 0.8;
+      };
     };
+
+    # wezterm = {
+    #   enable = true;
+    #   enableZshIntegration = true;
+    # };
+    #
     # Git configuration
     git = {
       enable = true;
@@ -181,6 +205,11 @@
   # wezterm configuration
   home.file.".config/wezterm" = {
     source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/wezterm";
+  };
+
+  # kitty configuration
+  home.file.".config/kitty.conf" = {
+    source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/kitty/kitty.conf";
   };
 
   # starship configuration

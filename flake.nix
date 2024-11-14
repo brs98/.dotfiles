@@ -3,16 +3,27 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs";
+    catppuccin.url = "github:catppuccin/nix";
     nix-darwin.url = "github:LnL7/nix-darwin";
-    home-manager.url = "github:nix-community/home-manager";
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    hyprland.url = "github:hyprwm/Hyprland";
+    hyprland-plugins = {
+      url = "github:hyprwm/hyprland-plugins";
+      inputs.hyprland.follows = "hyprland";
+    };
   };
 
-  outputs = { self, nixpkgs, nix-darwin, home-manager }: {
+  outputs = { self, nixpkgs, nix-darwin, home-manager, catppuccin, ... } @ inputs: {
     # Define configurations for different systems
     nixosConfigurations = {
       brandon-linux = nixpkgs.lib.nixosSystem {
+        specialArgs = { inherit inputs; };
         system = "x86_64-linux";
         modules = [
+          catppuccin.nixosModules.catppuccin
           ./nixos/configuration.nix
         ];
       };
@@ -41,6 +52,7 @@
         pkgs = import nixpkgs { system = "x86_64-linux"; };
         modules = [
           ./home-manager/linux.nix
+          catppuccin.nixosModules.catppuccin
         ];
       };
 

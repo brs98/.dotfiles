@@ -33,6 +33,7 @@ vim.keymap.set("n", "s", "^", default_keymap_opts)
 
 -- Command S to save
 vim.keymap.set("n", "<D-s>", ":w<CR>", default_keymap_opts)
+vim.keymap.set("n", "<C-s>", ":w<CR>", default_keymap_opts)
 
 -- Save and quit all
 -- append default_keymap_opts to the end of the table and add a description

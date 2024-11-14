@@ -2,7 +2,7 @@
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
-{ config, pkgs, ... }:
+{ config, pkgs, catppuccin, ... }:
 
 {
   imports =
@@ -42,18 +42,19 @@
     LC_TIME = "en_US.UTF-8";
   };
 
-  # Enable the X11 windowing system.
-  services.xserver.enable = true;
-
-  # Enable the GNOME Desktop Environment.
-  services.xserver.displayManager.gdm.enable = true;
-  services.xserver.desktopManager.gnome.enable = true;
-
-  # Configure keymap in X11
-  services.xserver.xkb = {
-    layout = "us";
-    variant = "";
-  };
+  # # Enable the X11 windowing system.
+  # services.xserver.enable = true;
+  #
+  # # Enable the GNOME Desktop Environment.
+  # services.xserver.displayManager.gdm.enable = true;
+  # services.xserver.desktopManager.gnome.enable = true;
+  #
+  # # Configure keymap in X11
+  # services.xserver.xkb = {
+  #   layout = "us";
+  #   options = "ctrl:nocaps";  # Remap Caps Lock to Control
+  #   variant = "";
+  # };
 
   # Enable CUPS to print documents.
   services.printing.enable = true;
@@ -87,7 +88,18 @@
     	gh
 	git
 	neovim
+	google-chrome
+	networkmanagerapplet
+	killall
+	wine
+	pavucontrol
     ];
+  };
+
+  # theme
+  catppuccin = {
+    enable = true;
+    flavor = "mocha";
   };
 
   programs.zsh.enable = true;
@@ -99,6 +111,8 @@
     enable = true;
     xwayland.enable = true;
   };
+
+  programs.sway.enable = true;
 
   environment.sessionVariables = {
     # If your cursor becomes invisible
@@ -116,6 +130,7 @@
   };
 
   xdg.portal.enable = true;
+  xdg.autostart.enable = true;
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
 
   # Allow unfree packages
@@ -124,7 +139,7 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-    neovim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
+    neovim
     waybar
     (pkgs.waybar.overrideAttrs (oldAttrs: {
       mesonFlags = oldAttrs.mesonFlags ++ [ "-Dexperimental=true" ];
@@ -133,8 +148,13 @@
     mako
     libnotify
     swww
+
+    wezterm
     kitty
     rofi-wayland
+
+    obs-studio
+    kdenlive
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
