@@ -37,6 +37,7 @@
         ./nix-darwin/packages.nix
         ./nix-darwin/shell-applications.nix
         ./nix-darwin/services.nix
+        ./nix-darwin/homebrew.nix
       ];
       specialArgs = {
         inherit self;
@@ -51,15 +52,14 @@
       "brandon-linux" = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs { system = "x86_64-linux"; };
         modules = [
-          ./home-manager/linux.nix
-          catppuccin.nixosModules.catppuccin
+          ./home-manager/systems/linux.nix
         ];
       };
 
       "brandon-mac" = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs { system = "x86_64-darwin"; };
         modules = [
-          ./home-manager/mac.nix
+          ./home-manager/systems/mac.nix
         ];
       };
     };

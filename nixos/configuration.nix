@@ -140,6 +140,7 @@
   # $ nix search wget
   environment.systemPackages = with pkgs; [
     neovim
+    nautilus
     waybar
     (pkgs.waybar.overrideAttrs (oldAttrs: {
       mesonFlags = oldAttrs.mesonFlags ++ [ "-Dexperimental=true" ];
@@ -147,14 +148,16 @@
     )
     mako
     libnotify
-    swww
+    hyprpaper
 
     wezterm
     kitty
-    rofi-wayland
+    tofi
 
     obs-studio
     kdenlive
+
+    heroic
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
