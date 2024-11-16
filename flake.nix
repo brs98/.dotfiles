@@ -2,6 +2,7 @@
   description = "Dotfiles for both NixOS and Nix-Darwin";
 
   inputs = {
+    wezterm.url = "github:wez/wezterm?dir=nix";
     nixpkgs.url = "github:NixOS/nixpkgs";
     catppuccin.url = "github:catppuccin/nix";
     nix-darwin.url = "github:LnL7/nix-darwin";

@@ -1,5 +1,11 @@
-{config, ...}: {
+{config, inputs, pkgs, ...}: {
   programs = {
+      # terminal
+      wezterm = {
+        enable = true;
+        package = inputs.wezterm.packages.${pkgs.system}.default;
+      };
+
       kitty = {
         enable = true;
         shellIntegration.enableZshIntegration = true;
