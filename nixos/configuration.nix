@@ -148,7 +148,9 @@
     )
     mako
     libnotify
+    hyprlock
     hyprpaper
+    wlogout
 
     kitty
     wofi
@@ -157,6 +159,9 @@
     kdenlive
 
     heroic
+
+    spotify
+    playerctl
   ];
 
   # Some programs need SUID wrappers, can be configured further or are

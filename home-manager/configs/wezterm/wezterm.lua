@@ -4,7 +4,9 @@ local wezterm = require("wezterm")
 -- This will hold the configuration.
 local config = wezterm.config_builder()
 
-config.color_scheme = "tokyonight_night"
+config.enable_wayland = false
+config.dpi = 192
+config.color_scheme = "catppuccin"
 
 local bar = wezterm.plugin.require("https://github.com/adriankarlen/bar.wezterm")
 bar.apply_to_config(config, {
@@ -21,9 +23,9 @@ bar.apply_to_config(config, {
 })
 
 config.font = wezterm.font("Hack Nerd Font")
-config.font_size = 16.0
+config.font_size = 14.0
 config.window_decorations = "RESIZE"
--- config.window_background_opacity = 0.8
+config.window_background_opacity = 0.8
 config.enable_kitty_keyboard = true
 config.enable_csi_u_key_encoding = false
 
@@ -59,6 +61,18 @@ end
 
 local act = wezterm.action
 config.keys = {
+	-- Create new tab
+	{
+		key = 't',
+		mods = 'CTRL',
+		action = act.SpawnTab 'CurrentPaneDomain',
+	},
+	-- Close tab
+	{
+		key = 'w',
+		mods = 'CTRL',
+		action = wezterm.action.CloseCurrentTab { confirm = true },
+	  },
 	-- Move tab to the left
 	{ key = "LeftArrow", mods = "SUPER|CTRL", action = act.MoveTabRelative(-1) },
 

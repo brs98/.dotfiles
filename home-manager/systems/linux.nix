@@ -5,7 +5,6 @@
     ../modules/gtk.nix
     ../modules/neovim.nix
     ../modules/terminal.nix
-    ../modules/wezterm.nix
   ];
 
     home.username = "brandon";

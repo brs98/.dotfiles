@@ -1,4 +1,9 @@
-{config, inputs, pkgs, ...}: {
+
+{config, inputs, pkgs, ...}: let
+  configDir = "${config.home.homeDirectory}/.dotfiles";
+  weztermDir = "${configDir}/home-manager/configs/wezterm/wezterm.lua";
+  starshipDir = "${configDir}/home-manager/configs/starship/starship.toml";
+in {
   programs = {
       # terminal
       wezterm = {
@@ -82,8 +87,14 @@
 
   };
 
-    # starship configuration
-    home.file.".config/starship.toml" = {
-      source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/starship/starship.toml";
-    };
+  # wezterm configuration
+  xdg.configFile."wezterm/wezterm.lua".enable = false;
+  home.file.".config/wezterm/wezterm.lua" = {
+    source = config.lib.file.mkOutOfStoreSymlink weztermDir;
+  };
+
+  # starship configuration
+  home.file.".config/starship.toml" = {
+    source = config.lib.file.mkOutOfStoreSymlink starshipDir;
+  };
 }

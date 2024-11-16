@@ -1,5 +1,6 @@
 -- Set bash
-vim.opt.shell = "/bin/bash"
+-- vim.opt.shell = "/bin/bash" -- macos
+vim.opt.shell = "/run/current-system/sw/bin/bash" -- linux
 
 -- Do not use swapfiles
 vim.opt.swapfile = false
