@@ -8,17 +8,33 @@ config.enable_wayland = false
 config.dpi = 192
 config.color_scheme = "catppuccin"
 
+
 local bar = wezterm.plugin.require("https://github.com/adriankarlen/bar.wezterm")
 bar.apply_to_config(config, {
-	left_separator = "|",
-	enabled_modules = {
-		pane = false,
-		username = false,
-		clock = false,
-		hostname = false,
-	},
-	ansi_colors = {
-		active_tab = 3,
+	-- separator = "|",
+	modules = {
+		pane = {
+			enabled = false
+		},
+		username = {
+			enabled = false
+		},
+		clock = {
+			enabled = false
+		},
+		hostname = {
+			enabled = false
+		},
+		workspace = {
+			enabled = true,
+			icon = " ",
+			color = 8,
+			max_width = 64,
+		},
+		tabs = {
+			active_tab_fg = 3,
+			inactive_tab_fg = 8,
+		},
 	},
 })
 

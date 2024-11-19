@@ -93,6 +93,7 @@
 	killall
 	wine
 	pavucontrol
+	nerdfonts
     ];
   };
 
