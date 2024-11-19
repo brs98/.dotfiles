@@ -5,7 +5,6 @@ local wezterm = require("wezterm")
 local config = wezterm.config_builder()
 
 config.enable_wayland = false
-config.dpi = 192
 config.color_scheme = "catppuccin"
 
 
@@ -39,7 +38,10 @@ bar.apply_to_config(config, {
 })
 
 config.font = wezterm.font("Hack Nerd Font")
-config.font_size = 14.0
+
+-- config.font_size = 14.0
+config.font_size = 20.0
+
 config.window_decorations = "RESIZE"
 config.window_background_opacity = 0.8
 config.enable_kitty_keyboard = true
@@ -95,7 +97,7 @@ config.keys = {
 	-- Move tab to the right
 	{ key = "RightArrow", mods = "SUPER|CTRL", action = act.MoveTabRelative(1) },
 
-	-- Switch to the default workspace
+	-- Switch to default workspace
 	{
 		key = "1",
 		mods = "SUPER|ALT",
@@ -118,17 +120,17 @@ config.keys = {
 			},
 		}),
 	},
-	-- Switch to remi workspace
-	{
-		key = "3",
-		mods = "SUPER|ALT",
-		action = act.SwitchToWorkspace({
-			name = "Remi",
-			spawn = {
-				args = { os.getenv("SHELL"), "-c", "cd ~/remi/roofworx-monorepo && nvim" },
-			},
-		}),
-	},
+	-- Switch to work workspace
+	-- {
+	-- 	key = "3",
+	-- 	mods = "SUPER|ALT",
+	-- 	action = act.SwitchToWorkspace({
+	-- 		name = "Work",
+	-- 		spawn = {
+	-- 			args = { os.getenv("SHELL"), "-c", "cd ~/work && nvim" },
+	-- 		},
+	-- 	}),
+	-- },
 	-- Prompt for a name to use for a new workspace and switch to it.
 	{
 		key = "n",

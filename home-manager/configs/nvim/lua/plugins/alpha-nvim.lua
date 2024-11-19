@@ -6,13 +6,13 @@ return {
 		local dashboard = require("alpha.themes.dashboard")
 
 		-- Define and set highlight groups for each logo line
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo1", { fg = "#253093" })
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo2", { fg = "#3f2089" })
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo3", { fg = "#661379" })
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo4", { fg = "#791672" })
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo5", { fg = "#87196f" })
-		vim.api.nvim_set_hl(0, "NeovimDashboardLogo6", { fg = "#1c469d" })
-		vim.api.nvim_set_hl(0, "NeovimDashboardUsername", { fg = "#1c469d" })
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo1", { fg = "#b4befe" }) 
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo2", { fg = "#89b4fa" }) 
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo3", { fg = "#74c7ec" }) 
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo4", { fg = "#89dceb" }) 
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo5", { fg = "#94e2d5" }) 
+		vim.api.nvim_set_hl(0, "NeovimDashboardLogo6", { fg = "#a6e3a1" }) 
+		vim.api.nvim_set_hl(0, "NeovimDashboardUsername", { fg = "#a6e3a1" }) 
 		dashboard.section.header.type = "group"
 		dashboard.section.header.val = {
 			{

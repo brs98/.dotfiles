@@ -56,6 +56,9 @@
   #   variant = "";
   # };
 
+  # Enable flakes
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
   # Enable CUPS to print documents.
   services.printing.enable = true;
 
@@ -161,9 +164,6 @@
 
     obs-studio
     kdenlive
-
-    heroic
-    lutris
 
     spotify
     playerctl

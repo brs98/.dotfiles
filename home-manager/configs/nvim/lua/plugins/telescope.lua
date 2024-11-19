@@ -176,20 +176,5 @@ return { -- Fuzzy Finder (files, lsp, etc)
 		vim.keymap.set("n", "<leader>sn", function()
 			builtin.find_files({ cwd = "~/.dotfiles/nvim" })
 		end, { desc = "[S]earch [N]eovim files" })
-
-		-- Shortcut for searching tRPC router procedures
-		-- uses visual selection as input
-		vim.keymap.set("v", "gd", function()
-			local first_word = search_wordA_from_visual()
-			print(first_word)
-			-- builtin.find_files({
-			-- 	cwd = "~/remi/roofworx-monorepo/packages/api/src/router",
-			-- 	-- expects two words concatenated with a dot
-			-- 	-- e.g. "user.create"
-			-- 	-- grab the first word from the visual selection
-			-- 	-- accept the first occurrence that telescope returns
-			-- 	search_file = first_word,
-			-- })
-		end, { desc = "[G]oto [D]efinition (trpc procedures)" })
 	end,
 }
