@@ -18,6 +18,8 @@
       typescript
       lazydocker
 
+      go
+
       gcc
 
       nodejs_20
