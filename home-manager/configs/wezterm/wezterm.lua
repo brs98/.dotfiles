@@ -7,6 +7,7 @@ local config = wezterm.config_builder()
 config.enable_wayland = false
 config.color_scheme = "catppuccin"
 
+config.audible_bell = "Disabled"
 
 local bar = wezterm.plugin.require("https://github.com/adriankarlen/bar.wezterm")
 bar.apply_to_config(config, {
