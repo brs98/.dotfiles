@@ -63,7 +63,7 @@
   services.printing.enable = true;
 
   # Enable sound with pipewire.
-  hardware.pulseaudio.enable = false;
+  # hardware.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
     enable = true;
@@ -80,12 +80,14 @@
   # Enable touchpad support (enabled default in most desktopManager).
   # services.xserver.libinput.enable = true;
 
+  services.flatpak.enable = true;
+
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.brandon = with pkgs; {
     isNormalUser = true;
     description = "Brandon";
     shell = pkgs.zsh;
-    extraGroups = [ "networkmanager" "wheel" ];
+    extraGroups = [ "networkmanager" "wheel" "docker" ];
     packages = [
     #  thunderbird
     	gh
@@ -123,6 +125,8 @@
     WLR_NO_HARDWARE_CURSORS = "1";
     # Hint electron apps to use wayland
     NIXOS_OZONE_WL = "1";
+
+    BROWSER = "google-chrome";
   };
 
   hardware = {
@@ -134,9 +138,12 @@
     nvidia.modesetting.enable = true;
   };
 
-  xdg.portal.enable = true;
   xdg.autostart.enable = true;
-  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+
+  xdg.portal = {
+    enable = true;
+    extraPortals = [ pkgs.xdg-desktop-portal-hyprland pkgs.xdg-desktop-portal-wlr pkgs.xdg-desktop-portal-gtk];
+  };
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
@@ -155,19 +162,38 @@
     )
     mako
     libnotify
+
     hyprlock
     hyprpaper
+    hypridle
+
     wlogout
 
     kitty
     wofi
 
-    obs-studio
+    # OBS Studio wrapping in unstable channel
+    (pkgs.wrapOBS {
+      plugins = with pkgs.obs-studio-plugins; [
+	wlrobs
+	obs-backgroundremoval
+	obs-pipewire-audio-capture
+      ];
+     })
+    xdg-desktop-portal
     kdenlive
 
     spotify
     playerctl
+
+    (lutris.override {
+      extraLibraries =  pkgs: [
+        # List library dependencies here
+      ];
+    })
   ];
+
+  virtualisation.docker.enable = true;
 
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.

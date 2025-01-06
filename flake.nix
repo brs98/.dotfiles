@@ -15,9 +15,12 @@
       url = "github:hyprwm/hyprland-plugins";
       inputs.hyprland.follows = "hyprland";
     };
+    ghostty = {
+      url = "github:ghostty-org/ghostty";
+    };
   };
 
-  outputs = { self, nixpkgs, nix-darwin, home-manager, catppuccin, ... } @ inputs: {
+  outputs = { self, nixpkgs, nix-darwin, home-manager, catppuccin, ghostty, ... } @ inputs: {
     # Define configurations for different systems
     nixosConfigurations = {
       brandon-linux = nixpkgs.lib.nixosSystem {
@@ -26,6 +29,11 @@
         modules = [
           catppuccin.nixosModules.catppuccin
           ./nixos/configuration.nix
+          {
+            environment.systemPackages = [
+              ghostty.packages.x86_64-linux.default
+            ];
+          }
         ];
       };
     };
