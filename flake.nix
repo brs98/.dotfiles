@@ -39,8 +39,8 @@
     };
 
     # Build darwin flake using:
-    # $ darwin-rebuild build --flake .#Brandons-MacBook-Pro
-    darwinConfigurations."Brandons-MacBook-Pro" = nix-darwin.lib.darwinSystem {
+    # $ darwin-rebuild build --flake .MacBook-Pro-179
+    darwinConfigurations.MacBook-Pro-179 = nix-darwin.lib.darwinSystem {
       modules = [
         ./nix-darwin/configuration.nix
         ./nix-darwin/packages.nix
@@ -54,7 +54,7 @@
     };
 
     # Expose the package set, including overlays, for convenience.
-    darwinPackages = self.darwinConfigurations."Brandons-MacBook-Pro".pkgs;
+    darwinPackages = self.darwinConfigurations.MacBook-Pro-179.pkgs;
 
     # Define a home-manager configuration for non-root user environments
     homeConfigurations = {
@@ -66,11 +66,12 @@
         ];
       };
 
-      "brandon-mac" = home-manager.lib.homeManagerConfiguration {
-        pkgs = import nixpkgs { system = "x86_64-darwin"; };
+      "MacBook-Pro-179" = home-manager.lib.homeManagerConfiguration {
+        pkgs = import nixpkgs { system = "aarch64-darwin"; };
         modules = [
           ./home-manager/systems/mac.nix
         ];
+	system = "aarch64-darwin";
       };
     };
   };
