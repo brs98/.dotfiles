@@ -2,8 +2,10 @@
   configDir = "${config.home.homeDirectory}/.dotfiles";
   nvimDir = "${configDir}/home-manager/configs/nvim";
 in {
-  programs.neovim.enable = true;
-  programs.neovim.defaultEditor = true;
+  programs.neovim = {
+  	enable = true;
+	defaultEditor = true;
+  };
 
   home.sessionVariables = {
     EDITOR = "nvim";

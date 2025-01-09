@@ -51,7 +51,6 @@
         enable = true;
       };
 
-
       # delta configuration
       git.delta = {
         enable = true;
