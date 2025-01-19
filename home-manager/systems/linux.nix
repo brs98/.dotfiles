@@ -1,4 +1,4 @@
-{pkgs, ...}: {
+{inputs, confg, pkgs, ...}: {
 
   imports = [
     ../modules/git.nix
@@ -22,8 +22,8 @@
 
       gcc
 
-      nodejs_20
-      corepack_20
+      nodejs_22
+      corepack
 
       trunk
       rustup
@@ -42,9 +42,4 @@
       ripgrep.enable = true;
       jq.enable = true;
     };
-
-    # wezterm configuration
-    # home.file.".config/wezterm" = {
-    #   source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.dotfiles/wezterm";
-    # };
 }

@@ -2,13 +2,24 @@
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
-{ pkgs, ... }:
+{ pkgs, inputs, ... }:
 
 {
   imports =
     [ # Include the results of the hardware scan.
       ./hardware-configuration.nix
+	inputs.home-manager.nixosModules.home-manager
     ];
+
+  home-manager = {
+  	backupFileExtension = "backup";
+      useGlobalPkgs = true;
+  useUserPackages = true;
+  	extraSpecialArgs = { inherit inputs; };
+	users = {
+		brandon = import ../home-manager/systems/linux.nix;
+	};
+  };
 
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
@@ -100,6 +111,7 @@
 	pavucontrol
 	nerdfonts
     ];
+    home = "/home/brandon";
   };
 
   # theme
@@ -162,6 +174,12 @@
     )
     mako
     libnotify
+
+    # screenshot
+    slurp
+
+    # clipboard
+    wl-clipboard
 
     hyprlock
     hyprpaper

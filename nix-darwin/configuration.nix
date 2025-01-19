@@ -4,8 +4,7 @@ imports = [
 	inputs.home-manager.darwinModules.home-manager
   ];
 
-
-		users.users.Brandon.home = "/Users/Brandon";
+users.users.Brandon.home = "/Users/Brandon";
 
   home-manager = {
   	backupFileExtension = "backup";

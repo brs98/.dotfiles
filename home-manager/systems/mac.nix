@@ -29,8 +29,8 @@ imports = [
     grpcurl
     grpcui
 
-    nodejs_20
-    corepack_20
+    nodejs_22
+    corepack
 
     (nerdfonts.override { fonts = [ "Hack" ]; })
     rustup

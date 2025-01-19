@@ -52,11 +52,11 @@
     # Define configurations for different systems
     nixosConfigurations = {
       brandon-linux = nixpkgs.lib.nixosSystem {
-        specialArgs = { inherit inputs; };
+        specialArgs = { inherit inputs self; };
         system = "x86_64-linux";
         modules = [
-          catppuccin.nixosModules.catppuccin
           ./nixos/configuration.nix
+          catppuccin.nixosModules.catppuccin
           {
             environment.systemPackages = [
               ghostty.packages.x86_64-linux.default
