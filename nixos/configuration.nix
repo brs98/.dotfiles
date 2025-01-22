@@ -212,12 +212,6 @@
 
     spotify
     playerctl
-
-    (lutris.override {
-      extraLibraries =  pkgs: [
-        # List library dependencies here
-      ];
-    })
   ];
 
   virtualisation.docker.enable = true;
