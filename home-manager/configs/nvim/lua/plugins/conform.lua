@@ -54,6 +54,7 @@ return { -- Autoformat
 			["markdown.mdx"] = { "prettier" },
 			graphql = { "prettier" },
 			handlebars = { "prettier" },
+			nix = { "nixfmt" },
 		},
 	},
 }
