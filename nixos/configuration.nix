@@ -57,7 +57,7 @@
   # services.xserver.enable = true;
   #
   # # Enable the GNOME Desktop Environment.
-  # services.xserver.displayManager.gdm.enable = true;
+  services.xserver.displayManager.gdm.enable = true;
   # services.xserver.desktopManager.gnome.enable = true;
   #
   # # Configure keymap in X11
@@ -105,6 +105,12 @@
 	git
 	neovim
 	google-chrome
+	(google-chrome.override {
+	    commandLineArgs = [
+	      "--enable-features=UseOzonePlatform"
+	      "--ozone-platform=wayland"
+	    ];
+	  })
 	networkmanagerapplet
 	killall
 	wine
@@ -174,6 +180,9 @@
     )
     mako
     libnotify
+
+    # cursor
+    inputs.rose-pine-hyprcursor.packages.${pkgs.system}.default
 
     # screenshot
     slurp
