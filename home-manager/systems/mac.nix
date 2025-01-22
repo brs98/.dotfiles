@@ -29,6 +29,8 @@ imports = [
     grpcurl
     grpcui
 
+    gnumake
+
     nodejs_22
     corepack
 

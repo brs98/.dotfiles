@@ -1,8 +1,8 @@
-{inputs, confg, pkgs, ...}: {
+{pkgs, ...}: {
 
   imports = [
     ../modules/git.nix
-    ../modules/gtk.nix
+    # ../modules/gtk.nix
     ../modules/neovim.nix
     ../modules/terminal.nix
   ];
@@ -27,6 +27,8 @@
 
       trunk
       rustup
+
+      gnumake
 
       (nerdfonts.override { fonts = [ "Hack" ]; })
       tree
