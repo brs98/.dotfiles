@@ -13,16 +13,16 @@
   boot.kernelParams = [ "amdgpu.abmlevel=1" "amdgpu.sg_display=0" ];
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  fileSystems."/" =
-    { device = "/dev/disk/by-uuid/a9f83b66-6dbd-4be4-af6e-8cee81a2e732";
-      fsType = "ext4";
-    };
-
-  fileSystems."/boot" =
-    { device = "/dev/disk/by-uuid/7078-4220";
-      fsType = "vfat";
-      options = [ "fmask=0077" "dmask=0077" ];
-    };
+  # fileSystems."/" =
+  #   { device = "/dev/disk/by-uuid/a9f83b66-6dbd-4be4-af6e-8cee81a2e732";
+  #     fsType = "ext4";
+  #   };
+  #
+  # fileSystems."/boot" =
+  #   { device = "/dev/disk/by-uuid/7078-4220";
+  #     fsType = "vfat";
+  #     options = [ "fmask=0077" "dmask=0077" ];
+  #   };
 
   swapDevices = [ ];
 
