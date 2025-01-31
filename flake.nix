@@ -36,12 +36,28 @@
   }@inputs : {
     # Define configurations for different systems
     nixosConfigurations = {
-      brandon-linux = nixpkgs.lib.nixosSystem {
+      brandon-framework = nixpkgs.lib.nixosSystem {
         specialArgs = { inherit inputs self; };
         system = "x86_64-linux";
         modules = [
           nixos-hardware.nixosModules.framework-13-7040-amd
+          ./nixos/framework-hardware-configuration.nix
           ./nixos/configuration.nix
+          catppuccin.nixosModules.catppuccin
+          {
+            environment.systemPackages = [
+              ghostty.packages.x86_64-linux.default
+            ];
+          }
+        ];
+      };
+
+      brandon-pc = nixpkgs.lib.nixosSystem {
+        specialArgs = { inherit inputs self; };
+        system = "x86_64-linux";
+        modules = [
+          ./nixos/configuration.nix
+          ./nixos/pc-hardware-configuration.nix
           catppuccin.nixosModules.catppuccin
           {
             environment.systemPackages = [
