@@ -21,6 +21,7 @@
     # nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-24.11-darwin"; # TODO: Use this for macOS
     darwin.url = "github:lnl7/nix-darwin";
     darwin.inputs.nixpkgs.follows = "nixpkgs";
+    nixos-hardware.url = "github:NixOS/nixos-hardware/master";
   };
 
   outputs = { 
@@ -30,6 +31,7 @@
   home-manager,
   darwin,
   nixpkgs,
+  nixos-hardware,
   ...
   }@inputs : {
     # Define configurations for different systems
@@ -38,6 +40,7 @@
         specialArgs = { inherit inputs self; };
         system = "x86_64-linux";
         modules = [
+          nixos-hardware.nixosModules.framework-13-7040-amd
           ./nixos/configuration.nix
           catppuccin.nixosModules.catppuccin
           {

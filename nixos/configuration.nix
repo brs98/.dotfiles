@@ -136,8 +136,6 @@
     xwayland.enable = true;
   };
 
-  programs.sway.enable = true;
-
   environment.sessionVariables = {
     # If your cursor becomes invisible
     WLR_NO_HARDWARE_CURSORS = "1";
@@ -153,7 +151,7 @@
     graphics.enable32Bit = true;
 
     # Most wayland compositors need this
-    nvidia.modesetting.enable = true;
+    # nvidia.modesetting.enable = true;
   };
 
   xdg.autostart.enable = true;
@@ -209,9 +207,6 @@
      })
     xdg-desktop-portal
     kdenlive
-
-    spotify
-    playerctl
   ];
 
   virtualisation.docker.enable = true;
