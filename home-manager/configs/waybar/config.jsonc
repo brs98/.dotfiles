@@ -1,0 +1,85 @@
+{
+  "layer": "top", // Waybar at top layer
+  "position": "top", // Waybar position (top|bottom|left|right)
+  // "width": 1280, // Waybar width
+  // Choose the order of the modules
+  "modules-left": ["hyprland/workspaces"],
+  // "modules-center": ["mpris"],
+  "modules-right": [
+    "pulseaudio",
+    "battery",
+    "clock",
+    "tray",
+    "custom/lock",
+    "custom/power",
+  ],
+  "hyprland/workspaces": {
+    "disable-scroll": true,
+    "sort-by-name": true,
+    "format": " {icon} ",
+    "format-icons": {
+      "default": "",
+    },
+  },
+  "tray": {
+    "icon-size": 21,
+    "spacing": 10,
+  },
+  // "custom/spotify": {
+  //   "format": "  {}",
+  //   "return-type": "json",
+  //   "on-click": "playerctl -p spotify play-pause",
+  //   "on-click-right": "spotifatius toggle-liked",
+  //   "on-click-middle": "playerctl -p spotify next",
+  //   "exec": "spotifatius monitor",
+  // },
+  // "mpris": {
+  //   "player": "spotify",
+  //   "dynamic-order": ["artist", "title"],
+  //   "format": "{player_icon} {dynamic}",
+  //   "format-paused": "{status_icon} <i>{dynamic}</i>",
+  //   "status-icons": {
+  //     "paused": "",
+  //   },
+  //   "player-icons": {
+  //     "default": "",
+  //   },
+  // },
+  "clock": {
+    "timezone": "US/Mountain",
+    "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+    "format": "{:%a %d %b - %H:%M}",
+  },
+  "battery": {
+    "format": "<span font='Font Awesome 5 Free 11'>{icon}</span>  {capacity}% - {time}",
+    "format-icons": ["", "", "", "", ""],
+    "format-time": "{H}h {M}m",
+    "format-charging": "<span font='Font Awesome 5 Free'></span>  <span font='Font Awesome 5 Free 11'>{icon}</span>  {capacity}% - {time}",
+    "format-full": "<span font='Font Awesome 5 Free'></span>  <span font='Font Awesome 5 Free 11'>{icon}</span>  Charged",
+    "interval": 30,
+    "states": {
+      "warning": 25,
+      "critical": 10,
+    },
+    "tooltip": false,
+  },
+  "pulseaudio": {
+    // "scroll-step": 1, // %, can be a float
+    "format": "{icon} {volume}%",
+    "format-muted": "",
+    "format-icons": {
+      "default": ["", "", " "],
+    },
+    "on-click": "pavucontrol",
+  },
+  "custom/lock": {
+    "tooltip": false,
+    "on-click": "hyprlock & disown",
+    "format": "",
+  },
+  "custom/power": {
+    "tooltip": false,
+    "on-click": "wlogout &",
+    "format": "",
+  },
+}
