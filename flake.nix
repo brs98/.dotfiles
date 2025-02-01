@@ -22,6 +22,7 @@
     darwin.url = "github:lnl7/nix-darwin";
     darwin.inputs.nixpkgs.follows = "nixpkgs";
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
+    xremap-flake.url = "github:xremap/nix-flake";
   };
 
   outputs = { 
@@ -41,7 +42,7 @@
         system = "x86_64-linux";
         modules = [
           nixos-hardware.nixosModules.framework-13-7040-amd
-          ./nixos/framework-hardware-configuration.nix
+          ./hosts/framework.nix
           ./nixos/configuration.nix
           catppuccin.nixosModules.catppuccin
           {
