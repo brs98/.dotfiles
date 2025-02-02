@@ -11,13 +11,13 @@
     ];
 
   home-manager = {
-  	backupFileExtension = "backup";
-      useGlobalPkgs = true;
-  useUserPackages = true;
-  	extraSpecialArgs = { inherit inputs; };
-	users = {
-		brandon = import ../home-manager/systems/linux.nix;
-	};
+    backupFileExtension = "backup";
+    useGlobalPkgs = true;
+    useUserPackages = true;
+    extraSpecialArgs = { inherit inputs; };
+    users = {
+      brandon = import ../home-manager/systems/linux.nix;
+    };
   };
 
   # Bootloader.
@@ -130,17 +130,9 @@
   # Install firefox.
   programs.firefox.enable = true;
 
-  programs.hyprland = {
-    enable = true;
-    xwayland.enable = true;
-  };
+  programs.hyprland = { enable = true; };
 
   environment.sessionVariables = {
-    # If your cursor becomes invisible
-    WLR_NO_HARDWARE_CURSORS = "1";
-    # Hint electron apps to use wayland
-    NIXOS_OZONE_WL = "1";
-
     BROWSER = "google-chrome";
   };
 
