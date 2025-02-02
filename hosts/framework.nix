@@ -13,10 +13,10 @@
         { 
           name = "Global"; 
           remap = { 
-            "RightAlt" = "Super_R";
-            "RightCtrl" = "Alt_R";
-            "LeftAlt" = "Super_L";
-            "Super_L" = "LeftAlt";
+            "Alt_R" = "Super_R";
+            "Ctrl_R" = "Alt_R";
+            "Alt_L" = "Super_L";
+            "Super_L" = "Alt_L";
           };
         }
       ];
