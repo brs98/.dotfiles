@@ -144,15 +144,6 @@
     BROWSER = "google-chrome";
   };
 
-  hardware = {
-    # Opengl
-    graphics.enable = true;
-    graphics.enable32Bit = true;
-
-    # Most wayland compositors need this
-    # nvidia.modesetting.enable = true;
-  };
-
   xdg.autostart.enable = true;
 
   xdg.portal = {
