@@ -18,6 +18,7 @@ users.users.Brandon.home = "/Users/Brandon";
 
   # Necessary for using flakes on this system.
   nix.settings.experimental-features = "nix-command flakes";
+  nix.channel.enable = false;
 
   nix.extraOptions = ''
     extra-platforms = aarch64-darwin x86_64-darwin

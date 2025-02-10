@@ -6,7 +6,7 @@
     wezterm.url = "github:wez/wezterm?dir=nix";
     catppuccin.url = "github:catppuccin/nix";
     home-manager = {
-      url = "github:nix-community/home-manager/release-24.11";
+      url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     hyprland.url = "github:hyprwm/Hyprland";
@@ -17,8 +17,7 @@
     ghostty = {
       url = "github:ghostty-org/ghostty";
     };
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
-    # nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-24.11-darwin"; # TODO: Use this for macOS
+    nixpkgs.url = "github:NixOS/nixpkgs";
     darwin.url = "github:lnl7/nix-darwin";
     darwin.inputs.nixpkgs.follows = "nixpkgs";
   };

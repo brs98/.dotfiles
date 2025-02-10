@@ -1,9 +1,8 @@
 { inputs, config, pkgs, ... }: let 
   configDir = "${config.home.homeDirectory}/.dotfiles";
-  sketchybarDir = "${configDir}/home-manager/config/sketchybar/sketchybarrc";
+  # sketchybarDir = "${configDir}/home-manager/config/sketchybar/sketchybarrc";
   aerospaceDirectory = "${configDir}/home-manager/configs/aerospace/aerospace.toml";
 in {
-
 imports = [
     ../modules/git.nix
     ../modules/neovim.nix
@@ -19,7 +18,7 @@ imports = [
     gnused
     htop
     wget
-    sketchybar
+    # sketchybar
     procps
     typescript
     lazydocker
@@ -34,9 +33,12 @@ imports = [
     nodejs_22
     corepack
 
-    (nerdfonts.override { fonts = [ "Hack" ]; })
+    # (nerdfonts.override { fonts = [ "Hack" ]; })
+    nerd-fonts.hack
+
     rustup
     tree
+    typescript-language-server
     nodePackages.typescript-language-server
     nodePackages.ts-node
     nodePackages.dotenv-cli
@@ -168,9 +170,9 @@ imports = [
   };
 
   # sketchybar configuration
-  home.file.".config/sketchybar/sketchybarrc" = {
-    source = config.lib.file.mkOutOfStoreSymlink sketchybarDir;
-  };
+  # home.file.".config/sketchybar/sketchybarrc" = {
+  #   source = config.lib.file.mkOutOfStoreSymlink sketchybarDir;
+  # };
 
   # aerospace configuration
   home.file.".config/aerospace/aerospace.toml" = {
