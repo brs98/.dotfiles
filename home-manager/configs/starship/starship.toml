@@ -5,6 +5,12 @@ $character"""
 
 add_newline = true
 
+[gcloud]
+disabled = true
+
+[aws]
+disabled = true
+
 [character]
 success_symbol = "[❯](green)"
 error_symbol = "[❯](red)"
