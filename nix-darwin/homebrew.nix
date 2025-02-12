@@ -4,6 +4,10 @@
     brews = [
       "gnu-sed"
       "nixpacks"
+      "freetds"
+      "libpq"
+      "libyaml"
+      "mise"
     ];
     casks = [
       "dbeaver-community" # SQL GUI
@@ -17,6 +21,7 @@
       "linear-linear" # Project management
       "nikitabobko/tap/aerospace" # Window management
       "1password" # Password manager
+      "orbstack" # Docker management
     ];
   };
 }

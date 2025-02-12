@@ -41,8 +41,6 @@ in {
           vim = "nvim";
           lg = "lazygit";
           ldk = "lazydocker";
-          sdf = "home-manager -f ~/.dotfiles/nix-darwin/home.nix switch";
-          sf = "darwin-rebuild switch --flake ~/.dotfiles/nix-darwin";
           cat = "bat --theme=base16";
           ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
           cd = "z";

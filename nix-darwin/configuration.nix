@@ -4,15 +4,15 @@ imports = [
 	inputs.home-manager.darwinModules.home-manager
   ];
 
-users.users.Brandon.home = "/Users/Brandon";
+users.users.brandon.home = "/Users/brandon";
 
   home-manager = {
-  	backupFileExtension = "backup";
-      useGlobalPkgs = true;
-  useUserPackages = true;
+	backupFileExtension = "backup";
+	useGlobalPkgs = true;
+	useUserPackages = true;
   	extraSpecialArgs = { inherit inputs; };
 	users = {
-		Brandon = import ../home-manager/systems/mac.nix;
+		brandon = import ../home-manager/systems/mac.nix;
 	};
   };
 

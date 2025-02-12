@@ -9,11 +9,15 @@ imports = [
     ../modules/terminal.nix
 ];
 
-  home.username = "Brandon";
-  home.homeDirectory = "/Users/Brandon";
+  home.username = "brandon";
+  home.homeDirectory = "/Users/brandon";
   home.stateVersion = "23.11";
 
   home.packages = with pkgs; [
+    # fluid-specific packages needed to run ruby
+    gnupg
+    libyaml
+
     go
     gnused
     htop
@@ -30,8 +34,8 @@ imports = [
 
     gnumake
 
-    nodejs_22
-    corepack
+    # nodejs_22
+    # corepack
 
     # (nerdfonts.override { fonts = [ "Hack" ]; })
     nerd-fonts.hack
@@ -46,7 +50,8 @@ imports = [
     ];
 
   home.sessionPath = [
-    "/opt/homebrew/bin/"
+    "/opt/homebrew/bin" # Homebrew
+    "/opt/homebrew/opt/libpq/bin" # libpq
   ];
 
   programs = {
@@ -128,6 +133,7 @@ imports = [
         ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
         cd = "z";
         cdd = "cd ~/.dotfiles/";
+        sdf = "darwin-rebuild switch --flake ~/.dotfiles#Brandons-Macbook-Pro";
       };
     };
     # fzf configuration

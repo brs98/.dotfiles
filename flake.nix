@@ -62,9 +62,22 @@
 		./nix-darwin/homebrew.nix
           ];
         };
+
+        Brandons-Macbook-Pro = darwin.lib.darwinSystem {
+          system = "aarch64-darwin";
+          specialArgs = { inherit inputs self; };
+          modules = [
+		./nix-darwin/configuration.nix
+		./nix-darwin/packages.nix
+		./nix-darwin/shell-applications.nix
+		./nix-darwin/services.nix
+		./nix-darwin/homebrew.nix
+          ];
+        };
       };
 
     # Expose the package set, including overlays, for convenience.
-    darwinPackages = self.darwinConfigurations.brandon-mac.pkgs;
+    # darwinPackages = self.darwinConfigurations.brandon-mac.pkgs;
+    darwinPackages = self.darwinConfigurations.Brandons-Macbook-Pro.pkgs;
       };
 }

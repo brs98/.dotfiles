@@ -179,12 +179,16 @@ if.app-id = 'com.tinyspeck.slackmacgap'
 run = "move-node-to-workspace 3"
 
 [[on-window-detected]]
-if.app-id = 'com.linear'
+if.app-id = 'com.clickup.desktop-ap'
 run = "move-node-to-workspace 4"
 
 [[on-window-detected]]
 if.app-id = 'org.jkiss.dbeaver.core.product'
 run = "move-node-to-workspace 5"
+
+[[on-window-detected]]
+if.app-id = 'dev.kdrag0n.MacVirt'
+run = "move-node-to-workspace 6"
 
 [[on-window-detected]]
 if.app-id = 'com.apple.MobileSMS'

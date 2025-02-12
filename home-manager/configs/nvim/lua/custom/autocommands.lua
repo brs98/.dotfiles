@@ -19,6 +19,11 @@ vim.api.nvim_create_autocmd({ "BufWritePre" }, {
 	end,
 })
 
+vim.api.nvim_create_autocmd({ "BufNewFile", "BufRead" }, {
+	pattern = { "*.slim" },
+	command = "set ft=slim",
+})
+
 -- Use a single statusline for all windows
 -- This is only in an autocommand because it needs to be set after the statusline is set
 -- vim.api.nvim_create_autocmd("WinEnter", {
