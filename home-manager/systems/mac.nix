@@ -34,7 +34,7 @@ imports = [
 
     gnumake
 
-    # nodejs_22
+    nodejs_22
     # corepack
 
     # (nerdfonts.override { fonts = [ "Hack" ]; })
@@ -52,6 +52,7 @@ imports = [
   home.sessionPath = [
     "/opt/homebrew/bin" # Homebrew
     "/opt/homebrew/opt/libpq/bin" # libpq
+    "/Users/brandon/personal/new-worktree" # Custom scripts
   ];
 
   programs = {

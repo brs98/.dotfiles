@@ -71,7 +71,11 @@ vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>")
 vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, { desc = "Go to previous [D]iagnostic message" })
 vim.keymap.set("n", "]d", vim.diagnostic.goto_next, { desc = "Go to next [D]iagnostic message" })
 vim.keymap.set("n", "<leader>cd", vim.diagnostic.open_float, addDescription("Open [C]ode [D]iagnostic"))
-vim.keymap.set("n", "<leader>q", vim.diagnostic.setloclist, addDescription("Open [Q]uickfix diagnostic"))
+vim.keymap.set("n", "<leader>cq", vim.diagnostic.setloclist, addDescription("Open [Q]uickfix diagnostic"))
+
+-- Quickfix navigation
+vim.keymap.set("n", "<leader>q", ":copen<CR>", addDescription("Open [Q]uickfix"))
+vim.keymap.set("n", "<leader>Q", ":cclose<CR>", addDescription("Close [Q]uickfix"))
 
 -------------------------------------------------------------
 --------------------- END NORMAL MODE -----------------------

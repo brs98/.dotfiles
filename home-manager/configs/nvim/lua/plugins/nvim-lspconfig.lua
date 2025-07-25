@@ -192,6 +192,11 @@ return { -- LSP Configuration & Plugins
 					},
 				},
 			},
+
+			tailwindcss = {
+				cmd = { "tailwindcss-language-server", "--stdio" },
+				filetypes = { "html", "css", "scss", "javascript", "javascriptreact", "typescript", "typescriptreact" },
+			},
 		}
 
 		-- Ensure the servers and tools above are installed
@@ -219,6 +224,8 @@ return { -- LSP Configuration & Plugins
 		require("mason-tool-installer").setup({ ensure_installed = ensure_installed })
 
 		require("mason-lspconfig").setup({
+			ensure_installed = vim.tbl_keys(servers or {}),
+			automatic_installation = true,
 			handlers = {
 				function(server_name)
 					local server = servers[server_name] or {}
