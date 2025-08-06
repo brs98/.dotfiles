@@ -115,7 +115,7 @@
 	killall
 	wine
 	pavucontrol
-	nerdfonts
+	nerd-fonts.hack
     ];
     home = "/home/brandon";
   };
