@@ -1,4 +1,4 @@
-{
+{ pkgs, ... }: {
     programs = {
       # Git configuration
       git = {
@@ -17,7 +17,7 @@
         };
         extraConfig = {
           credential = {
-            helper = "osxkeychain";
+            helper = if pkgs.stdenv.isDarwin then "osxkeychain" else "store";
           };
           core = {
             editor = "nvim";

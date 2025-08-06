@@ -3,6 +3,12 @@
   configDir = "${config.home.homeDirectory}/.dotfiles";
   weztermDir = "${configDir}/home-manager/configs/wezterm/wezterm.lua";
   starshipDir = "${configDir}/home-manager/configs/starship/starship.toml";
+  
+  systemRebuildCmd = if pkgs.stdenv.isDarwin 
+    then "darwin-rebuild switch --flake ~/.dotfiles#Brandons-Macbook-Pro"
+    else "sudo nixos-rebuild switch --flake ~/.dotfiles";
+  
+  openCmd = if pkgs.stdenv.isDarwin then "open" else "xdg-open";
 in {
   programs = {
       # terminal
@@ -45,7 +51,8 @@ in {
           ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
           cd = "z";
           cdd = "cd ~/.dotfiles/";
-          open = "xdg-open";
+          sdf = systemRebuildCmd;
+          open = openCmd;
         };
       };
       # fzf configuration

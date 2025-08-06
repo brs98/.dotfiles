@@ -5,43 +5,13 @@
     # ../modules/gtk.nix
     ../modules/neovim.nix
     ../modules/terminal.nix
+    ../modules/packages.nix
+    ../modules/packages-linux.nix
+    ../modules/fonts.nix
   ];
 
     home.username = "brandon";
-    home.homeDirectory = "/home/brandon";
+    home.homeDirectory = if pkgs.stdenv.isDarwin then "/Users/brandon" else "/home/brandon";
     home.stateVersion = "23.11";
 
-    home.packages = with pkgs; [
-      gnused
-      htop
-      wget
-      typescript
-      lazydocker
-
-      go
-
-      gcc
-
-      nodejs_22
-      corepack
-
-      trunk
-      rustup
-
-      gnumake
-
-      (nerdfonts.override { fonts = [ "Hack" ]; })
-      tree
-      nodePackages.typescript-language-server
-      nodePackages.ts-node
-      nodePackages.dotenv-cli
-      nodePackages.vercel
-    ];
-
-    programs = {
-      home-manager.enable = true;
-      gpg.enable = true;
-      ripgrep.enable = true;
-      jq.enable = true;
-    };
 }
