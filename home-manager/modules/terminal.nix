@@ -5,7 +5,7 @@
   starshipDir = "${configDir}/home-manager/configs/starship/starship.toml";
   
   systemRebuildCmd = if pkgs.stdenv.isDarwin 
-    then "darwin-rebuild switch --flake ~/.dotfiles#Brandons-Macbook-Pro"
+    then "sudo darwin-rebuild switch --flake ~/.dotfiles#Brandons-Macbook-Pro"
     else "sudo nixos-rebuild switch --flake ~/.dotfiles";
   
   openCmd = if pkgs.stdenv.isDarwin then "open" else "xdg-open";
@@ -51,7 +51,7 @@ in {
           ls = "eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions";
           cd = "z";
           cdd = "cd ~/.dotfiles/";
-          cc = "claude";
+          c = "claude";
           sdf = systemRebuildCmd;
           open = openCmd;
         };
