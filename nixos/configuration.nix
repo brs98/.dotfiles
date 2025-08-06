@@ -2,7 +2,7 @@
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
-{ pkgs, inputs, ... }:
+{ config, lib, pkgs, inputs, ... }:
 
 {
   imports =
@@ -25,15 +25,19 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  networking.hostName = "nixos"; # Define your hostname.
+  networking.hostName = "framework"; # Framework Laptop 13 AMD
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
   # Configure network proxy if necessary
   # networking.proxy.default = "http://user:password@proxy:port/";
   # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
-  # Enable networking
-  networking.networkmanager.enable = true;
+  # Enable networking with WiFi optimizations
+  networking = {
+    networkmanager.enable = true;
+    # Enable WiFi 6E features for MediaTek RZ616
+    networkmanager.wifi.powersave = false;  # Better performance, slight battery impact
+  };
 
   # Set your time zone.
   time.timeZone = "America/Denver";
@@ -53,22 +57,39 @@
     LC_TIME = "en_US.UTF-8";
   };
 
-  # # Enable the X11 windowing system.
-  # services.xserver.enable = true;
-  #
-  # # Enable the GNOME Desktop Environment.
-  services.xserver.displayManager.gdm.enable = true;
-  # services.xserver.desktopManager.gnome.enable = true;
-  #
-  # # Configure keymap in X11
-  # services.xserver.xkb = {
-  #   layout = "us";
-  #   options = "ctrl:nocaps";  # Remap Caps Lock to Control
-  #   variant = "";
-  # };
+  # Enable the X11 windowing system with AMD drivers
+  services.xserver = {
+    enable = true;
+    videoDrivers = [ "amdgpu" ];
+    dpi = 180;  # High-DPI support for 2.8K display
+    
+    displayManager.gdm = {
+      enable = true;
+      wayland = true;
+    };
+    
+    # Configure keymap in X11
+    xkb = {
+      layout = "us";
+      options = "ctrl:nocaps";
+      variant = "";
+    };
+  };
 
   # Enable flakes
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
+  # Power management settings for laptop
+  powerManagement = {
+    enable = true;
+    cpuFreqGovernor = "powersave";  # Better battery life
+  };
+
+  # Modern power profiles daemon
+  services.power-profiles-daemon.enable = true;
+
+  # Thermal management
+  services.thermald.enable = true;
 
   # Enable CUPS to print documents.
   services.printing.enable = true;
@@ -82,10 +103,9 @@
     alsa.support32Bit = true;
     pulse.enable = true;
     jack.enable = true;
-
-    # use the example session manager (no others are packaged yet so this is enabled by default,
-    # no need to redefine it in your config for now)
-    #media-session.enable = true;
+    
+    # Framework-specific audio tweaks
+    wireplumber.enable = true;
   };
 
   # Enable touchpad support (enabled default in most desktopManager).
@@ -115,6 +135,8 @@
 	killall
 	wine
 	pavucontrol
+	alsa-utils
+	pulseaudio  # For pactl commands
 	nerd-fonts.hack
     ];
     home = "/home/brandon";
@@ -143,17 +165,40 @@
     WLR_NO_HARDWARE_CURSORS = "1";
     # Hint electron apps to use wayland
     NIXOS_OZONE_WL = "1";
-
     BROWSER = "google-chrome";
+    
+    # High-DPI scaling for 2.8K display
+    GDK_SCALE = "1.5";
+    QT_SCALE_FACTOR = "1.5";
+    XCURSOR_SIZE = "24";
   };
 
+  # === Framework Laptop 13 (AMD Ryzen 7 7840U) Hardware Configuration ===
   hardware = {
-    # Opengl
-    graphics.enable = true;
-    graphics.enable32Bit = true;
-
-    # Most wayland compositors need this
-    nvidia.modesetting.enable = true;
+    # Enable redistributable firmware (important for MediaTek RZ616 WiFi 6E, etc.)
+    enableRedistributableFirmware = true;
+    firmware = [ pkgs.linux-firmware ];
+    
+    # Framework 13 AMD 7040 series-specific fixes
+    framework.amd-7040.preventWakeOnAC = true;
+    
+    # AMD CPU microcode updates
+    cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+    
+    # Graphics configuration for AMD Radeon 780M
+    graphics = {
+      enable = true;
+      enable32Bit = true;
+      extraPackages = with pkgs; [
+        # AMD RDNA 3 (Radeon 780M) support
+        mesa
+        rocm-opencl-icd
+        rocm-opencl-runtime
+        amdvlk  # AMD Vulkan driver
+        libva
+        libva-utils
+      ];
+    };
   };
 
   xdg.autostart.enable = true;

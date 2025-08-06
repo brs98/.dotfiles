@@ -8,10 +8,16 @@
     [ (modulesPath + "/installer/scan/not-detected.nix")
     ];
 
-  boot.initrd.availableKernelModules = [ "nvme" "xhci_pci" "thunderbolt" "usb_storage" "usbhid" "sd_mod" ];
+  boot.initrd.availableKernelModules = [ "nvme" "xhci_pci" "thunderbolt" "usb_storage" "usbhid" "sd_mod" "amdgpu" ];
   boot.initrd.kernelModules = [ ];
   boot.kernelModules = [ "kvm-amd" ];
   boot.extraModulePackages = [ ];
+
+  # Kernel parameters for Framework AMD optimization
+  boot.kernelParams = [
+    "amd_pstate=guided"  # Better AMD CPU power management
+    "amdgpu.dc=1"        # Enable Display Core for better graphics
+  ];
 
   fileSystems."/" =
     { device = "/dev/disk/by-uuid/a9f83b66-6dbd-4be4-af6e-8cee81a2e732";
@@ -35,5 +41,7 @@
   # networking.interfaces.wlp1s0.useDHCP = lib.mkDefault true;
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
+  
+  # CPU microcode updates (other hardware config in configuration.nix)
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }
