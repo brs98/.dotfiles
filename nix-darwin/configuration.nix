@@ -6,6 +6,9 @@ imports = [
 
 users.users.brandon.home = "/Users/brandon";
 
+  # Set primary user for homebrew and other user-specific options
+  system.primaryUser = "brandon";
+
   home-manager = {
 	backupFileExtension = "backup";
 	useGlobalPkgs = true;
