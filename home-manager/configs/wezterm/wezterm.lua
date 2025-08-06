@@ -14,16 +14,16 @@ bar.apply_to_config(config, {
 	-- separator = "|",
 	modules = {
 		pane = {
-			enabled = false
+			enabled = false,
 		},
 		username = {
-			enabled = false
+			enabled = false,
 		},
 		clock = {
-			enabled = false
+			enabled = false,
 		},
 		hostname = {
-			enabled = false
+			enabled = false,
 		},
 		workspace = {
 			enabled = true,
@@ -82,16 +82,16 @@ local act = wezterm.action
 config.keys = {
 	-- Create new tab
 	{
-		key = 't',
-		mods = 'CTRL',
-		action = act.SpawnTab 'CurrentPaneDomain',
+		key = "t",
+		mods = "CTRL",
+		action = act.SpawnTab("CurrentPaneDomain"),
 	},
 	-- Close tab
 	{
-		key = 'w',
-		mods = 'CTRL',
-		action = wezterm.action.CloseCurrentTab { confirm = true },
-	  },
+		key = "w",
+		mods = "CTRL",
+		action = wezterm.action.CloseCurrentTab({ confirm = true }),
+	},
 	-- Move tab to the left
 	{ key = "LeftArrow", mods = "SUPER|CTRL", action = act.MoveTabRelative(-1) },
 
