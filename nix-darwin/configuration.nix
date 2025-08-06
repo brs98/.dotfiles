@@ -9,6 +9,9 @@ users.users.brandon.home = "/Users/brandon";
   # Set primary user for homebrew and other user-specific options
   system.primaryUser = "brandon";
 
+  # Fix GID mismatch for nixbld group
+  ids.gids.nixbld = 350;
+
   home-manager = {
 	backupFileExtension = "backup";
 	useGlobalPkgs = true;
