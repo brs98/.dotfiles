@@ -5,6 +5,7 @@
     rose-pine-hyprcursor.url = "github:ndom91/rose-pine-hyprcursor";
     wezterm.url = "github:wez/wezterm?dir=nix";
     catppuccin.url = "github:catppuccin/nix";
+    nixos-hardware.url = "github:NixOS/nixos-hardware/master";
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -28,6 +29,7 @@
   ghostty,
   home-manager,
   darwin,
+  nixos-hardware,
   nixpkgs,
   ...
   }@inputs : {
@@ -39,6 +41,7 @@
         modules = [
           ./nixos/configuration.nix
           catppuccin.nixosModules.catppuccin
+          nixos-hardware.nixosModules.framework-13-7040-amd
           {
             environment.systemPackages = [
               ghostty.packages.x86_64-linux.default

@@ -94,6 +94,9 @@
   # Enable CUPS to print documents.
   services.printing.enable = true;
 
+  # Enable firmware updates
+  services.fwupd.enable = true;
+
   # Enable sound with pipewire.
   # hardware.pulseaudio.enable = false;
   security.rtkit.enable = true;
@@ -179,9 +182,6 @@
     enableRedistributableFirmware = true;
     firmware = [ pkgs.linux-firmware ];
     
-    # Framework 13 AMD 7040 series-specific fixes
-    framework.amd-7040.preventWakeOnAC = true;
-    
     # AMD CPU microcode updates
     cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
     
@@ -198,6 +198,22 @@
         libva
         libva-utils
       ];
+    };
+  };
+
+  # Framework-specific wake-on-AC prevention using udev rule
+  # Prevents the laptop from waking up when AC is plugged/unplugged
+  services.udev.extraRules = ''
+    # Framework Laptop 13 AMD: Prevent wake on AC adapter events
+    SUBSYSTEM=="power_supply", KERNEL=="ADP*", RUN+="${pkgs.systemd}/bin/systemctl --no-block start prevent-ac-wakeup.service"
+  '';
+
+  # Service to disable AC adapter as a wakeup source
+  systemd.services.prevent-ac-wakeup = {
+    description = "Prevent AC adapter from waking the system";
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.bash}/bin/bash -c 'echo disabled > /sys/class/power_supply/ADP*/device/power/wakeup 2>/dev/null || true'";
     };
   };
 
