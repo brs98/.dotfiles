@@ -63,17 +63,18 @@
     videoDrivers = [ "amdgpu" ];
     dpi = 180;  # High-DPI support for 2.8K display
     
-    displayManager.gdm = {
-      enable = true;
-      wayland = true;
-    };
-    
     # Configure keymap in X11
     xkb = {
       layout = "us";
       options = "ctrl:nocaps";
       variant = "";
     };
+  };
+
+  # Enable display manager (moved from services.xserver.displayManager.gdm)
+  services.displayManager.gdm = {
+    enable = true;
+    wayland = true;
   };
 
   # Enable flakes
@@ -268,7 +269,7 @@
       ];
      })
     xdg-desktop-portal
-    kdenlive
+    libsForQt5.kdenlive
 
     spotify
     playerctl
