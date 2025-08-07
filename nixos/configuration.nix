@@ -192,8 +192,7 @@
       extraPackages = with pkgs; [
         # AMD RDNA 3 (Radeon 780M) support
         mesa
-        rocm-opencl-icd
-        rocm-opencl-runtime
+        rocmPackages.clr.icd
         amdvlk  # AMD Vulkan driver
         libva
         libva-utils
