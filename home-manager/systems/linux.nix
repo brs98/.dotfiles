@@ -8,6 +8,7 @@
     ../modules/packages.nix
     ../modules/packages-linux.nix
     ../modules/fonts.nix
+    ../modules/hyprland.nix
   ];
 
     home.username = "brandon";
