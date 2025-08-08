@@ -184,7 +184,7 @@
       exec-once = [
         "waybar"
         "mako"
-        "hyprpaper"
+        "hyprpaper -c ~/.dotfiles/home-manager/configs/hyprpaper.conf"
         "hypridle"
         "nm-applet"
         # Set cursor theme
