@@ -60,6 +60,17 @@
         # Screenshot (keeping existing)
         ", Print, exec, grim -g \"$(slurp)\" - | wl-copy"
         "$mod, Print, exec, grim - | wl-copy"
+        
+        # Additional function key bindings (F9, F11, F12)
+        # F9: Notification do-not-disturb toggle
+        ", F9, exec, makoctl mode -t do-not-disturb"
+        
+        # F11: Print screen (alternative to Print key)
+        ", F11, exec, grim -g \"$(slurp)\" - | wl-copy"
+        
+        # F12: Settings
+        ", F12, exec, gnome-control-center || systemsettings5 || pavucontrol"
+        
       ] ++ (
         # Workspaces - bind $mod + [shift +] {1..9} to [move to] workspace {1..9}
         # Matching AeroSpace cmd-1 through cmd-9 and cmd-shift-1 through cmd-shift-9
@@ -76,6 +87,51 @@
       binds = {
         workspace_back_and_forth = true;
       };
+      
+      # === Function Key Media Controls ===
+      # Using proper bind types for media keys
+      
+      # Locked binds (work even when screen is locked) - for mute, media controls, wifi
+      bindl = [
+        # F1: Mute
+        ", XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+        ", F1, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+        
+        # F4: Previous track
+        ", XF86AudioPrev, exec, playerctl previous"
+        ", F4, exec, playerctl previous"
+        
+        # F5: Play/Pause
+        ", XF86AudioPlay, exec, playerctl play-pause"
+        ", F5, exec, playerctl play-pause"
+        
+        # F6: Next track
+        ", XF86AudioNext, exec, playerctl next"
+        ", F6, exec, playerctl next"
+        
+        # F10: WiFi toggle
+        ", XF86WLAN, exec, nmcli radio wifi | grep -q enabled && nmcli radio wifi off || nmcli radio wifi on"
+        ", F10, exec, nmcli radio wifi | grep -q enabled && nmcli radio wifi off || nmcli radio wifi on"
+      ];
+      
+      # Repeatable binds - for volume and brightness controls
+      bindel = [
+        # F2: Volume down
+        ", XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+        ", F2, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+        
+        # F3: Volume up
+        ", XF86AudioRaiseVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+"
+        ", F3, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+"
+        
+        # F7: Brightness down
+        ", XF86MonBrightnessDown, exec, brightnessctl set 5%-"
+        ", F7, exec, brightnessctl set 5%-"
+        
+        # F8: Brightness up
+        ", XF86MonBrightnessUp, exec, brightnessctl set 5%+"
+        ", F8, exec, brightnessctl set 5%+"
+      ];
       
       # Input configuration
       input = {
@@ -162,16 +218,36 @@
       
       # Environment variables
       env = [
-        "XCURSOR_SIZE,24"
-        "HYPRCURSOR_SIZE,24"
+        "XCURSOR_SIZE,32"      # Larger cursor for better visibility
+        "HYPRCURSOR_SIZE,32"   # Larger Hyprland cursor
       ];
       
       # Window rules
       windowrulev2 = [
+        # Floating windows with better default sizes
         "float, class:^(pavucontrol)$"
+        "size 600 400, class:^(pavucontrol)$"
         "float, class:^(nm-applet)$"
         "float, class:^(blueman-manager)$"
+        "size 700 500, class:^(blueman-manager)$"
         "float, class:^(org.kde.polkit-kde-authentication-agent-1)$"
+        
+        # Better default sizes for common applications
+        "size 1200 800, class:^(google-chrome)$"
+        "size 1000 700, class:^(firefox)$"
+        "size 1100 750, class:^(nautilus)$"
+        "size 900 600, class:^(kitty)$"
+        "size 800 500, class:^(wezterm)$"
+        
+        # Maximize certain applications by default
+        "maximize, class:^(code|codium)$"
+        "maximize, class:^(obsidian)$"
+        
+        # Picture-in-picture windows
+        "float, title:^(Picture-in-Picture)$"
+        "pin, title:^(Picture-in-Picture)$"
+        "size 400 225, title:^(Picture-in-Picture)$"
+        "move 1520 855, title:^(Picture-in-Picture)$"  # Bottom right corner
       ];
       
       # Layer rules for better integration
@@ -188,8 +264,8 @@
         "hyprpaper -c ~/.dotfiles/home-manager/configs/hyprpaper.conf"
         "hypridle"
         "nm-applet"
-        # Set cursor theme
-        "hyprctl setcursor rose-pine-hyprcursor 24"
+        # Set cursor theme with larger size
+        "hyprctl setcursor rose-pine-hyprcursor 32"
       ];
     };
   };

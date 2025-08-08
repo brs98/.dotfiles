@@ -107,11 +107,11 @@
       NSDisableAutomaticTermination = true;    # Disable automatic app termination
     };
 
-    # Universal Access (Accessibility) - Commented out due to permission issues
+    # Universal Access (Accessibility) - Improved cursor settings
     # universalaccess = {
     #   reduceMotion = false;              # Don't reduce motion (can be enabled if needed)
     #   reduceTransparency = false;        # Don't reduce transparency
-    #   mouseDriverCursorSize = 1.0;       # Default cursor size
+    #   mouseDriverCursorSize = 1.5;       # Larger cursor size for better visibility
     #   closeViewScrollWheelToggle = false; # Don't use scroll wheel for zoom
     # };
 
@@ -173,7 +173,7 @@
 
       # Global domain settings not covered above
       "NSGlobalDomain" = {
-        AppleFontSmoothing = 1;                    # Font smoothing (1 = light, 2 = medium, 3 = strong)
+        AppleFontSmoothing = 2;                    # Font smoothing (1 = light, 2 = medium, 3 = strong) - improved readability
         AppleAntiAliasingThreshold = 4;            # Anti-aliasing threshold
         AppleMenuBarVisibleInFullscreen = false;   # Hide menu bar in full screen
         NSTextShowsControlCharacters = false;      # Don't show control characters
@@ -182,6 +182,10 @@
         "com.apple.sound.beep.flash" = false;     # Disable visual bell
         "com.apple.springing.enabled" = true;     # Enable spring loading for directories
         "com.apple.springing.delay" = 0.5;        # Spring loading delay
+        # Mouse and trackpad improvements
+        "com.apple.mouse.doubleClickThreshold" = 0.5;  # Faster double-click
+        "com.apple.trackpad.scaling" = 2.0;            # Faster trackpad tracking speed
+        "com.apple.mouse.scaling" = 2.0;               # Faster mouse tracking speed
       };
 
       # HIToolbox settings
@@ -192,6 +196,24 @@
       # Screen capture settings
       "com.apple.screencapture" = {
         target = "file";                           # Save to file instead of clipboard
+      };
+
+      # Terminal app defaults - bigger font and window
+      "com.apple.Terminal" = {
+        "Window Settings" = {
+          "Basic" = {
+            "Font" = "Hack Nerd Font Mono 14";
+            "columnCount" = 120;
+            "rowCount" = 40;
+          };
+        };
+      };
+
+      # System-wide window sizing preferences
+      "com.apple.systempreferences" = {
+        AppleShowAllViewModes = true;              # Show all view modes in preferences
+        NSWindowDefaultWidth = 1000;               # Default window width
+        NSWindowDefaultHeight = 700;               # Default window height
       };
     };
   };

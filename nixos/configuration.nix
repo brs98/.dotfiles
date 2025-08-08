@@ -67,6 +67,30 @@
     enable = true;
     videoDrivers = [ "amdgpu" ];
     dpi = 180;  # High-DPI support for 2.8K display
+    
+    # Better mouse and touchpad configuration for X11 apps
+    libinput = {
+      enable = true;
+      mouse = {
+        accelProfile = "adaptive";  # Smooth mouse acceleration
+        accelSpeed = "0.2";         # Slightly faster mouse
+      };
+      touchpad = {
+        accelProfile = "adaptive";
+        accelSpeed = "0.3";
+        naturalScrolling = true;
+        tapping = true;
+        disableWhileTyping = true;
+      };
+    };
+    
+    # Import display manager variables for consistent scaling
+    displayManager.importedVariables = [
+      "GDK_SCALE"
+      "GDK_DPI_SCALE"
+      "QT_SCALE_FACTOR"
+      "QT_AUTO_SCREEN_SCALE_FACTOR"
+    ];
   };
 
   services.keyd = {
@@ -117,6 +141,16 @@
   # Enable firmware updates
   services.fwupd.enable = true;
 
+  # Enable brightness control
+  programs.light.enable = true;
+
+  # Enable Bluetooth for media control
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+  };
+  services.blueman.enable = true;
+
   # Enable sound with pipewire.
   # hardware.pulseaudio.enable = false;
   security.rtkit.enable = true;
@@ -141,7 +175,7 @@
     isNormalUser = true;
     description = "Brandon";
     shell = pkgs.zsh;
-    extraGroups = [ "networkmanager" "wheel" "docker" ];
+    extraGroups = [ "networkmanager" "wheel" "docker" "video" "audio" ];
     packages = [
     #  thunderbird
     	gh
@@ -192,10 +226,20 @@
     NIXOS_OZONE_WL = "1";
     BROWSER = "google-chrome";
     
-    # High-DPI scaling for 2.8K display
+    # High-DPI scaling for 2.8K display - improved settings
     GDK_SCALE = "1.5";
+    GDK_DPI_SCALE = "0.75";  # Compensate for larger GDK_SCALE
     QT_SCALE_FACTOR = "1.5";
-    XCURSOR_SIZE = "24";
+    QT_AUTO_SCREEN_SCALE_FACTOR = "1";
+    XCURSOR_SIZE = "32";     # Larger cursor for better visibility
+    HYPRCURSOR_SIZE = "32";  # Hyprland cursor size
+    
+    # Font scaling improvements
+    QT_FONT_DPI = "144";     # Better font rendering for Qt apps
+    WINIT_X11_SCALE_FACTOR = "1.5";  # Rust apps scaling
+    
+    # Java applications DPI scaling
+    _JAVA_OPTIONS = "-Dsun.java2d.uiScale=1.5 -Dawt.useSystemAAFontSettings=on";
   };
 
   # === Framework Laptop 13 (AMD Ryzen 7 7840U) Hardware Configuration ===
@@ -238,6 +282,10 @@
   services.udev.extraRules = ''
     # Framework Laptop 13 AMD: Prevent wake on AC adapter events
     SUBSYSTEM=="power_supply", KERNEL=="ADP*", RUN+="${pkgs.systemd}/bin/systemctl --no-block start prevent-ac-wakeup.service"
+    
+    # Backlight permissions for brightness control
+    ACTION=="add", SUBSYSTEM=="backlight", RUN+="${pkgs.coreutils}/bin/chmod 666 /sys/class/backlight/%k/brightness"
+    ACTION=="add", SUBSYSTEM=="leds", RUN+="${pkgs.coreutils}/bin/chmod 666 /sys/class/leds/%k/brightness"
   '';
 
   # Service to disable AC adapter as a wakeup source
@@ -315,6 +363,15 @@
 
     spotify
     playerctl
+
+    # Media and system control utilities
+    brightnessctl      # Modern brightness control
+    light              # Alternative brightness control
+    pamixer            # PulseAudio/PipeWire volume control  
+    wireplumber        # PipeWire session manager
+    
+    # Screenshot and notification tools
+    libnotify          # Desktop notifications
   ];
 
   virtualisation.docker.enable = true;

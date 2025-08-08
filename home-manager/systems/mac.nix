@@ -10,6 +10,7 @@ imports = [
     ../modules/packages.nix
     ../modules/packages-darwin.nix
     ../modules/fonts.nix
+    ../modules/cursor.nix
   ];
 
   home.username = "brandon";

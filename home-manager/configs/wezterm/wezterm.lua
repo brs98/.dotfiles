@@ -40,13 +40,34 @@ bar.apply_to_config(config, {
 
 config.font = wezterm.font("Hack Nerd Font")
 
--- config.font_size = 14.0
-config.font_size = 20.0
+-- Adaptive font size based on platform and screen
+local font_size = 14.0
+if wezterm.target_triple:find("darwin") then
+    font_size = 16.0  -- Slightly larger on macOS
+elseif wezterm.target_triple:find("linux") then
+    font_size = 14.0  -- Standard size on Linux with DPI scaling
+end
+config.font_size = font_size
 
+-- Better default window size
+config.initial_cols = 120
+config.initial_rows = 35
+
+-- Window configuration
 config.window_decorations = "RESIZE"
-config.window_background_opacity = 0.8
+config.window_background_opacity = 0.9  -- Slightly less transparent for better readability
 config.enable_kitty_keyboard = true
 config.enable_csi_u_key_encoding = false
+
+-- macOS-specific improvements
+if wezterm.target_triple:find("darwin") then
+    config.native_macos_fullscreen_mode = false
+    config.use_dead_keys = false
+end
+
+-- Better text rendering
+config.freetype_load_target = "Normal"
+config.freetype_render_target = "HorizontalLcd"
 
 -- Listen for workspace updates and update the status bar
 -- wezterm.on("update-status", function(window, _)
