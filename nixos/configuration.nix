@@ -71,7 +71,7 @@
     # Configure keymap in X11
     xkb = {
       layout = "us";
-      options = "ctrl:nocaps";
+      options = "ctrl:nocaps,altwin:swap_lalt_lwin,altwin:alt_super_win,ctrl:rctrl_ralt";
       variant = "";
     };
   };
