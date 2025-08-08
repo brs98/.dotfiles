@@ -88,22 +88,30 @@
       # Service mode submap - matching AeroSpace service mode
       submap."service".bind = [
         # Exit and reload config - matching AeroSpace 'esc' in service mode
-        ", escape, exec, hyprctl reload; hyprctl dispatch submap reset"
+        ", escape, exec, hyprctl reload"
+        ", escape, submap, reset"
         
         # Reset layout - matching AeroSpace 'r' in service mode  
-        ", r, layoutmsg, orientationleft; hyprctl dispatch submap reset"
+        ", r, layoutmsg, orientationleft"
+        ", r, submap, reset"
         
         # Toggle floating/tiling - matching AeroSpace 'f' in service mode
-        ", f, togglefloating; hyprctl dispatch submap reset"
+        ", f, togglefloating"
+        ", f, submap, reset"
         
         # Close all but current - matching AeroSpace 'backspace' in service mode
-        ", backspace, exec, hyprctl clients -j | jq -r '.[] | select(.workspace.name == \"'$(hyprctl activewindow -j | jq -r .workspace.name)'\") | select(.address != \"'$(hyprctl activewindow -j | jq -r .address)'\") | .address' | xargs -I {} hyprctl dispatch closewindow address:{}; hyprctl dispatch submap reset"
+        ", backspace, exec, hyprctl clients -j | jq -r '.[] | select(.workspace.name == \"'$(hyprctl activewindow -j | jq -r .workspace.name)'\") | select(.address != \"'$(hyprctl activewindow -j | jq -r .address)'\") | .address' | xargs -I {} hyprctl dispatch closewindow address:{}"
+        ", backspace, submap, reset"
         
         # Join with directions - matching AeroSpace cmd-shift-h/j/k/l in service mode
-        "$mod SHIFT, h, layoutmsg, swapprev; hyprctl dispatch submap reset"
-        "$mod SHIFT, j, layoutmsg, swapnext; hyprctl dispatch submap reset" 
-        "$mod SHIFT, k, layoutmsg, swapprev; hyprctl dispatch submap reset"
-        "$mod SHIFT, l, layoutmsg, swapnext; hyprctl dispatch submap reset"
+        "$mod SHIFT, h, layoutmsg, swapprev"
+        "$mod SHIFT, h, submap, reset"
+        "$mod SHIFT, j, layoutmsg, swapnext"
+        "$mod SHIFT, j, submap, reset" 
+        "$mod SHIFT, k, layoutmsg, swapprev"
+        "$mod SHIFT, k, submap, reset"
+        "$mod SHIFT, l, layoutmsg, swapnext"
+        "$mod SHIFT, l, submap, reset"
       ];
       
       # Resize mode submap - matching AeroSpace resize mode
