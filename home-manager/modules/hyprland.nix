@@ -19,14 +19,13 @@
       # AeroSpace-matching keybindings
       bind = [
         # Launch applications (keeping existing ones)
-        "$mod, Return, exec, kitty"
-        "$mod, D, exec, wofi --show drun"
+        "$mod, Return, exec, ghostty"
+        "$mod, Space, exec, wofi --show drun"
         "$mod, W, killactive"
         "$mod SHIFT, E, exit"
         
         # Window management - matching AeroSpace
         "$mod SHIFT, F, fullscreen"  # cmd-shift-f -> super-shift-f
-        "$mod, Space, togglefloating"  # Keep existing floating toggle
         
         # Focus movement - matching AeroSpace ctrl-alt-left/down/up/right
         "CTRL ALT, left, movefocus, l"
