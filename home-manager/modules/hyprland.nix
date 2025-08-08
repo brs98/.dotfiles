@@ -52,10 +52,6 @@
         "$mod, slash, layoutmsg, togglesplit"  # cmd-slash -> tiles layout toggle
         "$mod, comma, layoutmsg, orientationcycle left top"  # cmd-comma -> accordion-like behavior
         
-        # Mode entries - matching AeroSpace modes
-        "$mod SHIFT, semicolon, submap, service"  # cmd-shift-semicolon -> service mode
-        "$mod SHIFT, R, submap, resize"  # cmd-shift-r -> resize mode
-        
         # Workspace back-and-forth - matching AeroSpace cmd-tab
         "$mod, Tab, workspace, previous"
         
@@ -75,91 +71,11 @@
             "$mod SHIFT, ${toString ws}, movetoworkspace, ${toString ws}"
           ]
         ) 9)
-      ) ++ [
-        # Global emergency submap reset - always available
-        "SUPER SHIFT CTRL, Escape, submap, reset"
-      ];
+      );
       
       # Configure workspace back-and-forth behavior
       binds = {
         workspace_back_and_forth = true;
-      };
-      
-      # Service mode submap - matching AeroSpace service mode
-      submap = {
-        "service" = {
-          bind = [
-            # Multiple ways to exit the submap for safety
-            ", escape, submap, reset"
-            "SUPER, escape, submap, reset"
-            "CTRL, c, submap, reset"
-            "SUPER SHIFT, semicolon, submap, reset"  # Same key that enters
-            
-            # Reset layout and exit - matching AeroSpace 'r' in service mode
-            ", r, layoutmsg, orientationleft"
-            ", r, submap, reset"
-            
-            # Toggle floating/tiling and exit - matching AeroSpace 'f' in service mode
-            ", f, togglefloating"
-            ", f, submap, reset"
-            
-            # Close all but current and exit - matching AeroSpace 'backspace' in service mode
-            ", backspace, exec, hyprctl clients -j | jq -r '.[] | select(.workspace.name == \"'$(hyprctl activewindow -j | jq -r .workspace.name)'\") | select(.address != \"'$(hyprctl activewindow -j | jq -r .address)'\") | .address' | xargs -I {} hyprctl dispatch closewindow address:{}"
-            ", backspace, submap, reset"
-            
-            # Join with directions and exit - matching AeroSpace cmd-shift-h/j/k/l in service mode
-            ", h, layoutmsg, swapprev"
-            ", h, submap, reset"
-            ", j, layoutmsg, swapnext"
-            ", j, submap, reset"
-            ", k, layoutmsg, swapprev"
-            ", k, submap, reset"
-            ", l, layoutmsg, swapnext"
-            ", l, submap, reset"
-            
-            # Catch-all bind to reset if any other key is pressed
-            "catchall, submap, "
-          ];
-        };
-        
-        # Resize mode submap - matching AeroSpace resize mode
-        "resize" = {
-          # Resize mode bindings (using binde for repeat functionality)
-          binde = [
-            # Resize directions - matching AeroSpace h/j/k/l in resize mode
-            ", h, resizeactive, -50 0"
-            ", l, resizeactive, 50 0"
-            ", k, resizeactive, 0 -50"
-            ", j, resizeactive, 0 50"
-          ];
-          
-          bind = [
-            # Multiple ways to exit the submap for safety
-            ", escape, submap, reset"
-            "SUPER, escape, submap, reset"
-            "CTRL, c, submap, reset"
-            "SUPER SHIFT, R, submap, reset"  # Same key that enters
-            
-            # Balance sizes and exit - matching AeroSpace 'b' in resize mode
-            ", b, layoutmsg, orientationcycle"
-            ", b, submap, reset"
-            
-            # Smart resize and exit - matching AeroSpace minus/equal in resize mode
-            ", minus, resizeactive, -50 -50"
-            ", minus, submap, "
-            ", equal, resizeactive, 50 50"
-            ", equal, submap, reset"
-            
-            # Exit resize mode - matching AeroSpace enter in resize mode
-            ", Return, submap, reset"
-            
-            # Catch-all bind to reset if any other key is pressed
-            "catchall, submap, reset"
-          ];
-        };
-        
-        # Reset submap (required)
-        "reset" = {};
       };
       
       # Input configuration
