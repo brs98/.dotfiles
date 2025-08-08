@@ -118,7 +118,7 @@
             ", l, submap, reset"
             
             # Catch-all bind to reset if any other key is pressed
-            ", catchall, submap, reset"
+            "catchall, submap, reset"
           ];
         };
         
@@ -154,7 +154,7 @@
             ", Return, submap, reset"
             
             # Catch-all bind to reset if any other key is pressed
-            ", catchall, submap, reset"
+            "catchall, submap, reset"
           ];
         };
         
