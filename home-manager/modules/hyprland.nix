@@ -87,10 +87,12 @@
           passes = 3;
           new_optimizations = true;
         };
-        drop_shadow = true;
-        shadow_range = 4;
-        shadow_render_power = 3;
-        "col.shadow" = "rgba(1a1a1aee)";
+        shadow = {
+          enabled = true;
+          range = 4;
+          render_power = 3;
+          color = "rgba(1a1a1aee)";
+        };
       };
       
       # Animations
@@ -140,11 +142,11 @@
       ];
       
       # Window rules
-      windowrule = [
-        "float, ^(pavucontrol)$"
-        "float, ^(nm-applet)$"
-        "float, ^(blueman-manager)$"
-        "float, ^(org.kde.polkit-kde-authentication-agent-1)$"
+      windowrulev2 = [
+        "float, class:^(pavucontrol)$"
+        "float, class:^(nm-applet)$"
+        "float, class:^(blueman-manager)$"
+        "float, class:^(org.kde.polkit-kde-authentication-agent-1)$"
       ];
       
       # Layer rules for better integration
