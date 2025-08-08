@@ -67,12 +67,18 @@
     enable = true;
     videoDrivers = [ "amdgpu" ];
     dpi = 180;  # High-DPI support for 2.8K display
-    
-    # Configure keymap in X11
-    xkb = {
-      layout = "us";
-      options = "ctrl:nocaps,altwin:swap_lalt_lwin,altwin:alt_super_win,ctrl:rctrl_ralt";
-      variant = "";
+  };
+
+  services.keyd = {
+    enable = true;
+    keyboards.default = {
+      ids = ["*"];
+      settings = {
+	main = {
+	  rightalt = "rightmeta";
+	  rightctrl = "rightalt";
+	};
+      };
     };
   };
 
@@ -85,13 +91,6 @@
     # autoSuspend = false;
   };
   
-  # Alternative display manager for testing (uncomment if GDM fails)
-  # services.xserver.displayManager.lightdm.enable = false;
-  # services.displayManager.sddm = {
-  #   enable = false;
-  #   wayland.enable = true;
-  # };
-
   # Enable flakes
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];

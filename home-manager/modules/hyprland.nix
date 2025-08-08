@@ -19,7 +19,7 @@
       # AeroSpace-matching keybindings
       bind = [
         # Launch applications (keeping existing ones)
-        "$mod, Return, exec, ghostty"
+        "$mod, Return, exec, wezterm"
         "$mod, Space, exec, wofi --show drun"
         "$mod, W, killactive"
         "$mod SHIFT, E, exit"
@@ -80,7 +80,7 @@
       # Input configuration
       input = {
         kb_layout = "us";
-        kb_options = "ctrl:nocaps,altwin:swap_lalt_lwin,altwin:alt_super_win,ctrl:rctrl_ralt";
+        kb_options = "ctrl:nocaps,altwin:swap_lalt_lwin";
         follow_mouse = 1;
         touchpad = {
           natural_scroll = true;
@@ -137,7 +137,7 @@
       # Layout settings
       dwindle = {
         pseudotile = true;
-        preserve_split = true;
+        force_split = 2;
       };
       
       # Gestures
