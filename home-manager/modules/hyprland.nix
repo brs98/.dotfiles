@@ -77,7 +77,7 @@
         ) 9)
       ) ++ [
         # Global emergency submap reset - always available
-        "SUPER SHIFT CTRL, Escape, submap, reset"
+        "SUPER SHIFT CTRL, Escape, submap, "
       ];
       
       # Configure workspace back-and-forth behavior
@@ -90,35 +90,35 @@
         "service" = {
           bind = [
             # Multiple ways to exit the submap for safety
-            ", escape, submap, reset"
-            "SUPER, escape, submap, reset"
-            "CTRL, c, submap, reset"
-            "SUPER SHIFT, semicolon, submap, reset"  # Same key that enters
+            ", escape, submap, "
+            "SUPER, escape, submap, "
+            "CTRL, c, submap, "
+            "SUPER SHIFT, semicolon, submap, "  # Same key that enters
             
             # Reset layout and exit - matching AeroSpace 'r' in service mode
             ", r, layoutmsg, orientationleft"
-            ", r, submap, reset"
+            ", r, submap, "
             
             # Toggle floating/tiling and exit - matching AeroSpace 'f' in service mode
             ", f, togglefloating"
-            ", f, submap, reset"
+            ", f, submap, "
             
             # Close all but current and exit - matching AeroSpace 'backspace' in service mode
             ", backspace, exec, hyprctl clients -j | jq -r '.[] | select(.workspace.name == \"'$(hyprctl activewindow -j | jq -r .workspace.name)'\") | select(.address != \"'$(hyprctl activewindow -j | jq -r .address)'\") | .address' | xargs -I {} hyprctl dispatch closewindow address:{}"
-            ", backspace, submap, reset"
+            ", backspace, submap, "
             
             # Join with directions and exit - matching AeroSpace cmd-shift-h/j/k/l in service mode
             ", h, layoutmsg, swapprev"
-            ", h, submap, reset"
+            ", h, submap, "
             ", j, layoutmsg, swapnext"
-            ", j, submap, reset"
+            ", j, submap, "
             ", k, layoutmsg, swapprev"
-            ", k, submap, reset"
+            ", k, submap, "
             ", l, layoutmsg, swapnext"
-            ", l, submap, reset"
+            ", l, submap, "
             
             # Catch-all bind to reset if any other key is pressed
-            "catchall, submap, reset"
+            "catchall, submap, "
           ];
         };
         
@@ -135,26 +135,26 @@
           
           bind = [
             # Multiple ways to exit the submap for safety
-            ", escape, submap, reset"
-            "SUPER, escape, submap, reset"
-            "CTRL, c, submap, reset"
-            "SUPER SHIFT, R, submap, reset"  # Same key that enters
+            ", escape, submap, "
+            "SUPER, escape, submap, "
+            "CTRL, c, submap, "
+            "SUPER SHIFT, R, submap, "  # Same key that enters
             
             # Balance sizes and exit - matching AeroSpace 'b' in resize mode
             ", b, layoutmsg, orientationcycle"
-            ", b, submap, reset"
+            ", b, submap, "
             
             # Smart resize and exit - matching AeroSpace minus/equal in resize mode
             ", minus, resizeactive, -50 -50"
-            ", minus, submap, reset"
+            ", minus, submap, "
             ", equal, resizeactive, 50 50"
-            ", equal, submap, reset"
+            ", equal, submap, "
             
             # Exit resize mode - matching AeroSpace enter in resize mode
-            ", Return, submap, reset"
+            ", Return, submap, "
             
             # Catch-all bind to reset if any other key is pressed
-            "catchall, submap, reset"
+            "catchall, submap, "
           ];
         };
         
