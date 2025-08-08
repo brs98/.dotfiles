@@ -80,7 +80,7 @@
       # Input configuration
       input = {
         kb_layout = "us";
-        kb_options = "ctrl:nocaps";
+        kb_options = "ctrl:nocaps,altwin:swap_lalt_lwin,altwin:alt_super_win,ctrl:rctrl_ralt";
         follow_mouse = 1;
         touchpad = {
           natural_scroll = true;
@@ -88,6 +88,8 @@
           tap-to-click = true;
         };
         sensitivity = 0; # -1.0 - 1.0, 0 means no modification
+        repeat_rate = 33;
+        repeat_delay = 225;
       };
       
       # General settings
