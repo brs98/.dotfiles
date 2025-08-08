@@ -57,7 +57,7 @@ inner.horizontal = 12
 inner.vertical =   12
 outer.left =       12
 outer.bottom =     12
-outer.top =        12
+outer.top =        52
 outer.right =      12
 
 # 'main' binding mode declaration
@@ -167,7 +167,7 @@ cmd-shift-k = ['join-with up', 'mode main']
 cmd-shift-l = ['join-with right', 'mode main']
 
 [[on-window-detected]]
-if.app-id = 'company.thebrowser.Browser'
+if.app-id = 'app.zen-browser.zen'
 run = "move-node-to-workspace 1"
 
 [[on-window-detected]]
@@ -179,7 +179,7 @@ if.app-id = 'com.tinyspeck.slackmacgap'
 run = "move-node-to-workspace 3"
 
 [[on-window-detected]]
-if.app-id = 'com.clickup.desktop-ap'
+if.app-id = 'com.linear'
 run = "move-node-to-workspace 4"
 
 [[on-window-detected]]
@@ -193,3 +193,11 @@ run = "move-node-to-workspace 6"
 [[on-window-detected]]
 if.app-id = 'com.apple.MobileSMS'
 run = "move-node-to-workspace 7"
+
+[[on-window-detected]]
+if.app-id = 'com.anthropic.claudefordesktop'
+run = "move-node-to-workspace 8"
+
+[[on-window-detected]]
+if.app-id = 'com.spotify.client'
+run = "move-node-to-workspace 9"

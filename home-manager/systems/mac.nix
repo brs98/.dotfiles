@@ -1,6 +1,6 @@
 { inputs, config, pkgs, ... }: let 
   configDir = "${config.home.homeDirectory}/.dotfiles";
-  # sketchybarDir = "${configDir}/home-manager/config/sketchybar/sketchybarrc";
+  sketchybarDir = "${configDir}/home-manager/configs/sketchybar";
   aerospaceDirectory = "${configDir}/home-manager/configs/aerospace/aerospace.toml";
 in {
 imports = [
@@ -19,9 +19,10 @@ imports = [
 
 
   # sketchybar configuration
-  # home.file.".config/sketchybar/sketchybarrc" = {
-  #   source = config.lib.file.mkOutOfStoreSymlink sketchybarDir;
-  # };
+  home.file.".config/sketchybar" = {
+    source = config.lib.file.mkOutOfStoreSymlink sketchybarDir;
+    recursive = true;
+  };
 
   # aerospace configuration
   home.file.".config/aerospace/aerospace.toml" = {

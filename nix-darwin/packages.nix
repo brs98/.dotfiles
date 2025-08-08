@@ -6,5 +6,6 @@
       pkgs.vim
       pkgs.pass
       pkgs.glow
+      pkgs.sketchybar
     ];
 }
