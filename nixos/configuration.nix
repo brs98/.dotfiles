@@ -21,9 +21,14 @@
 	};
   };
 
-  # Bootloader.
+  # Bootloader with debugging support
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  
+  # Early boot debugging (remove after fixing display issues)
+  boot.loader.systemd-boot.consoleMode = "auto";
+  boot.consoleLogLevel = 7;  # Show all kernel messages
+  boot.initrd.systemd.enable = true;  # Modern init system
 
   networking.hostName = "framework"; # Framework Laptop 13 AMD
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
@@ -71,11 +76,21 @@
     };
   };
 
-  # Enable display manager (moved from services.xserver.displayManager.gdm)
+  # Enable display manager with fallback options
   services.displayManager.gdm = {
     enable = true;
     wayland = true;
+    # Fallback debugging options (uncomment if display doesn't start)
+    # debug = true;
+    # autoSuspend = false;
   };
+  
+  # Alternative display manager for testing (uncomment if GDM fails)
+  # services.xserver.displayManager.lightdm.enable = false;
+  # services.displayManager.sddm = {
+  #   enable = false;
+  #   wayland.enable = true;
+  # };
 
   # Enable flakes
   nix.settings = {
@@ -193,17 +208,27 @@
     # AMD CPU microcode updates
     cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
     
-    # Graphics configuration for AMD Radeon 780M
+    # Graphics configuration for AMD Radeon 780M (RDNA 3)
     graphics = {
       enable = true;
       enable32Bit = true;
       extraPackages = with pkgs; [
         # AMD RDNA 3 (Radeon 780M) support
         mesa
+        mesa.drivers
         rocmPackages.clr.icd
-        amdvlk  # AMD Vulkan driver
+        amdvlk                    # AMD Vulkan driver
+        driversi686Linux.amdvlk   # 32-bit Vulkan support
         libva
         libva-utils
+        libva-vdpau-driver
+        vaapiVdpau
+        # Additional video acceleration
+        libvdpau-va-gl
+      ];
+      extraPackages32 = with pkgs.driversi686Linux; [
+        mesa
+        amdvlk
       ];
     };
   };

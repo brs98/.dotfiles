@@ -13,10 +13,22 @@
   boot.kernelModules = [ "kvm-amd" ];
   boot.extraModulePackages = [ ];
 
-  # Kernel parameters for Framework AMD optimization
+  # Use latest kernel for AMD 7040 series support (minimum 6.12)
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+  
+  # Kernel parameters for Framework AMD optimization and display troubleshooting
   boot.kernelParams = [
-    "amd_pstate=guided"  # Better AMD CPU power management
-    "amdgpu.dc=1"        # Enable Display Core for better graphics
+    "amd_pstate=guided"      # Better AMD CPU power management
+    "amdgpu.dc=1"           # Enable Display Core for better graphics
+    "amdgpu.dpm=1"          # Enable dynamic power management
+    "amdgpu.gpu_recovery=1" # Enable GPU recovery on hangs
+    # Debugging parameters (remove after fixing)
+    "drm.debug=0x14"        # Enable DRM debugging
+    "amdgpu.debug=0x4000"   # Enable AMDGPU debugging
+    "initcall_debug=1"      # Debug early initialization
+    # Emergency fallback options (uncomment if needed)
+    # "nomodeset"           # Disable kernel mode setting (fallback)
+    # "amdgpu.modeset=0"    # Disable AMDGPU modesetting (fallback)
   ];
 
   fileSystems."/" =
