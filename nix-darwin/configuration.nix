@@ -2,6 +2,7 @@
 
 imports = [
 	inputs.home-manager.darwinModules.home-manager
+	./system-defaults.nix
   ];
 
 users.users.brandon.home = "/Users/brandon";
@@ -34,17 +35,7 @@ users.users.brandon.home = "/Users/brandon";
   # Create /etc/zshrc that loads the nix-darwin environment.
   programs.zsh.enable = true;
 
-  # System defaults for SketchyBar
-  system.defaults = {
-    dock = {
-      autohide = true;
-      autohide-delay = 0.0;
-      autohide-time-modifier = 0.0;
-    };
-    NSGlobalDomain = {
-      _HIHideMenuBar = true;
-    };
-  };
+  # System defaults are now configured in ./system-defaults.nix
 
   # Set Git commit hash for darwin-version.
   system.configurationRevision = self.rev or self.dirtyRev or null;
