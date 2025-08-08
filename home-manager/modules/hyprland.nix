@@ -21,7 +21,7 @@
         # Launch applications (keeping existing ones)
         "$mod, Return, exec, kitty"
         "$mod, D, exec, wofi --show drun"
-        "$mod, Q, killactive"
+        "$mod, W, killactive"
         "$mod SHIFT, E, exit"
         
         # Window management - matching AeroSpace
