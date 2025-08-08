@@ -16,35 +16,58 @@
       # Set modifier key
       "$mod" = "SUPER";
       
-      # Basic keybindings
+      # AeroSpace-matching keybindings
       bind = [
-        # Launch applications
+        # Launch applications (keeping existing ones)
         "$mod, Return, exec, kitty"
         "$mod, D, exec, wofi --show drun"
         "$mod, Q, killactive"
         "$mod SHIFT, E, exit"
         
-        # Window management
-        "$mod, F, fullscreen"
-        "$mod, Space, togglefloating"
+        # Window management - matching AeroSpace
+        "$mod SHIFT, F, fullscreen"  # cmd-shift-f -> super-shift-f
+        "$mod, Space, togglefloating"  # Keep existing floating toggle
         
-        # Move focus
+        # Focus movement - matching AeroSpace ctrl-alt-left/down/up/right
+        "CTRL ALT, left, movefocus, l"
+        "CTRL ALT, down, movefocus, d"
+        "CTRL ALT, up, movefocus, u"
+        "CTRL ALT, right, movefocus, r"
+        
+        # Also support hjkl for focus (keeping existing)
         "$mod, h, movefocus, l"
         "$mod, l, movefocus, r"
         "$mod, k, movefocus, u"
         "$mod, j, movefocus, d"
         
-        # Move windows
+        # Move windows - matching AeroSpace cmd-shift-h/j/k/l and cmd-shift-left/right
         "$mod SHIFT, h, movewindow, l"
-        "$mod SHIFT, l, movewindow, r"
-        "$mod SHIFT, k, movewindow, u"
         "$mod SHIFT, j, movewindow, d"
+        "$mod SHIFT, k, movewindow, u"
+        "$mod SHIFT, l, movewindow, r"
+        "$mod SHIFT, left, movewindow, l"
+        "$mod SHIFT, right, movewindow, r"
         
-        # Screenshot
+        # Layout switching - matching AeroSpace
+        "$mod, slash, layoutmsg, togglesplit"  # cmd-slash -> tiles layout toggle
+        "$mod, comma, layoutmsg, orientationcycle left top"  # cmd-comma -> accordion-like behavior
+        
+        # Mode entries - matching AeroSpace modes
+        "$mod SHIFT, semicolon, submap, service"  # cmd-shift-semicolon -> service mode
+        "$mod SHIFT, R, submap, resize"  # cmd-shift-r -> resize mode
+        
+        # Workspace back-and-forth - matching AeroSpace cmd-tab
+        "$mod, Tab, workspace, previous"
+        
+        # Move workspace to next monitor - matching AeroSpace cmd-shift-tab  
+        "$mod SHIFT, Tab, moveworkspacetomonitor, current +1"
+        
+        # Screenshot (keeping existing)
         ", Print, exec, grim -g \"$(slurp)\" - | wl-copy"
         "$mod, Print, exec, grim - | wl-copy"
       ] ++ (
         # Workspaces - bind $mod + [shift +] {1..9} to [move to] workspace {1..9}
+        # Matching AeroSpace cmd-1 through cmd-9 and cmd-shift-1 through cmd-shift-9
         builtins.concatLists (builtins.genList (i:
           let ws = i + 1;
           in [
@@ -53,6 +76,64 @@
           ]
         ) 9)
       );
+      
+      # Configure workspace back-and-forth behavior
+      binds = {
+        workspace_back_and_forth = true;
+      };
+      
+      # Service mode submap - matching AeroSpace service mode
+      submap = "service";
+      bind = [
+        # Exit and reload config - matching AeroSpace 'esc' in service mode
+        ", escape, exec, hyprctl reload; hyprctl dispatch submap reset"
+        
+        # Reset layout - matching AeroSpace 'r' in service mode  
+        ", r, layoutmsg, orientationleft; hyprctl dispatch submap reset"
+        
+        # Toggle floating/tiling - matching AeroSpace 'f' in service mode
+        ", f, togglefloating; hyprctl dispatch submap reset"
+        
+        # Close all but current - matching AeroSpace 'backspace' in service mode
+        ", backspace, exec, hyprctl clients -j | jq -r '.[] | select(.workspace.name == \"'$(hyprctl activewindow -j | jq -r .workspace.name)'\") | select(.address != \"'$(hyprctl activewindow -j | jq -r .address)'\") | .address' | xargs -I {} hyprctl dispatch closewindow address:{}; hyprctl dispatch submap reset"
+        
+        # Join with directions - matching AeroSpace cmd-shift-h/j/k/l in service mode
+        "$mod SHIFT, h, layoutmsg, swapprev; hyprctl dispatch submap reset"
+        "$mod SHIFT, j, layoutmsg, swapnext; hyprctl dispatch submap reset" 
+        "$mod SHIFT, k, layoutmsg, swapprev; hyprctl dispatch submap reset"
+        "$mod SHIFT, l, layoutmsg, swapnext; hyprctl dispatch submap reset"
+      ];
+      
+      # Reset to global submap
+      submap = "reset";
+      
+      # Resize mode submap - matching AeroSpace resize mode
+      submap = "resize";
+      
+      # Resize mode bindings (using binde for repeat functionality)
+      binde = [
+        # Resize directions - matching AeroSpace h/j/k/l in resize mode
+        ", h, resizeactive, -50 0"
+        ", l, resizeactive, 50 0"
+        ", k, resizeactive, 0 -50"
+        ", j, resizeactive, 0 50"
+      ];
+      
+      bind = [
+        # Balance sizes - matching AeroSpace 'b' in resize mode
+        ", b, layoutmsg, orientationcycle"
+        
+        # Smart resize - matching AeroSpace minus/equal in resize mode
+        ", minus, resizeactive, -50 -50"
+        ", equal, resizeactive, 50 50"
+        
+        # Exit resize mode - matching AeroSpace enter/esc in resize mode
+        ", Return, submap, reset"
+        ", escape, submap, reset"
+      ];
+      
+      # Final reset to global submap
+      submap = "reset";
       
       # Input configuration
       input = {
