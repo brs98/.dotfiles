@@ -171,8 +171,6 @@
     xwayland.enable = true;
   };
 
-  programs.sway.enable = true;
-
   environment.sessionVariables = {
     # If your cursor becomes invisible
     WLR_NO_HARDWARE_CURSORS = "1";
@@ -228,9 +226,20 @@
 
   xdg.autostart.enable = true;
 
+  # XDG Desktop Portal configuration for Hyprland
+  # Note: programs.hyprland.enable automatically sets up xdg-desktop-portal-hyprland
+  # We only need to add additional portals here
   xdg.portal = {
     enable = true;
-    extraPortals = [ pkgs.xdg-desktop-portal-hyprland pkgs.xdg-desktop-portal-wlr pkgs.xdg-desktop-portal-gtk];
+    extraPortals = with pkgs; [
+      xdg-desktop-portal-gtk  # For GTK file picker and other GTK integration
+    ];
+    # Configure portal preferences
+    config.common.default = "*";
+    config.hyprland.default = [
+      "hyprland"
+      "gtk"
+    ];
   };
 
   # Allow unfree packages
@@ -277,7 +286,6 @@
 	obs-pipewire-audio-capture
       ];
      })
-    xdg-desktop-portal
     libsForQt5.kdenlive
 
     spotify
