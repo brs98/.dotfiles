@@ -74,6 +74,12 @@
       options = "ctrl:nocaps,altwin:swap_lalt_lwin,altwin:alt_super_win,ctrl:rctrl_ralt";
       variant = "";
     };
+
+    # Configure key repeat settings to match macOS
+    displayManager.sessionCommands = ''
+      # Set key repeat to match macOS: 225ms delay, 33 repeats per second
+      ${pkgs.xorg.xset}/bin/xset r rate 225 33
+    '';
   };
 
   # Enable display manager with fallback options
