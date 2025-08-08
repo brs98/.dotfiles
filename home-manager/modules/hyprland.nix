@@ -76,8 +76,8 @@
           ]
         ) 9)
       ) ++ [
-        # Service mode bindings - matching AeroSpace service mode
-        ", escape, submap, reset"  # Default escape binding
+        # Global emergency submap reset - always available
+        "SUPER SHIFT CTRL, Escape, submap, reset"
       ];
       
       # Configure workspace back-and-forth behavior
@@ -86,57 +86,80 @@
       };
       
       # Service mode submap - matching AeroSpace service mode
-      submap."service".bind = [
-        # Exit and reload config - matching AeroSpace 'esc' in service mode
-        ", escape, exec, hyprctl reload"
-        ", escape, submap, reset"
+      submap = {
+        "service" = {
+          bind = [
+            # Multiple ways to exit the submap for safety
+            ", escape, submap, reset"
+            "SUPER, escape, submap, reset"
+            "CTRL, c, submap, reset"
+            "SUPER SHIFT, semicolon, submap, reset"  # Same key that enters
+            
+            # Reset layout and exit - matching AeroSpace 'r' in service mode
+            ", r, layoutmsg, orientationleft"
+            ", r, submap, reset"
+            
+            # Toggle floating/tiling and exit - matching AeroSpace 'f' in service mode
+            ", f, togglefloating"
+            ", f, submap, reset"
+            
+            # Close all but current and exit - matching AeroSpace 'backspace' in service mode
+            ", backspace, exec, hyprctl clients -j | jq -r '.[] | select(.workspace.name == \"'$(hyprctl activewindow -j | jq -r .workspace.name)'\") | select(.address != \"'$(hyprctl activewindow -j | jq -r .address)'\") | .address' | xargs -I {} hyprctl dispatch closewindow address:{}"
+            ", backspace, submap, reset"
+            
+            # Join with directions and exit - matching AeroSpace cmd-shift-h/j/k/l in service mode
+            ", h, layoutmsg, swapprev"
+            ", h, submap, reset"
+            ", j, layoutmsg, swapnext"
+            ", j, submap, reset"
+            ", k, layoutmsg, swapprev"
+            ", k, submap, reset"
+            ", l, layoutmsg, swapnext"
+            ", l, submap, reset"
+            
+            # Catch-all bind to reset if any other key is pressed
+            ", catchall, submap, reset"
+          ];
+        };
         
-        # Reset layout - matching AeroSpace 'r' in service mode  
-        ", r, layoutmsg, orientationleft"
-        ", r, submap, reset"
-        
-        # Toggle floating/tiling - matching AeroSpace 'f' in service mode
-        ", f, togglefloating"
-        ", f, submap, reset"
-        
-        # Close all but current - matching AeroSpace 'backspace' in service mode
-        ", backspace, exec, hyprctl clients -j | jq -r '.[] | select(.workspace.name == \"'$(hyprctl activewindow -j | jq -r .workspace.name)'\") | select(.address != \"'$(hyprctl activewindow -j | jq -r .address)'\") | .address' | xargs -I {} hyprctl dispatch closewindow address:{}"
-        ", backspace, submap, reset"
-        
-        # Join with directions - matching AeroSpace cmd-shift-h/j/k/l in service mode
-        "$mod SHIFT, h, layoutmsg, swapprev"
-        "$mod SHIFT, h, submap, reset"
-        "$mod SHIFT, j, layoutmsg, swapnext"
-        "$mod SHIFT, j, submap, reset" 
-        "$mod SHIFT, k, layoutmsg, swapprev"
-        "$mod SHIFT, k, submap, reset"
-        "$mod SHIFT, l, layoutmsg, swapnext"
-        "$mod SHIFT, l, submap, reset"
-      ];
-      
-      # Resize mode submap - matching AeroSpace resize mode
-      submap."resize" = {
-        # Resize mode bindings (using binde for repeat functionality)
-        binde = [
-          # Resize directions - matching AeroSpace h/j/k/l in resize mode
-          ", h, resizeactive, -50 0"
-          ", l, resizeactive, 50 0"
-          ", k, resizeactive, 0 -50"
-          ", j, resizeactive, 0 50"
-        ];
-        
-        bind = [
-          # Balance sizes - matching AeroSpace 'b' in resize mode
-          ", b, layoutmsg, orientationcycle"
+        # Resize mode submap - matching AeroSpace resize mode
+        "resize" = {
+          # Resize mode bindings (using binde for repeat functionality)
+          binde = [
+            # Resize directions - matching AeroSpace h/j/k/l in resize mode
+            ", h, resizeactive, -50 0"
+            ", l, resizeactive, 50 0"
+            ", k, resizeactive, 0 -50"
+            ", j, resizeactive, 0 50"
+          ];
           
-          # Smart resize - matching AeroSpace minus/equal in resize mode
-          ", minus, resizeactive, -50 -50"
-          ", equal, resizeactive, 50 50"
-          
-          # Exit resize mode - matching AeroSpace enter/esc in resize mode
-          ", Return, submap, reset"
-          ", escape, submap, reset"
-        ];
+          bind = [
+            # Multiple ways to exit the submap for safety
+            ", escape, submap, reset"
+            "SUPER, escape, submap, reset"
+            "CTRL, c, submap, reset"
+            "SUPER SHIFT, R, submap, reset"  # Same key that enters
+            
+            # Balance sizes and exit - matching AeroSpace 'b' in resize mode
+            ", b, layoutmsg, orientationcycle"
+            ", b, submap, reset"
+            
+            # Smart resize and exit - matching AeroSpace minus/equal in resize mode
+            ", minus, resizeactive, -50 -50"
+            ", minus, submap, reset"
+            ", equal, resizeactive, 50 50"
+            ", equal, submap, reset"
+            
+            # Exit resize mode - matching AeroSpace enter in resize mode
+            ", Return, submap, reset"
+            
+            # Catch-all bind to reset if any other key is pressed
+            ", catchall, submap, reset"
+          ];
+        };
+        
+        # Reset submap (required)
+        "reset" = {};
       };
       
       # Input configuration
