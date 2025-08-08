@@ -75,7 +75,10 @@
             "$mod SHIFT, ${toString ws}, movetoworkspace, ${toString ws}"
           ]
         ) 9)
-      );
+      ) ++ [
+        # Service mode bindings - matching AeroSpace service mode
+        ", escape, submap, reset"  # Default escape binding
+      ];
       
       # Configure workspace back-and-forth behavior
       binds = {
@@ -83,8 +86,7 @@
       };
       
       # Service mode submap - matching AeroSpace service mode
-      submap = "service";
-      bind = [
+      submap."service".bind = [
         # Exit and reload config - matching AeroSpace 'esc' in service mode
         ", escape, exec, hyprctl reload; hyprctl dispatch submap reset"
         
@@ -104,36 +106,30 @@
         "$mod SHIFT, l, layoutmsg, swapnext; hyprctl dispatch submap reset"
       ];
       
-      # Reset to global submap
-      submap = "reset";
-      
       # Resize mode submap - matching AeroSpace resize mode
-      submap = "resize";
-      
-      # Resize mode bindings (using binde for repeat functionality)
-      binde = [
-        # Resize directions - matching AeroSpace h/j/k/l in resize mode
-        ", h, resizeactive, -50 0"
-        ", l, resizeactive, 50 0"
-        ", k, resizeactive, 0 -50"
-        ", j, resizeactive, 0 50"
-      ];
-      
-      bind = [
-        # Balance sizes - matching AeroSpace 'b' in resize mode
-        ", b, layoutmsg, orientationcycle"
+      submap."resize" = {
+        # Resize mode bindings (using binde for repeat functionality)
+        binde = [
+          # Resize directions - matching AeroSpace h/j/k/l in resize mode
+          ", h, resizeactive, -50 0"
+          ", l, resizeactive, 50 0"
+          ", k, resizeactive, 0 -50"
+          ", j, resizeactive, 0 50"
+        ];
         
-        # Smart resize - matching AeroSpace minus/equal in resize mode
-        ", minus, resizeactive, -50 -50"
-        ", equal, resizeactive, 50 50"
-        
-        # Exit resize mode - matching AeroSpace enter/esc in resize mode
-        ", Return, submap, reset"
-        ", escape, submap, reset"
-      ];
-      
-      # Final reset to global submap
-      submap = "reset";
+        bind = [
+          # Balance sizes - matching AeroSpace 'b' in resize mode
+          ", b, layoutmsg, orientationcycle"
+          
+          # Smart resize - matching AeroSpace minus/equal in resize mode
+          ", minus, resizeactive, -50 -50"
+          ", equal, resizeactive, 50 50"
+          
+          # Exit resize mode - matching AeroSpace enter/esc in resize mode
+          ", Return, submap, reset"
+          ", escape, submap, reset"
+        ];
+      };
       
       # Input configuration
       input = {
