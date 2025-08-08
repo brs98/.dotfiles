@@ -9,8 +9,8 @@
     ];
 
   boot.initrd.availableKernelModules = [ "nvme" "xhci_pci" "thunderbolt" "usb_storage" "usbhid" "sd_mod" "amdgpu" ];
-  boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ "kvm-amd" ];
+  boot.initrd.kernelModules = [ "amdgpu" ];  # Load amdgpu early for eDP detection
+  boot.kernelModules = [ "kvm-amd" "amdgpu" "amd64_edac" ];  # Additional AMD modules
   boot.extraModulePackages = [ ];
 
   # Use latest kernel for AMD 7040 series support (minimum 6.12)
@@ -22,13 +22,24 @@
     "amdgpu.dc=1"           # Enable Display Core for better graphics
     "amdgpu.dpm=1"          # Enable dynamic power management
     "amdgpu.gpu_recovery=1" # Enable GPU recovery on hangs
-    # Debugging parameters (remove after fixing)
-    "drm.debug=0x14"        # Enable DRM debugging
-    "amdgpu.debug=0x4000"   # Enable AMDGPU debugging
+    
+    # Framework-specific eDP troubleshooting parameters
+    "amdgpu.sg_display=0"   # Critical for Framework display issues
+    "amdgpu.ppfeaturemask=0xffffffff"  # Enable all power play features
+    "video=eDP-1:2880x1920@60"  # Force eDP resolution (adjust for your panel)
+    "acpi_backlight=native" # Use native backlight control
+    "acpi_osi=Linux"        # Better ACPI compatibility
+    
+    # Advanced debugging (can remove after fixing)
+    "drm.debug=0x1ff"       # Enhanced DRM debugging (all categories)
+    "amdgpu.debug=0xffff"   # Full AMDGPU debugging
+    "dyndbg=\"file drivers/gpu/drm/amd/display/* +p\""  # Display driver debug
     "initcall_debug=1"      # Debug early initialization
+    
     # Emergency fallback options (uncomment if needed)
     # "nomodeset"           # Disable kernel mode setting (fallback)
     # "amdgpu.modeset=0"    # Disable AMDGPU modesetting (fallback)
+    # "i915.modeset=0"      # If dual GPU system
   ];
 
   fileSystems."/" =
