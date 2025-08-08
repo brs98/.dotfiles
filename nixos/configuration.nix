@@ -204,9 +204,7 @@
     # Enable redistributable firmware (important for MediaTek RZ616 WiFi 6E, etc.)
     enableRedistributableFirmware = true;
     firmware = with pkgs; [ 
-      linux-firmware 
-      # Additional firmware packages for AMD GPU
-      linux-firmware-git  # Latest firmware (may help with eDP detection)
+      linux-firmware  # System firmware for AMD GPU and other components
     ];
     
     # AMD CPU microcode updates
