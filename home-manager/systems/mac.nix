@@ -1,10 +1,7 @@
 { inputs, config, pkgs, ... }: 
 let 
-  # Get the current user dynamically
-  currentUser = builtins.getEnv "USER";
-  # Fallback to reasonable defaults if USER is not set
-  userName = if currentUser != "" then currentUser else "nixos";
-  
+  # Home Manager receives the user configuration from the parent nix-darwin configuration
+  # The home.username and home.homeDirectory are set by the parent, so we can derive from them
   configDir = "${config.home.homeDirectory}/.dotfiles";
   sketchybarDir = "${configDir}/home-manager/configs/sketchybar";
   aerospaceDirectory = "${configDir}/home-manager/configs/aerospace/aerospace.toml";
@@ -19,8 +16,8 @@ imports = [
     ../modules/cursor.nix
   ];
 
-  home.username = userName;
-  home.homeDirectory = if pkgs.stdenv.isDarwin then "/Users/${userName}" else "/home/${userName}";
+  # These will be set by the parent nix-darwin configuration
+  # home.username and home.homeDirectory are managed by nix-darwin
   home.stateVersion = "23.11";
 
 

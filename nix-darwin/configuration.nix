@@ -1,9 +1,26 @@
-{ self, inputs, config, lib, ... }: 
+{ self, inputs, config, lib, user ? null, ... }: 
 let
-  # Get the current user dynamically
-  currentUser = builtins.getEnv "USER";
-  # Fallback to "nixos" if USER environment variable is not set
-  userName = if currentUser != "" then currentUser else "nixos";
+  # Use passed user parameter, or detect current user
+  # This uses a more standard approach that works with darwin-rebuild
+  userName = 
+    if user != null then user
+    else if (builtins.pathExists "/Users") then
+      # Find non-system users and return the first regular user
+      let 
+        allItems = builtins.readDir "/Users";
+        userDirs = builtins.filter (x: 
+          # Only include directories (not files like .localized)
+          (builtins.getAttr x allItems) == "directory" &&
+          # Exclude system directories and files
+          x != ".DS_Store" && x != "Shared" && x != "Guest" && x != "daemon" && 
+          # Exclude system accounts that start with underscore or dot
+          !(lib.hasPrefix "_" x) && !(lib.hasPrefix "." x)
+        ) (builtins.attrNames allItems);
+      in
+        if (builtins.length userDirs) > 0 
+        then (builtins.head userDirs)
+        else "admin"
+    else "admin";
 in
 {
 
@@ -25,8 +42,10 @@ users.users.${userName}.home = "/Users/${userName}";
 	useGlobalPkgs = true;
 	useUserPackages = true;
   	extraSpecialArgs = { inherit inputs; };
-	users = {
-		${userName} = import ../home-manager/systems/mac.nix;
+	users.${userName} = {
+		imports = [ ../home-manager/systems/mac.nix ];
+		home.username = userName;
+		home.homeDirectory = "/Users/${userName}";
 	};
   };
 

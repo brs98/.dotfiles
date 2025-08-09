@@ -37,9 +37,12 @@
     systemDarwin = "aarch64-darwin";
     systemLinux = "x86_64-linux";
     
-    # Get the current user for dynamic configurations
-    currentUser = builtins.getEnv "USER";
-    userName = if currentUser != "" then currentUser else "nixos";
+    # Function to create a darwin system for any user
+    mkDarwinSystem = { user ? null }: darwin.lib.darwinSystem {
+      system = systemDarwin;
+      specialArgs = { inherit inputs self user; };
+      modules = commonDarwinModules;
+    };
 
     # Common nix-darwin modules for all Macs
     commonDarwinModules = [
@@ -71,13 +74,6 @@
         modules = commonLinuxModules;
       };
       
-      # Dynamic configuration that works with any username
-      "${userName}-linux" = nixpkgs.lib.nixosSystem {
-        specialArgs = { inherit inputs self; };
-        system = systemLinux;
-        modules = commonLinuxModules;
-      };
-      
       # Default Linux configuration for install scripts
       default-linux = nixpkgs.lib.nixosSystem {
         specialArgs = { inherit inputs self; };
@@ -87,11 +83,7 @@
     };
 
     # Use a single "default" configuration that will work for any Mac
-    darwinConfigurations.default = darwin.lib.darwinSystem {
-      system = systemDarwin;
-      specialArgs = { inherit inputs self; };
-      modules = commonDarwinModules;
-    };
+    darwinConfigurations.default = mkDarwinSystem { };
 
     darwinPackages = self.darwinConfigurations.default.pkgs;
   };
