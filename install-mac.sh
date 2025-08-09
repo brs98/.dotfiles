@@ -39,16 +39,16 @@ else
 fi
 
 # Configure Git user information
-if [ -z "$GIT_USER_NAME" ] || [ -z "$GIT_USER_EMAIL" ]; then
+if [ -z "${GIT_USER_NAME:-}" ] || [ -z "${GIT_USER_EMAIL:-}" ]; then
   log "Setting up Git configuration..."
   
-  if [ -z "$GIT_USER_NAME" ]; then
+  if [ -z "${GIT_USER_NAME:-}" ]; then
     prompt "Enter your Git username:"
     read -r GIT_USER_NAME
     export GIT_USER_NAME
   fi
   
-  if [ -z "$GIT_USER_EMAIL" ]; then
+  if [ -z "${GIT_USER_EMAIL:-}" ]; then
     prompt "Enter your Git email:"
     read -r GIT_USER_EMAIL  
     export GIT_USER_EMAIL
