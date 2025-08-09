@@ -53,6 +53,6 @@ fi
 
 # --- Step 4: Apply nix-darwin + home-manager config ---
 log "Applying configuration..."
-darwin-rebuild switch --flake "$DOTFILES_DIR#$HOSTNAME"
+sudo darwin-rebuild switch --flake "$DOTFILES_DIR#$HOSTNAME"
 
 log "✅ Installation complete!"
