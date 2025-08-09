@@ -9,7 +9,7 @@
   userName = if currentUser != "" then currentUser else "nixos";
   
   systemRebuildCmd = if pkgs.stdenv.isDarwin 
-    then "sudo darwin-rebuild switch --flake ${configDir}#default"
+    then "sudo darwin-rebuild switch --flake ${configDir}#default --impure"
     else "sudo nixos-rebuild switch --flake ~/.dotfiles#${userName}-linux";
   
   openCmd = if pkgs.stdenv.isDarwin then "open" else "xdg-open";
