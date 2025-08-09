@@ -23,64 +23,62 @@
     darwin.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { 
-  self,
-  catppuccin,
-  ghostty,
-  home-manager,
-  darwin,
-  nixos-hardware,
-  nixpkgs,
-  ...
-  }@inputs : {
-    # Define configurations for different systems
+  outputs = {
+    self,
+    catppuccin,
+    ghostty,
+    home-manager,
+    darwin,
+    nixos-hardware,
+    nixpkgs,
+    ...
+  } @ inputs:
+  let
+    systemDarwin = "aarch64-darwin";
+    systemLinux = "x86_64-linux";
+    hostname = builtins.getEnv "HOSTNAME";
+
+    # Common nix-darwin modules for all Macs
+    commonDarwinModules = [
+      ./nix-darwin/configuration.nix
+      ./nix-darwin/packages.nix
+      ./nix-darwin/shell-applications.nix
+      ./nix-darwin/services.nix
+      ./nix-darwin/homebrew.nix
+    ];
+
+    # Common NixOS modules for all Linux machines
+    commonNixosModules = [
+      ./nixos/configuration.nix
+      catppuccin.nixosModules.catppuccin
+      nixos-hardware.nixosModules.framework-13-7040-amd
+      {
+        environment.systemPackages = [
+          ghostty.packages.${systemLinux}.default
+        ];
+      }
+    ];
+  in
+  {
     nixosConfigurations = {
       brandon-linux = nixpkgs.lib.nixosSystem {
         specialArgs = { inherit inputs self; };
-        system = "x86_64-linux";
-        modules = [
-          ./nixos/configuration.nix
-          catppuccin.nixosModules.catppuccin
-          nixos-hardware.nixosModules.framework-13-7040-amd
-          {
-            environment.systemPackages = [
-              ghostty.packages.x86_64-linux.default
-            ];
-          }
-        ];
+        system = systemLinux;
+        modules = commonNixosModules;
       };
     };
 
-    # Build darwin flake using:
-    # $ darwin-rebuild switch --flake ~/.dotfiles
+    # Nix-darwin configs — hostname-specific and default fallback
     darwinConfigurations = {
-        brandon-mac = darwin.lib.darwinSystem {
-          system = "aarch64-darwin";
-          specialArgs = { inherit inputs self; };
-          modules = [
-		./nix-darwin/configuration.nix
-		./nix-darwin/packages.nix
-		./nix-darwin/shell-applications.nix
-		./nix-darwin/services.nix
-		./nix-darwin/homebrew.nix
-          ];
-        };
-
-        Brandons-Macbook-Pro = darwin.lib.darwinSystem {
-          system = "aarch64-darwin";
-          specialArgs = { inherit inputs self; };
-          modules = [
-		./nix-darwin/configuration.nix
-		./nix-darwin/packages.nix
-		./nix-darwin/shell-applications.nix
-		./nix-darwin/services.nix
-		./nix-darwin/homebrew.nix
-          ];
-        };
+      ${hostname} = darwin.lib.darwinSystem {
+        system = systemDarwin;
+        specialArgs = { inherit inputs self; };
+        modules = commonDarwinModules;
       };
+    };
 
-    # Expose the package set, including overlays, for convenience.
-    # darwinPackages = self.darwinConfigurations.brandon-mac.pkgs;
-    darwinPackages = self.darwinConfigurations.Brandons-Macbook-Pro.pkgs;
-      };
+    # Pick one package set to expose (doesn't matter which hostname)
+    darwinPackages = self.darwinConfigurations.${hostname}.pkgs;
+  };
 }
+
