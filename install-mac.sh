@@ -56,9 +56,9 @@ if [ -z "${GIT_USER_NAME:-}" ] || [ -z "${GIT_USER_EMAIL:-}" ]; then
   
   # Save to shell profile for persistence
   SHELL_PROFILE=""
-  if [ -n "$ZSH_VERSION" ]; then
+  if [ -n "${ZSH_VERSION:-}" ]; then
     SHELL_PROFILE="$HOME/.zshrc"
-  elif [ -n "$BASH_VERSION" ]; then
+  elif [ -n "${BASH_VERSION:-}" ]; then
     SHELL_PROFILE="$HOME/.bashrc"
   else
     SHELL_PROFILE="$HOME/.profile"
