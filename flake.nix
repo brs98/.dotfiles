@@ -36,6 +36,10 @@
   let
     systemDarwin = "aarch64-darwin";
     systemLinux = "x86_64-linux";
+    
+    # Get the current user for dynamic configurations
+    currentUser = builtins.getEnv "USER";
+    userName = if currentUser != "" then currentUser else "nixos";
 
     # Common nix-darwin modules for all Macs
     commonDarwinModules = [
@@ -45,22 +49,40 @@
       ./nix-darwin/services.nix
       ./nix-darwin/homebrew.nix
     ];
+    
+    # Common NixOS modules for Linux systems
+    commonLinuxModules = [
+      ./nixos/configuration.nix
+      catppuccin.nixosModules.catppuccin
+      nixos-hardware.nixosModules.framework-13-7040-amd
+      {
+        environment.systemPackages = [
+          ghostty.packages.${systemLinux}.default
+        ];
+      }
+    ];
   in
   {
     nixosConfigurations = {
+      # Keep the original brandon-linux for backward compatibility
       brandon-linux = nixpkgs.lib.nixosSystem {
         specialArgs = { inherit inputs self; };
         system = systemLinux;
-        modules = [
-          ./nixos/configuration.nix
-          catppuccin.nixosModules.catppuccin
-          nixos-hardware.nixosModules.framework-13-7040-amd
-          {
-            environment.systemPackages = [
-              ghostty.packages.${systemLinux}.default
-            ];
-          }
-        ];
+        modules = commonLinuxModules;
+      };
+      
+      # Dynamic configuration that works with any username
+      "${userName}-linux" = nixpkgs.lib.nixosSystem {
+        specialArgs = { inherit inputs self; };
+        system = systemLinux;
+        modules = commonLinuxModules;
+      };
+      
+      # Default Linux configuration for install scripts
+      default-linux = nixpkgs.lib.nixosSystem {
+        specialArgs = { inherit inputs self; };
+        system = systemLinux;
+        modules = commonLinuxModules;
       };
     };
 

@@ -1,14 +1,21 @@
-{ self, inputs, config, ... }: {
+{ self, inputs, config, lib, ... }: 
+let
+  # Get the current user dynamically
+  currentUser = builtins.getEnv "USER";
+  # Fallback to "nixos" if USER environment variable is not set
+  userName = if currentUser != "" then currentUser else "nixos";
+in
+{
 
 imports = [
 	inputs.home-manager.darwinModules.home-manager
 	./system-defaults.nix
   ];
 
-users.users.brandon.home = "/Users/brandon";
+users.users.${userName}.home = "/Users/${userName}";
 
   # Set primary user for homebrew and other user-specific options
-  system.primaryUser = "brandon";
+  system.primaryUser = userName;
 
   # Fix GID mismatch for nixbld group
   ids.gids.nixbld = 350;
@@ -19,7 +26,7 @@ users.users.brandon.home = "/Users/brandon";
 	useUserPackages = true;
   	extraSpecialArgs = { inherit inputs; };
 	users = {
-		brandon = import ../home-manager/systems/mac.nix;
+		${userName} = import ../home-manager/systems/mac.nix;
 	};
   };
 

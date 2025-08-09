@@ -3,7 +3,12 @@
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
 { config, lib, pkgs, inputs, ... }:
-
+let
+  # Get the current user dynamically
+  currentUser = builtins.getEnv "USER";
+  # Fallback to "nixos" if USER environment variable is not set
+  userName = if currentUser != "" then currentUser else "nixos";
+in
 {
   imports =
     [ # Include the results of the hardware scan.
@@ -17,7 +22,7 @@
   useUserPackages = true;
   	extraSpecialArgs = { inherit inputs; };
 	users = {
-		brandon = import ../home-manager/systems/linux.nix;
+		${userName} = import ../home-manager/systems/linux.nix;
 	};
   };
 
@@ -171,9 +176,9 @@
   services.flatpak.enable = true;
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
-  users.users.brandon = with pkgs; {
+  users.users.${userName} = with pkgs; {
     isNormalUser = true;
-    description = "Brandon";
+    description = userName;
     shell = pkgs.zsh;
     extraGroups = [ "networkmanager" "wheel" "docker" "video" "audio" ];
     packages = [
@@ -196,7 +201,7 @@
 	pulseaudio  # For pactl commands
 	nerd-fonts.hack
     ];
-    home = "/home/brandon";
+    home = "/home/${userName}";
   };
 
   # theme

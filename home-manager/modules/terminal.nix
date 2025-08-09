@@ -4,9 +4,13 @@
   weztermDir = "${configDir}/home-manager/configs/wezterm/wezterm.lua";
   starshipDir = "${configDir}/home-manager/configs/starship/starship.toml";
   
+  # Get current user for Linux system config name
+  currentUser = builtins.getEnv "USER";
+  userName = if currentUser != "" then currentUser else "nixos";
+  
   systemRebuildCmd = if pkgs.stdenv.isDarwin 
     then "sudo darwin-rebuild switch --flake ${configDir}#default"
-    else "sudo nixos-rebuild switch --flake ~/.dotfiles#brandon-linux";
+    else "sudo nixos-rebuild switch --flake ~/.dotfiles#${userName}-linux";
   
   openCmd = if pkgs.stdenv.isDarwin then "open" else "xdg-open";
 in {

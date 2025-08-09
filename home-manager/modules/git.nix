@@ -1,10 +1,16 @@
-{ pkgs, ... }: {
+{ pkgs, ... }: 
+let
+  # Get Git user info from environment variables with fallbacks
+  gitUserName = builtins.getEnv "GIT_USER_NAME";
+  gitUserEmail = builtins.getEnv "GIT_USER_EMAIL";
+in
+{
     programs = {
       # Git configuration
       git = {
         enable = true;
-        userName = "brs98";
-        userEmail = "southwick.brandon21@gmail.com";
+        userName = if gitUserName != "" then gitUserName else "Your Name";
+        userEmail = if gitUserEmail != "" then gitUserEmail else "your.email@example.com";
         aliases = {
           co = "checkout";
           br = "branch";

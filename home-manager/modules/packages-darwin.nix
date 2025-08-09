@@ -1,4 +1,4 @@
-{ pkgs, ... }: {
+{ pkgs, config, ... }: {
   home.packages = with pkgs; [
     # macOS-specific packages
     gnupg
@@ -12,6 +12,6 @@
   home.sessionPath = [
     "/opt/homebrew/bin"
     "/opt/homebrew/opt/libpq/bin"
-    "/Users/brandon/personal/new-worktree"
+    "${config.home.homeDirectory}/personal/new-worktree"
   ];
 }
