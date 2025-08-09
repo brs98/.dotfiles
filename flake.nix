@@ -36,16 +36,24 @@
   let
     systemDarwin = "aarch64-darwin";
     systemLinux = "x86_64-linux";
-    hostname = builtins.getEnv "HOSTNAME";
 
-    # Common nix-darwin modules for all Macs
-    commonDarwinModules = [
-      ./nix-darwin/configuration.nix
-      ./nix-darwin/packages.nix
-      ./nix-darwin/shell-applications.nix
-      ./nix-darwin/services.nix
-      ./nix-darwin/homebrew.nix
-    ];
+    # Get hostname from environment variable with fallback
+    hostname =
+      let h = builtins.getEnv "DARWIN_HOSTNAME";
+      in if h == "" then "default-mac" else h;
+
+    # Helper function to create Darwin configurations
+    makeDarwinConfig = hostName: darwin.lib.darwinSystem {
+      system = systemDarwin;
+      specialArgs = { inherit inputs self; };
+      modules = [
+        ./nix-darwin/configuration.nix
+        ./nix-darwin/packages.nix
+        ./nix-darwin/shell-applications.nix
+        ./nix-darwin/services.nix
+        ./nix-darwin/homebrew.nix
+      ];
+    };
 
     # Common NixOS modules for all Linux machines
     commonNixosModules = [
@@ -58,6 +66,13 @@
         ];
       }
     ];
+
+    # Static hostname configurations
+    staticHostnames = [
+      "Brandons-Macbook-Pro"
+      "Brandons-MacBook-Pro-2"
+      "default-mac"
+    ];
   in
   {
     nixosConfigurations = {
@@ -68,17 +83,22 @@
       };
     };
 
-    # Nix-darwin configs — hostname-specific and default fallback
-    darwinConfigurations = {
-      ${hostname} = darwin.lib.darwinSystem {
-        system = systemDarwin;
-        specialArgs = { inherit inputs self; };
-        modules = commonDarwinModules;
-      };
-    };
+    darwinConfigurations = 
+      # Create static configurations
+      builtins.listToAttrs (map (hostName: {
+        name = hostName;
+        value = makeDarwinConfig hostName;
+      }) staticHostnames)
+      
+      # Add dynamic hostname if not already covered by static ones
+      // (if builtins.elem hostname staticHostnames then {} else {
+        ${hostname} = makeDarwinConfig hostname;
+      });
 
-    # Pick one package set to expose (doesn't matter which hostname)
-    darwinPackages = self.darwinConfigurations.${hostname}.pkgs;
+    # Use the resolved hostname for darwinPackages
+    darwinPackages = 
+      if self.darwinConfigurations ? ${hostname}
+      then self.darwinConfigurations.${hostname}.pkgs
+      else self.darwinConfigurations."default-mac".pkgs;
   };
 }
-
