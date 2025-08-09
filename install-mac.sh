@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Get hostname using macOS-native method with fallback
-HOSTNAME=$(scutil --get LocalHostName 2>/dev/null || hostname | cut -d. -f1)
 DOTFILES_DIR="$HOME/.dotfiles"
 DOTFILES_REPO="https://github.com/brs98/.dotfiles"
-
-# Export hostname for flake to use
-export DARWIN_HOSTNAME="$HOSTNAME"
 
 log() { echo -e "\\033[1;32m[INFO]\\033[0m $1"; }
 
