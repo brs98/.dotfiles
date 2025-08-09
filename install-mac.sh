@@ -41,6 +41,8 @@ else
   git -C "$DOTFILES_DIR" pull
 fi
 
-log "Applying nix-darwin configuration for hostname: $HOSTNAME..."
+log "Applying nix-darwin configuration..."
 cd "$DOTFILES_DIR"
-sudo -E HOME="$HOME" DARWIN_HOSTNAME="$HOSTNAME" nix run nix-darwin -- switch --flake ".#$HOSTNAME"
+
+# Use the default configuration - nix-darwin will handle hostname internally
+sudo -E HOME="$HOME" nix run nix-darwin -- switch --flake ".#default"

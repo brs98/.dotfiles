@@ -37,9 +37,6 @@
     systemDarwin = "aarch64-darwin";
     systemLinux = "x86_64-linux";
 
-    # Get hostname from environment variable - no fallback needed since script always sets it
-    hostname = builtins.getEnv "DARWIN_HOSTNAME";
-
     # Common nix-darwin modules for all Macs
     commonDarwinModules = [
       ./nix-darwin/configuration.nix
@@ -48,36 +45,32 @@
       ./nix-darwin/services.nix
       ./nix-darwin/homebrew.nix
     ];
-
-    # Common NixOS modules for all Linux machines
-    commonNixosModules = [
-      ./nixos/configuration.nix
-      catppuccin.nixosModules.catppuccin
-      nixos-hardware.nixosModules.framework-13-7040-amd
-      {
-        environment.systemPackages = [
-          ghostty.packages.${systemLinux}.default
-        ];
-      }
-    ];
   in
   {
     nixosConfigurations = {
       brandon-linux = nixpkgs.lib.nixosSystem {
         specialArgs = { inherit inputs self; };
         system = systemLinux;
-        modules = commonNixosModules;
+        modules = [
+          ./nixos/configuration.nix
+          catppuccin.nixosModules.catppuccin
+          nixos-hardware.nixosModules.framework-13-7040-amd
+          {
+            environment.systemPackages = [
+              ghostty.packages.${systemLinux}.default
+            ];
+          }
+        ];
       };
     };
 
-    darwinConfigurations = {
-      ${hostname} = darwin.lib.darwinSystem {
-        system = systemDarwin;
-        specialArgs = { inherit inputs self; };
-        modules = commonDarwinModules;
-      };
+    # Use a single "default" configuration that will work for any Mac
+    darwinConfigurations.default = darwin.lib.darwinSystem {
+      system = systemDarwin;
+      specialArgs = { inherit inputs self; };
+      modules = commonDarwinModules;
     };
 
-    darwinPackages = self.darwinConfigurations.${hostname}.pkgs;
+    darwinPackages = self.darwinConfigurations.default.pkgs;
   };
 }
