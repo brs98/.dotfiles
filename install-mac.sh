@@ -43,4 +43,4 @@ fi
 
 log "Applying nix-darwin configuration for hostname: $HOSTNAME..."
 cd "$DOTFILES_DIR"
-nix run nix-darwin -- switch --flake ".#$HOSTNAME"
+sudo -E HOME="$HOME" DARWIN_HOSTNAME="$HOSTNAME" nix run nix-darwin -- switch --flake ".#$HOSTNAME"
