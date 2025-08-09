@@ -79,4 +79,4 @@ log "Applying nix-darwin configuration..."
 cd "$DOTFILES_DIR"
 
 # Use the default configuration - nix-darwin will handle hostname internally
-sudo -E HOME="$HOME" nix run nix-darwin -- switch --flake ".#default"
+sudo -E HOME="$HOME" nix run nix-darwin -- switch --flake ".#default" --impure
