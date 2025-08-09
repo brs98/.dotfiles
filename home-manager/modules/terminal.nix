@@ -5,7 +5,7 @@
   starshipDir = "${configDir}/home-manager/configs/starship/starship.toml";
   
   systemRebuildCmd = if pkgs.stdenv.isDarwin 
-    then "sudo darwin-rebuild switch --flake ~/.dotfiles"
+    then "sudo darwin-rebuild switch --flake ~/.dotfiles#default"
     else "sudo nixos-rebuild switch --flake ~/.dotfiles#brandon-linux";
   
   openCmd = if pkgs.stdenv.isDarwin then "open" else "xdg-open";
