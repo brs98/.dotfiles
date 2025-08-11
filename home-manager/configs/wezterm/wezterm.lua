@@ -43,9 +43,9 @@ config.font = wezterm.font("Hack Nerd Font")
 -- Adaptive font size based on platform and screen
 local font_size = 14.0
 if wezterm.target_triple:find("darwin") then
-    font_size = 16.0  -- Slightly larger on macOS
+	font_size = 16.0 -- Slightly larger on macOS
 elseif wezterm.target_triple:find("linux") then
-    font_size = 14.0  -- Standard size on Linux with DPI scaling
+	font_size = 14.0 -- Standard size on Linux with DPI scaling
 end
 config.font_size = font_size
 
@@ -55,14 +55,14 @@ config.initial_rows = 35
 
 -- Window configuration
 config.window_decorations = "RESIZE"
-config.window_background_opacity = 0.9  -- Slightly less transparent for better readability
+config.window_background_opacity = 0.7
 config.enable_kitty_keyboard = true
 config.enable_csi_u_key_encoding = false
 
 -- macOS-specific improvements
 if wezterm.target_triple:find("darwin") then
-    config.native_macos_fullscreen_mode = false
-    config.use_dead_keys = false
+	config.native_macos_fullscreen_mode = false
+	config.use_dead_keys = false
 end
 
 -- Better text rendering
