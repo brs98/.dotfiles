@@ -22,6 +22,11 @@
       "nikitabobko/tap/aerospace" # Window management
       "1password" # Password manager
       "orbstack" # Docker management
+      "zen-browser" # Alternative browser
+      "cursor" # AI code editor
+      "claude" # Anthropic AI assistant
+      "figma" # Design tool
+      "spotify" # Music streaming
     ];
   };
 }
