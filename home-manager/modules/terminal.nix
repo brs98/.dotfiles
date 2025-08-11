@@ -56,7 +56,7 @@ in {
           cd = "z";
           cdd = "cd ~/.dotfiles/";
           c = "claude";
-          sdf = systemRebuildCmd;
+          sdf = "bash ~/.dotfiles/install-mac.sh";
           open = openCmd;
         };
       };
