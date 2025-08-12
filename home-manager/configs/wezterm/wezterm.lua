@@ -43,7 +43,7 @@ config.font = wezterm.font("Hack Nerd Font")
 -- Adaptive font size based on platform and screen
 local font_size = 14.0
 if wezterm.target_triple:find("darwin") then
-	font_size = 16.0 -- Slightly larger on macOS
+	font_size = 18.0 -- Slightly larger on macOS
 elseif wezterm.target_triple:find("linux") then
 	font_size = 14.0 -- Standard size on Linux with DPI scaling
 end

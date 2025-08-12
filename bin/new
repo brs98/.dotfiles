@@ -35,12 +35,13 @@ if [ -z "$WORKTREE_NAME" ]; then
 fi
 
 # Run the wezterm command that creates workspace, worktree, and runs setup commands
-wezterm cli spawn --new-window --workspace "$WORKTREE_NAME" --cwd "$CWD" -- bash -c "
-    set -e
-    echo 'Creating worktree: $WORKTREE_NAME'
-    git worktree add '$WORKTREE_NAME' && 
-    \cd '$WORKTREE_NAME' && 
-    zsh
-"
+wezterm cli spawn --new-window --workspace "$WORKTREE_NAME" --cwd "$CWD" && 
+sleep 0.5 && 
+osascript -e 'tell application "WezTerm" to activate' && 
+osascript -e 'tell application "System Events" to keystroke "s" using {command down, option down}' && 
+sleep 0.5 && 
+osascript -e 'tell application "System Events" to keystroke "'$WORKTREE_NAME'"' && 
+osascript -e 'tell application "System Events" to key code 36' && 
+wezterm cli send-text "echo 'Creating worktree: $WORKTREE_NAME' && git worktree add '$WORKTREE_NAME' && \\cd '$WORKTREE_NAME'"
 
 echo "Created wezterm workspace '$WORKTREE_NAME' with git worktree"
