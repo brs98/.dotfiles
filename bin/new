@@ -40,7 +40,7 @@ wezterm cli spawn --new-window --workspace "$WORKTREE_NAME" --cwd "$CWD" -- bash
     echo 'Creating worktree: $WORKTREE_NAME'
     git worktree add '$WORKTREE_NAME' && 
     \cd '$WORKTREE_NAME' && 
-    exec zsh
+    zsh
 "
 
 echo "Created wezterm workspace '$WORKTREE_NAME' with git worktree"
