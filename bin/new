@@ -42,8 +42,8 @@ osascript -e 'tell application "System Events" to keystroke "s" using {command d
 sleep 0.5 && 
 osascript -e 'tell application "System Events" to keystroke "'$WORKTREE_NAME'"' && 
 osascript -e 'tell application "System Events" to key code 36' && 
-echo 'Creating worktree: $WORKTREE_NAME' &&
-git worktree add '$WORKTREE_NAME' &&
-\\cd '$WORKTREE_NAME'"
+echo "Creating worktree: $WORKTREE_NAME" &&
+git worktree add "$WORKTREE_NAME" &&
+\cd "$WORKTREE_NAME"
 
 echo "Created wezterm workspace '$WORKTREE_NAME' with git worktree"
