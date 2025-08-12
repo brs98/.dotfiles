@@ -46,6 +46,9 @@ in {
         enableCompletion = true;
         autosuggestion.enable = true;
         syntaxHighlighting.enable = true;
+        sessionVariables = {
+          PATH = "$PATH:${config.home.homeDirectory}/.dotfiles/bin";
+        };
         shellAliases = {
           v = "nvim";
           vim = "nvim";

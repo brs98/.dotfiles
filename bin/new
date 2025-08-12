@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# CLI script to create a new git worktree and wezterm workspace
+# Usage: new <worktree-name>
+
+set -e
+
+if [ $# -eq 0 ]; then
+    echo "Usage: new <worktree-name>"
+    echo "Example: new brandon/feature-1"
+    exit 1
+fi
+
+WORKTREE_NAME="$1"
+
+# Run the wezterm command that creates workspace, worktree, and runs setup commands
+wezterm cli spawn --new-window --workspace "$WORKTREE_NAME" --cwd ~/work/fluid-npm.git -- bash -c "
+    set -e
+    echo 'Creating worktree: $WORKTREE_NAME'
+    git worktree add '$WORKTREE_NAME' && 
+    \cd '$WORKTREE_NAME' && 
+    echo 'Installing dependencies...' &&
+    pnpm i && 
+    echo 'Building...' &&
+    pnpm build --no-cache && 
+    echo 'Running lint...' &&
+    pnpm lint --no-cache && 
+    echo 'Fixing format...' &&
+    pnpm format:fix --no-cache && 
+    echo 'Running typecheck...' &&
+    pnpm typecheck &&
+    echo 'Setup complete! You are now in the $WORKTREE_NAME worktree.' &&
+    exec bash
+"
+
+echo "Created wezterm workspace '$WORKTREE_NAME' with git worktree"
