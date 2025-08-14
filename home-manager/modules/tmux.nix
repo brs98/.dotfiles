@@ -6,6 +6,11 @@
     escapeTime = 0;
     historyLimit = 10000;
     terminal = "tmux-256color";
+    plugins = with pkgs; [
+      tmuxPlugins.sensible
+      tmuxPlugins.catppuccin
+      tmuxPlugins.vim-tmux-navigator
+    ];
     extraConfig = ''
       set -s escape-time 0
       set -g mouse on
@@ -41,20 +46,8 @@
       bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
       bind-key -T copy-mode-vi Escape send-keys -X cancel
 
-      # Plugins
-      set -g @plugin 'tmux-plugins/tpm'
-      set -g @plugin 'tmux-plugins/tmux-sensible'
-      set -g @plugin 'dreamsofcode-io/catppuccin-tmux'
-      set -g @plugin 'christoomey/vim-tmux-navigator'
-
       # <prefix>^L to clear the screen (there is an overlap with vim-tmux-navigator) 
       bind C-l send-keys 'C-l'
-      bind-key -r f run-shell "tmux neww ~/.local/scripts/tmux-sessionizer"
-      bind-key -r W run-shell "~/.local/scripts/tmux-sessionizer ~/remi/roofworx-monorepo"
-      bind-key -r D run-shell "~/.local/scripts/tmux-sessionizer ~/.dotfiles"
-
-      # Initialize TMUX plugin manager (keep this line at the very bottom of tmux.conf)
-      run '~/.tmux/plugins/tpm/tpm'
     '';
   };
 } 
