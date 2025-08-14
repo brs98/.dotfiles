@@ -6,10 +6,10 @@
     escapeTime = 0;
     historyLimit = 10000;
     terminal = "tmux-256color";
-    plugins = with pkgs; [
-      tmuxPlugins.sensible
-      tmuxPlugins.catppuccin
-      tmuxPlugins.vim-tmux-navigator
+    plugins = with pkgs.tmuxPlugins; [
+      sensible
+      catppuccin
+      vim-tmux-navigator
     ];
     extraConfig = ''
       set -s escape-time 0
