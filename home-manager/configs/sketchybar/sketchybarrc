@@ -41,9 +41,18 @@ sketchybar --add item front_app left \
            --subscribe front_app front_app_switched
 
 ##### Adding Center Items #####
-# Center date-time item showing day, date, and time with AM/PM
-sketchybar --add item datetime center \
-           --set datetime update_freq=10 icon= script="$PLUGIN_DIR/clock.sh"
+# Create separate datetime items for different display scenarios
+# Multi-display: datetime in center on primary display only when external connected
+sketchybar --add item datetime_center center \
+           --set datetime_center update_freq=10 icon= script="$PLUGIN_DIR/clock.sh"
+
+# Multi-display: datetime on right side of external display  
+sketchybar --add item datetime_right right \
+           --set datetime_right update_freq=10 icon= script="$PLUGIN_DIR/clock.sh" display=2
+
+# Single display: datetime on right side when no external monitor
+sketchybar --add item datetime_single right \
+           --set datetime_single update_freq=10 icon= script="$PLUGIN_DIR/clock.sh"
 
 ##### Adding Right Items #####
 # In the same way as the left items we can add items to the right side.
@@ -73,18 +82,43 @@ sketchybar --add bracket left_bracket front_app \
                               background.height=32 \
                               background.drawing=on \
 
-sketchybar --add bracket center_bracket datetime \
+# Create brackets with display-specific behavior
+# Center bracket: only show on primary display when external connected
+sketchybar --add bracket center_bracket datetime_center \
            --set center_bracket background.color=0x991e1e2e \
                                 background.corner_radius=8 \
                                 background.height=32 \
                                 background.drawing=on \
+                                display=1
 
-# Right bracket for all right items with rounded background
-sketchybar --add bracket right_bracket volume battery \
-           --set right_bracket background.color=0x991e1e2e \
-                               background.corner_radius=8 \
-                               background.height=32 \
-                               background.drawing=on
+# Right bracket on primary display: only volume and battery when external connected
+sketchybar --add bracket right_bracket_main volume battery \
+           --set right_bracket_main background.color=0x991e1e2e \
+                                    background.corner_radius=8 \
+                                    background.height=32 \
+                                    background.drawing=on \
+                                    display=1
+
+# Right bracket on external displays: includes datetime + volume + battery
+sketchybar --add bracket right_bracket_ext datetime_right volume battery \
+           --set right_bracket_ext background.color=0x991e1e2e \
+                                   background.corner_radius=8 \
+                                   background.height=32 \
+                                   background.drawing=on \
+                                   display=2
+
+# Single display bracket: combines all items on right when no external monitor  
+sketchybar --add bracket right_bracket_single datetime_single volume battery \
+           --set right_bracket_single background.color=0x991e1e2e \
+                                      background.corner_radius=8 \
+                                      background.height=32 \
+                                      background.drawing=off
+
+# Add display manager to handle display changes automatically
+sketchybar --add item display_manager left \
+           --set display_manager drawing=off \
+                                 script="$PLUGIN_DIR/display_manager.sh" \
+           --subscribe display_manager display_change
 
 ##### Force all scripts to run the first time (never do this in a script) #####
 sketchybar --update
