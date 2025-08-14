@@ -11,6 +11,7 @@
     rustup
     tree
     trunk
+    tmux
     
     # Node.js ecosystem  
     nodejs_22

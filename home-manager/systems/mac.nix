@@ -14,6 +14,7 @@ imports = [
     ../modules/packages-darwin.nix
     ../modules/fonts.nix
     ../modules/cursor.nix
+    ../modules/tmux.nix
   ];
 
   # These will be set by the parent nix-darwin configuration

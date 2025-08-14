@@ -7,5 +7,6 @@
       pkgs.pass
       pkgs.glow
       pkgs.sketchybar
+      pkgs.tmux
     ];
 }
