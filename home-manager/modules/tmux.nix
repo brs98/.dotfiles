@@ -16,7 +16,6 @@
       set -g mouse on
       set-option -g default-terminal "screen-256color"
       set-option -ga terminal-overrides ',*-256color*:RGB'
-      set-option -g default-shell /opt/homebrew/bin/fish
       setw -g mode-keys vi
 
       # Copy mode
