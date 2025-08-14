@@ -7,88 +7,54 @@
     historyLimit = 10000;
     terminal = "tmux-256color";
     extraConfig = ''
-      # Enable mouse support
+      set -s escape-time 0
       set -g mouse on
-      
-      # Set prefix to C-a
-      set -g prefix C-a
-      unbind C-b
-      bind C-a send-prefix
-      
-      # Reload configuration
-      bind r source-file ~/.config/tmux/tmux.conf \; display-message "Config reloaded!"
-      
-      # Better pane splitting
-      bind | split-window -h -c "#{pane_current_path}"
-      bind - split-window -v -c "#{pane_current_path}"
-      bind c new-window -c "#{pane_current_path}"
-      
-      # Pane navigation (vim-style)
-      bind h select-pane -L
-      bind j select-pane -D
-      bind k select-pane -U
-      bind l select-pane -R
-      
-      # Pane resizing
-      bind -r H resize-pane -L 5
-      bind -r J resize-pane -D 5
-      bind -r K resize-pane -U 5
-      bind -r L resize-pane -R 5
-      
-      # Window navigation
-      bind -n M-Left previous-window
-      bind -n M-Right next-window
-      
-      # Copy mode (vi style)
-      set -g mode-keys vi
+      set-option -g default-terminal "screen-256color"
+      set-option -ga terminal-overrides ',*-256color*:RGB'
+      set-option -g default-shell /opt/homebrew/bin/fish
+      setw -g mode-keys vi
+
+      # Copy mode
       bind-key -T copy-mode-vi v send-keys -X begin-selection
       bind-key -T copy-mode-vi C-v send-keys -X rectangle-toggle
       bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel
-      
-      # Enable clipboard integration (OSC 52)
-      set -s set-clipboard external
-      
-      # Status bar configuration
-      set -g status on
-      set -g status-position bottom
-      set -g status-interval 5
-      set -g status-left-length 100
-      set -g status-right-length 100
-      
-      # Status bar colors (basic theme)
-      set -g status-style bg=colour235,fg=colour136
-      set -g status-left "#[fg=colour166]#S #[fg=colour244]• "
-      set -g status-right "#[fg=colour166]%H:%M #[fg=colour244]%d-%b-%y"
-      
-      # Window status
-      setw -g window-status-format "#[fg=colour244] #I #W "
-      setw -g window-status-current-format "#[fg=colour166,bold] #I #W "
-      
-      # Pane borders
-      set -g pane-border-style fg=colour238
-      set -g pane-active-border-style fg=colour166
-      
-      # Message colors
-      set -g message-style bg=colour235,fg=colour166
-      set -g message-command-style bg=colour235,fg=colour166
-      
-      # Activity monitoring
-      setw -g monitor-activity on
-      set -g visual-activity off
-      setw -g window-status-activity-style fg=colour166,bg=colour235
-      
-      # Don't rename windows automatically
-      set -g allow-rename off
-      
-      # Start windows and panes at 1, not 0
+
+      # Renumber windows
       set -g base-index 1
-      setw -g pane-base-index 1
-      
-      # Renumber windows when one is closed
-      set -g renumber-windows on
-      
-      # Terminal features
-      set -as terminal-features ",*:RGB"
+      set -g pane-base-index 1
+      set-window-option -g pane-base-index 1
+      set-option -g renumber-windows on
+
+      # Better pane splits
+      bind-key - split-window -v
+      bind-key | split-window -h
+
+      # Open panes in current directory
+      bind h split-window -v -c "#{pane_current_path}"
+      bind v split-window -h -c "#{pane_current_path}"
+
+      # Copy mode
+      unbind-key -T copy-mode-vi v
+      bind-key -T copy-mode-vi v send-keys -X begin-selection
+      bind-key -T copy-mode-vi 'C-v' send-keys -X rectangle-toggle
+      bind-key -T copy-mode-vi y send-keys -X copy-pipe "pbcopy"
+      bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "pbcopy"
+      bind-key -T copy-mode-vi Escape send-keys -X cancel
+
+      # Plugins
+      set -g @plugin 'tmux-plugins/tpm'
+      set -g @plugin 'tmux-plugins/tmux-sensible'
+      set -g @plugin 'dreamsofcode-io/catppuccin-tmux'
+      set -g @plugin 'christoomey/vim-tmux-navigator'
+
+      # <prefix>^L to clear the screen (there is an overlap with vim-tmux-navigator) 
+      bind C-l send-keys 'C-l'
+      bind-key -r f run-shell "tmux neww ~/.local/scripts/tmux-sessionizer"
+      bind-key -r W run-shell "~/.local/scripts/tmux-sessionizer ~/remi/roofworx-monorepo"
+      bind-key -r D run-shell "~/.local/scripts/tmux-sessionizer ~/.dotfiles"
+
+      # Initialize TMUX plugin manager (keep this line at the very bottom of tmux.conf)
+      run '~/.tmux/plugins/tpm/tpm'
     '';
   };
 } 
