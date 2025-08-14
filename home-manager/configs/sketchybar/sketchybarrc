@@ -12,7 +12,8 @@ PLUGIN_DIR="$CONFIG_DIR/plugins"
 # If you are looking for other colors, see the color picker:
 # https://felixkratz.github.io/SketchyBar/config/tricks#color-picker
 
-sketchybar --bar position=top height=40 blur_radius=30 color=0x00000000
+sketchybar --bar position=top height=40 blur_radius=30 color=0x00000000 \
+                 margin=-7
 
 ##### Changing Defaults #####
 # We now change some default values, which are applied to all further items.
@@ -24,7 +25,7 @@ default=(
   padding_right=5
   icon.font="Hack Nerd Font:Bold:16.0"
   label.font="Hack Nerd Font:Bold:14.0"
-  icon.color=0xffffffff
+  icon.color=0x99cba6f7
   label.color=0xffffffff
   icon.padding_left=4
   icon.padding_right=4
@@ -39,6 +40,11 @@ sketchybar --add item front_app left \
            --set front_app script="$PLUGIN_DIR/front_app.sh" \
            --subscribe front_app front_app_switched
 
+##### Adding Center Items #####
+# Center date-time item showing day, date, and time with AM/PM
+sketchybar --add item datetime center \
+           --set datetime update_freq=10 icon= script="$PLUGIN_DIR/clock.sh"
+
 ##### Adding Right Items #####
 # In the same way as the left items we can add items to the right side.
 # Additional position (e.g. center) are available, see:
@@ -50,26 +56,32 @@ sketchybar --add item front_app left \
 # volume is registered. More info about the event system can be found here:
 # https://felixkratz.github.io/SketchyBar/config/events
 
-sketchybar --add item clock right \
-           --set clock update_freq=10 icon=  script="$PLUGIN_DIR/clock.sh" \
-           --add item volume right \
+sketchybar --add item volume right \
            --set volume script="$PLUGIN_DIR/volume.sh" \
            --subscribe volume volume_change \
            --add item battery right \
            --set battery update_freq=120 script="$PLUGIN_DIR/battery.sh" \
            --subscribe battery system_woke power_source_change
 
+
+
 ##### Adding Brackets for Background Containers #####
 # Left bracket for front_app with rounded background
 sketchybar --add bracket left_bracket front_app \
-           --set left_bracket background.color=0xb31e1e2e \
+           --set left_bracket background.color=0x991e1e2e \
                               background.corner_radius=8 \
                               background.height=32 \
-                              background.drawing=on
+                              background.drawing=on \
+
+sketchybar --add bracket center_bracket datetime \
+           --set center_bracket background.color=0x991e1e2e \
+                                background.corner_radius=8 \
+                                background.height=32 \
+                                background.drawing=on \
 
 # Right bracket for all right items with rounded background
-sketchybar --add bracket right_bracket clock volume battery \
-           --set right_bracket background.color=0xb31e1e2e \
+sketchybar --add bracket right_bracket volume battery \
+           --set right_bracket background.color=0x991e1e2e \
                                background.corner_radius=8 \
                                background.height=32 \
                                background.drawing=on
