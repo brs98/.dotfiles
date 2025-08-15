@@ -47,7 +47,7 @@ in {
         autosuggestion.enable = true;
         syntaxHighlighting.enable = true;
         sessionVariables = {
-          PATH = "$PATH:${config.home.homeDirectory}/.dotfiles/bin";
+          PATH = "$PATH:${config.home.homeDirectory}/.dotfiles/bin:${config.home.homeDirectory}/.bun/bin:${config.home.homeDirectory}/.local/bin";
         };
         shellAliases = {
           v = "nvim";
