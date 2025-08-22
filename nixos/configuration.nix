@@ -82,8 +82,8 @@ in
       };
       touchpad = {
         accelProfile = "adaptive";
-        accelSpeed = "0.3";
-        naturalScrolling = true;
+        accelSpeed = "1.0";
+        naturalScrolling = false;
         tapping = true;
         disableWhileTyping = true;
       };
