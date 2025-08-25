@@ -8,6 +8,9 @@
       "libpq"
       "libyaml"
       "mise"
+      "bazel"
+      "bazelisk"
+      "tailscale"
     ];
     casks = [
       "dbeaver-community" # SQL GUI
@@ -25,6 +28,7 @@
       "zen-browser" # Alternative browser
       "cursor" # AI code editor
       "claude" # Anthropic AI assistant
+      "claude-code" # Anthropic AI coding assistant
       "figma" # Design tool
       "spotify" # Music streaming
     ];
