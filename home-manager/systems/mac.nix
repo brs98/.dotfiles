@@ -19,6 +19,7 @@ imports = [
 
   # These will be set by the parent nix-darwin configuration
   # home.username and home.homeDirectory are managed by nix-darwin
+  home.username = "brandon";
   home.stateVersion = "23.11";
 
 

@@ -19,8 +19,8 @@ let
       in
         if (builtins.length userDirs) > 0 
         then (builtins.head userDirs)
-        else "admin"
-    else "admin";
+        else "brandon"
+    else "brandon";
 in
 {
 
@@ -32,7 +32,7 @@ imports = [
 users.users.${userName}.home = "/Users/${userName}";
 
   # Set primary user for homebrew and other user-specific options
-  system.primaryUser = userName;
+  system.primaryUser = "brandon";
 
   # Fix GID mismatch for nixbld group
   ids.gids.nixbld = 350;
