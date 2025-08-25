@@ -1,8 +1,8 @@
 { pkgs, ... }: 
 let
   # Get Git user info from environment variables with fallbacks
-  gitUserName = builtins.getEnv "GIT_USER_NAME";
-  gitUserEmail = builtins.getEnv "GIT_USER_EMAIL";
+  gitUserName = "brs98";
+  gitUserEmail = "southwick.brandon21@gmail.com";
 in
 {
     programs = {
