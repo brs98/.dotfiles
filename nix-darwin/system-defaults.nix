@@ -221,7 +221,7 @@
   # Additional system settings that aren't part of system.defaults
   system.keyboard = {
     enableKeyMapping = true;
-    remapCapsLockToControl = false;  # Set to true if you want Caps Lock as Control
+    remapCapsLockToControl = true;  # Set to true if you want Caps Lock as Control
   };
 
   # Disable startup chime
