@@ -1,26 +1,8 @@
-{ self, inputs, config, lib, user ? null, ... }: 
+{ self, inputs, config, lib, ... }: 
 let
   # Use passed user parameter, or detect current user
   # This uses a more standard approach that works with darwin-rebuild
-  userName = 
-    if user != null then user
-    else if (builtins.pathExists "/Users") then
-      # Find non-system users and return the first regular user
-      let 
-        allItems = builtins.readDir "/Users";
-        userDirs = builtins.filter (x: 
-          # Only include directories (not files like .localized)
-          (builtins.getAttr x allItems) == "directory" &&
-          # Exclude system directories and files
-          x != ".DS_Store" && x != "Shared" && x != "Guest" && x != "daemon" && 
-          # Exclude system accounts that start with underscore or dot
-          !(lib.hasPrefix "_" x) && !(lib.hasPrefix "." x)
-        ) (builtins.attrNames allItems);
-      in
-        if (builtins.length userDirs) > 0 
-        then (builtins.head userDirs)
-        else "brandon"
-    else "brandon";
+  userName = "brandon";
 in
 {
 
