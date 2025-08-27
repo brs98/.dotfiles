@@ -22,8 +22,6 @@ imports = [
   home.username = "brandon";
   home.stateVersion = "23.11";
 
-
-
   # sketchybar configuration
   home.file.".config/sketchybar" = {
     source = config.lib.file.mkOutOfStoreSymlink sketchybarDir;
