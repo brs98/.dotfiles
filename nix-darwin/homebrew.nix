@@ -8,9 +8,6 @@
       "libpq"
       "libyaml"
       "mise"
-      "bazel"
-      "bazelisk"
-      "tailscale"
     ];
     casks = [
       "dbeaver-community" # SQL GUI

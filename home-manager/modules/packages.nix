@@ -11,6 +11,7 @@
     rustup
     tree
     trunk
+    bun
     
     # Node.js ecosystem  
     nodejs_22

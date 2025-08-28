@@ -4,6 +4,11 @@
 
 {
   system.defaults = {
+    trackpad = {
+      TrackpadThreeFingerDrag = true;
+      Clicking = true;
+    };
+
     # Dock Settings
     dock = {
       autohide = true;                    # Auto-hide the dock
