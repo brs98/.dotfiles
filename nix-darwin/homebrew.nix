@@ -31,6 +31,7 @@
       "claude-code" # Anthropic AI coding assistant
       "figma" # Design tool
       "spotify" # Music streaming
+      "raycast" # Better spotlight
     ];
   };
 }
