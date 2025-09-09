@@ -12,6 +12,7 @@
     tree
     trunk
     bun
+    pnpm
     
     # Node.js ecosystem  
     nodejs_22

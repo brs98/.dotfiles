@@ -112,20 +112,12 @@
       NSDisableAutomaticTermination = true;    # Disable automatic app termination
     };
 
-    # Universal Access (Accessibility) - Improved cursor settings
-    # universalaccess = {
-    #   reduceMotion = false;              # Don't reduce motion (can be enabled if needed)
-    #   reduceTransparency = false;        # Don't reduce transparency
-    #   mouseDriverCursorSize = 1.5;       # Larger cursor size for better visibility
-    #   closeViewScrollWheelToggle = false; # Don't use scroll wheel for zoom
-    # };
-
     # Screen Capture Settings
     screencapture = {
-      location = "~/Desktop";            # Save screenshots to Desktop
       type = "png";                      # Screenshot format
       disable-shadow = false;            # Include shadows in window screenshots
       show-thumbnail = true;             # Show thumbnail after capture
+      target = "clipboard";              # Save to clipboard
     };
 
     # Screen Saver Settings
@@ -198,11 +190,6 @@
         AppleFnUsageType = 2;                      # F1-F12 keys require Fn for special functions
       };
       
-      # Screen capture settings
-      "com.apple.screencapture" = {
-        target = "file";                           # Save to file instead of clipboard
-      };
-
       # Terminal app defaults - bigger font and window
       "com.apple.Terminal" = {
         "Window Settings" = {

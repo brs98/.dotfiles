@@ -201,3 +201,8 @@ run = "move-node-to-workspace 8"
 [[on-window-detected]]
 if.app-id = 'com.spotify.client'
 run = "move-node-to-workspace 9"
+
+# Disable AeroSpace for picture-in-picture windows by forcing them to float
+[[on-window-detected]]
+if.window-title-regex-substring = '(?i)picture.?in.?picture'
+run = 'layout floating'
