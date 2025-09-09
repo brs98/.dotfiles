@@ -45,6 +45,19 @@ key-mapping.preset = 'qwerty'
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
 on-focus-changed = "move-mouse window-lazy-center"
 
+# Move picture-in-picture windows to the focused workspace when switching workspaces
+exec-on-workspace-change = ['/bin/bash', '-c', '''
+    # Find all picture-in-picture windows and move them to the focused workspace
+    aerospace list-windows --all --format "%{window-id} %{app-name} %{window-title}" | \
+    grep -i "picture-in-picture" | \
+    while read -r line; do
+        window_id=$(echo "$line" | awk "{print \$1}")
+        if [ -n "$window_id" ]; then
+            aerospace move-node-to-workspace --window-id "$window_id" "$AEROSPACE_FOCUSED_WORKSPACE"
+        fi
+    done
+''']
+
 # Gaps between windows (inner-*) and between monitor edges (outer-*).
 # Possible values:
 # - Constant:     gaps.outer.top = 8
@@ -168,6 +181,11 @@ cmd-shift-l = ['join-with right', 'mode main']
 
 [[on-window-detected]]
 if.app-id = 'app.zen-browser.zen'
+if.window-title-regex-substring = 'Picture-in-Picture'
+run = ['layout floating']
+
+[[on-window-detected]]
+if.app-id = 'app.zen-browser.zen'
 run = "move-node-to-workspace 1"
 
 [[on-window-detected]]
@@ -201,8 +219,3 @@ run = "move-node-to-workspace 8"
 [[on-window-detected]]
 if.app-id = 'com.spotify.client'
 run = "move-node-to-workspace 9"
-
-# Disable AeroSpace for picture-in-picture windows by forcing them to float
-[[on-window-detected]]
-if.window-title-regex-substring = '(?i)picture.?in.?picture'
-run = 'layout floating'
