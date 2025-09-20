@@ -41,6 +41,6 @@ osascript -e 'tell application "WezTerm" to activate' &&
 osascript -e 'tell application "System Events" to keystroke "s" using {command down, option down}' && 
 osascript -e 'tell application "System Events" to keystroke "'$WORKTREE_NAME'"' && 
 osascript -e 'tell application "System Events" to key code 36' && 
-wezterm cli send-text --pane-id "$PANE_ID" "cd $CWD && git pull origin main && git worktree add $WORKTREE_NAME && cd $WORKTREE_NAME"
+wezterm cli send-text --pane-id "$PANE_ID" "cd $CWD/main && git checkout main && git pull origin main && cd $CWD && git worktree add $WORKTREE_NAME && cd $WORKTREE_NAME && git push -u"
 
 echo "Created wezterm workspace '$WORKTREE_NAME' with git worktree"

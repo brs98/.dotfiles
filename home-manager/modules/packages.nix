@@ -1,31 +1,32 @@
 { pkgs, ... }: {
   home.packages = with pkgs; [
     # Development tools
-    go
-    gnused
-    htop
-    wget
-    typescript
-    lazydocker
+    bun
     gnumake
+    gnused
+    go
+    htop
+    lazydocker
+    pnpm
     rustup
     tree
     trunk
-    bun
-    pnpm
+    typescript
+    uv
+    wget
     
     # Node.js ecosystem  
-    nodejs_22
-    nodePackages.typescript-language-server
-    nodePackages.ts-node
     nodePackages.dotenv-cli
+    nodePackages.ts-node
+    nodePackages.typescript-language-server
     nodePackages.vercel
+    nodejs_22
   ];
 
   programs = {
-    home-manager.enable = true;
     gpg.enable = true;
-    ripgrep.enable = true;
+    home-manager.enable = true;
     jq.enable = true;
+    ripgrep.enable = true;
   };
 }

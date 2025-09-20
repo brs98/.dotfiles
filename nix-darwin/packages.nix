@@ -8,5 +8,6 @@
       pkgs.glow
       pkgs.sketchybar
       pkgs.tmux
+      pkgs.ffmpeg
     ];
 }
