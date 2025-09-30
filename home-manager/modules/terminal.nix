@@ -46,6 +46,11 @@ in {
         enableCompletion = true;
         autosuggestion.enable = true;
         syntaxHighlighting.enable = true;
+        initContent = ''
+          # Add custom completions directory to fpath
+          fpath=(~/.dotfiles/bin $fpath)
+          autoload -U compinit && compinit
+        '';
         sessionVariables = {
           PATH = "$PATH:${config.home.homeDirectory}/.dotfiles/bin:${config.home.homeDirectory}/.bun/bin:${config.home.homeDirectory}/.local/bin";
         };
@@ -59,7 +64,7 @@ in {
           cd = "z";
           cdd = "cd ~/.dotfiles/";
           c = "claude";
-          sdf = "bash ~/.dotfiles/install-mac.sh";
+          sdf = "sudo nix --extra-experimental-features nix-command --extra-experimental-features flakes run nix-darwin/master#darwin-rebuild -- switch --flake '.#default'";
           open = openCmd;
         };
       };
