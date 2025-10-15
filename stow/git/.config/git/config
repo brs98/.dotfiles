@@ -1,0 +1,36 @@
+[user]
+    name = brs98
+    email = southwick.brandon21@gmail.com
+
+[core]
+    editor = nvim
+    ignorecase = false
+
+[credential]
+    helper = osxkeychain
+
+[pull]
+    rebase = true
+
+[push]
+    autoSetupRemote = true
+
+[init]
+    defaultBranch = main
+
+[rebase]
+    updateRefs = true
+
+[delta]
+    navigate = true
+    side-by-side = true
+
+[alias]
+    co = checkout
+    br = branch
+    st = status
+    f = fetch
+    a = add
+    c = commit
+    cm = commit -m
+    p = push

@@ -4,115 +4,116 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a cross-platform dotfiles repository built with Nix Flakes, supporting both macOS (via nix-darwin) and Linux (via NixOS). The configuration uses Home Manager for user-level package management and application configurations.
+This is a cross-platform dotfiles repository managed with GNU Stow, supporting both macOS and Linux. Configuration files are organized into stow packages for easy symlink management.
 
 ## System Management Commands
 
-### macOS (nix-darwin)
+### GNU Stow Commands
 ```bash
-# Apply dotfiles configuration (from ~/.dotfiles directory)
-darwin-rebuild switch --flake ~/.dotfiles
+# Apply all dotfiles configurations
+./bootstrap.sh
+
+# Apply specific packages (from ~/.dotfiles directory)
+stow -t ~ git nvim wezterm starship zsh tmux scripts
+
+# Remove specific packages
+stow -t ~ -D git nvim wezterm
+
+# Restow packages (useful after config changes)
+stow -t ~ -R git nvim wezterm
 
 # Alternative using the configured alias
-sdf
-
-# Check what changes would be applied
-darwin-rebuild build --flake ~/.dotfiles
+sdf  # Stows all relevant packages for current platform
 ```
 
-### Linux (NixOS)
+### Package Installation
 ```bash
-# Apply system configuration
-sudo nixos-rebuild switch --flake ~/.dotfiles
+# Install packages for macOS
+./install/macos.sh
 
-# Check what changes would be applied
-sudo nixos-rebuild build --flake ~/.dotfiles
-```
+# Install packages for Arch Linux
+./install/arch.sh
 
-### General Nix Commands
-```bash
-# Update flake inputs
-nix flake update
+# Install packages for other Linux distros
+./install/linux.sh
 
-# Check flake for issues
-nix flake check
-
-# Clean up old generations and garbage collect
-nix-collect-garbage -d
-sudo nix-collect-garbage -d  # On NixOS for system-level cleanup
+# Full bootstrap (packages + stow) - auto-detects OS
+./bootstrap.sh
 ```
 
 ## Architecture
 
 ### Configuration Structure
-- `flake.nix`: Main flake configuration defining system outputs for both platforms
-- `nix-darwin/`: macOS-specific system configuration
-  - `configuration.nix`: Core darwin system settings
-  - `packages.nix`: System-level packages
-  - `homebrew.nix`: Homebrew package definitions
-  - `services.nix`: System services configuration
-  - `shell-applications.nix`: Shell applications setup
-- `nixos/`: Linux-specific system configuration
-  - `configuration.nix`: NixOS system configuration
-  - `hardware-configuration.nix`: Hardware-specific settings (auto-generated)
-- `home-manager/`: User-level configuration (cross-platform)
-  - `systems/mac.nix`: macOS user configuration
-  - `systems/linux.nix`: Linux user configuration
-  - `modules/`: Reusable configuration modules
-  - `configs/`: Application-specific configuration files
+- `stow/`: GNU Stow packages containing configuration files
+  - `git/`: Git configuration and aliases
+  - `nvim/`: Neovim setup with custom configurations
+  - `wezterm/`: WezTerm terminal emulator configuration
+  - `starship/`: Starship shell prompt configuration
+  - `zsh/`: Zsh shell configuration and aliases
+  - `tmux/`: Tmux terminal multiplexer configuration
+  - `scripts/`: Custom utility scripts
+  - `aerospace/`: AeroSpace window manager (macOS)
+  - `sketchybar/`: SketchyBar status bar (macOS)
+  - `hyprpaper/`: Hyprpaper wallpaper manager (Linux)
+- `install/`: Package installation scripts
+  - `macos.sh`: Homebrew and macOS-specific packages
+  - `arch.sh`: Arch Linux packages using pacman and AUR
+  - `linux.sh`: Generic Linux distribution package installation
+- `bootstrap.sh`: Main setup script that installs packages and stows configs
 
-### System Configurations Defined
-- `brandon-mac`: Primary macOS configuration (aarch64-darwin)
-- `Brandons-Macbook-Pro`: Alternative macOS configuration name (aarch64-darwin)
-- `brandon-linux`: Linux configuration (x86_64-linux)
-
-### Key Configuration Modules
-- `git.nix`: Git configuration and aliases
-- `neovim.nix`: Neovim setup with custom configurations
-- `terminal.nix`: Terminal emulator and shell tools configuration
+### Stow Package Structure
+Each stow package follows the standard directory structure:
+```
+stow/package-name/
+├── .config/           # XDG config files
+│   └── app/
+├── .local/bin/        # User scripts
+├── .zshrc             # Shell RC files
+└── .tmux.conf         # Home directory dotfiles
+```
 
 ### Application Configurations
 - **Neovim**: Comprehensive Lua-based configuration using Lazy.nvim plugin manager
-  - Location: `home-manager/configs/nvim/`
+  - Location: `stow/nvim/.config/nvim/`
   - Based on kickstart.nvim structure with custom plugins and configurations
-- **WezTerm**: Terminal emulator configuration
-- **Starship**: Shell prompt configuration
-- **SketchyBar**: macOS status bar (currently commented out)
-- **AeroSpace**: macOS window manager configuration
+- **WezTerm**: Terminal emulator configuration at `stow/wezterm/.config/wezterm/wezterm.lua`
+- **Starship**: Shell prompt configuration at `stow/starship/.config/starship.toml`
+- **Zsh**: Shell configuration with aliases and integrations
+- **Tmux**: Terminal multiplexer with vim-style keybindings
+- **Git**: Version control configuration with aliases and delta integration
 
 ### Development Tools Included
-- **Languages**: Node.js 22, Go, Rust (via rustup), TypeScript
+- **Languages**: Node.js, Go, Rust (via rustup), TypeScript
 - **Version Control**: Git with delta, lazygit, GitHub CLI
 - **Editors**: Neovim with LSP support
 - **Shell Tools**: zsh, fzf, ripgrep, bat, eza, zoxide, yazi
-- **Development**: Docker (Linux), various language servers and development tools
+- **Development**: Various language servers and development tools
 
 ### Platform Differences
-- **macOS**: Relies on Homebrew for certain GUI applications and system-specific tools
-- **Linux**: Full NixOS configuration including desktop environment (Hyprland/Sway), graphics drivers, and system services
-- **Home Manager**: Shared user-level configuration with platform-specific overrides
-
-### Flake Inputs
-The configuration uses several external flake inputs including:
-- `nixpkgs`: Main package repository (nixpkgs-unstable)
-- `home-manager`: User environment manager
-- `darwin`: macOS system configuration framework
-- `hyprland`: Wayland compositor (Linux only)
-- `catppuccin`: Color scheme theme
-- `wezterm`: Terminal emulator
-- `ghostty`: Alternative terminal emulator
+- **macOS**: Uses Homebrew for package management and GUI applications
+- **Arch Linux**: Uses pacman for official packages and yay for AUR packages, includes Docker setup
+- **Other Linux**: Uses native package managers (apt/yum/pacman) with additional tool installations
+- **Stow Packages**: Platform-specific packages (aerospace/sketchybar for macOS, hyprpaper for Linux)
 
 ## Common Workflows
 
 ### Adding New Packages
-1. For system-wide packages: Add to appropriate `packages.nix` file
-2. For user packages: Add to `home.packages` in system-specific configuration
-3. Rebuild configuration using appropriate command above
+1. Add package to appropriate installation script (`install/macos.sh` or `install/linux.sh`)
+2. Run the installation script or `./bootstrap.sh` to install
+3. For GUI applications on macOS, add to Homebrew casks section
+
+### Adding New Configuration Files
+1. Create a new stow package: `mkdir -p stow/app-name/.config/app-name`
+2. Add configuration files to the package following stow structure
+3. Add package name to `STOW_PACKAGES` in `bootstrap.sh`
+4. Run `stow -t ~ app-name` to create symlinks
 
 ### Modifying Application Configurations
-1. Edit configuration files in `home-manager/configs/`
-2. Rebuild to apply changes
-3. Some applications may require restart
+1. Edit configuration files in `stow/package-name/`
+2. Changes are immediately reflected (symlinks point to stow directory)
+3. Some applications may require restart to pick up changes
 
-### Managing Secrets
-The configuration uses `pass` (password-store) for secret management on macOS. GPG is configured for cryptographic operations.
+### Managing Multiple Machines
+1. Clone repository to `~/.dotfiles` on new machine
+2. Run `./bootstrap.sh` to install packages and configure
+3. Platform-specific packages are automatically handled
