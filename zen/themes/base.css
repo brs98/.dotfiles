@@ -1,0 +1,399 @@
+/*
+ * Base Theme for Zen Browser
+ * Shared styles that can be imported by other themes
+ */
+
+/* ================================
+ * MAIN WINDOW
+ * ================================ */
+#main-window {
+  background-color: var(--theme-base) !important;
+  color: var(--theme-text) !important;
+}
+
+#main-window[tabsintitlebar="true"] {
+  background-color: var(--theme-base) !important;
+}
+
+/* ================================
+ * TOOLBARS
+ * ================================ */
+#nav-bar,
+#TabsToolbar,
+#PersonalToolbar,
+#toolbar-menubar {
+  background-color: var(--theme-mantle) !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--theme-text) !important;
+}
+
+/* Toolbar buttons */
+.toolbarbutton-1,
+.toolbaritem-combined-buttons > .toolbarbutton-1 {
+  color: var(--theme-text) !important;
+  fill: var(--theme-text) !important;
+}
+
+.toolbarbutton-1:hover,
+.toolbaritem-combined-buttons > .toolbarbutton-1:hover {
+  background-color: var(--theme-surface0) !important;
+  color: var(--theme-accent) !important;
+  fill: var(--theme-accent) !important;
+}
+
+.toolbarbutton-1[open="true"],
+.toolbarbutton-1[checked="true"] {
+  background-color: var(--theme-surface1) !important;
+  color: var(--theme-accent) !important;
+  fill: var(--theme-accent) !important;
+}
+
+/* ================================
+ * TABS
+ * ================================ */
+.tabbrowser-tab {
+  color: var(--theme-subtext1) !important;
+  background-color: transparent !important;
+}
+
+.tabbrowser-tab:hover {
+  background-color: var(--theme-surface0) !important;
+  color: var(--theme-text) !important;
+}
+
+.tabbrowser-tab[selected="true"] {
+  background-color: var(--theme-surface1) !important;
+  color: var(--theme-text) !important;
+  font-weight: bold !important;
+}
+
+.tab-background {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+.tabbrowser-tab[selected="true"] .tab-background {
+  background-color: var(--theme-surface1) !important;
+}
+
+.tab-line {
+  background-color: var(--theme-accent) !important;
+  height: 2px !important;
+}
+
+.tab-close-button {
+  color: var(--theme-subtext0) !important;
+  fill: var(--theme-subtext0) !important;
+  border-radius: var(--border-radius-small) !important;
+}
+
+.tab-close-button:hover {
+  background-color: var(--theme-red) !important;
+  color: var(--theme-crust) !important;
+  fill: var(--theme-crust) !important;
+}
+
+/* Tab loading indicator */
+.tab-throbber,
+.tab-icon-pending {
+  filter: brightness(0) saturate(100%) invert(82%) sepia(16%) saturate(339%) 
+          hue-rotate(202deg) brightness(92%) contrast(89%);
+}
+
+/* ================================
+ * URL BAR (OMNIBOX)
+ * ================================ */
+#urlbar {
+  background-color: var(--theme-surface0) !important;
+  border: 1px solid var(--theme-surface1) !important;
+  border-radius: var(--border-radius-large) !important;
+  color: var(--theme-text) !important;
+}
+
+#urlbar:focus-within {
+  background-color: var(--theme-surface1) !important;
+  border-color: var(--theme-accent) !important;
+  box-shadow: 0 0 0 1px var(--theme-accent) !important;
+}
+
+#urlbar-background {
+  background-color: var(--theme-surface0) !important;
+  border-radius: var(--border-radius-large) !important;
+}
+
+#urlbar[focused="true"] #urlbar-background {
+  background-color: var(--theme-surface1) !important;
+}
+
+#urlbar-input {
+  color: var(--theme-text) !important;
+}
+
+#urlbar-input::placeholder {
+  color: var(--theme-subtext0) !important;
+}
+
+/* URL bar icons */
+.urlbar-icon {
+  fill: var(--theme-subtext1) !important;
+}
+
+#identity-box {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+#identity-box:hover {
+  background-color: var(--theme-surface0) !important;
+  border-radius: var(--border-radius-small) !important;
+}
+
+/* ================================
+ * SIDEBAR
+ * ================================ */
+#sidebar-box {
+  background-color: var(--theme-mantle) !important;
+  border-right: 1px solid var(--theme-surface0) !important;
+  color: var(--theme-text) !important;
+}
+
+#sidebar {
+  background-color: var(--theme-mantle) !important;
+  color: var(--theme-text) !important;
+}
+
+#sidebar-header {
+  background-color: var(--theme-mantle) !important;
+  border-bottom: 1px solid var(--theme-surface0) !important;
+  color: var(--theme-text) !important;
+}
+
+/* Sidebar splitter */
+#sidebar-splitter {
+  background-color: var(--theme-surface0) !important;
+  border: none !important;
+  min-width: 1px !important;
+  width: 1px !important;
+}
+
+/* ================================
+ * CONTEXT MENUS AND PANELS
+ * ================================ */
+menupopup,
+panel {
+  background-color: var(--theme-surface0) !important;
+  border: 1px solid var(--theme-surface2) !important;
+  border-radius: var(--border-radius-large) !important;
+  color: var(--theme-text) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+menuitem,
+.subviewbutton {
+  color: var(--theme-text) !important;
+  background-color: transparent !important;
+}
+
+menuitem:hover,
+.subviewbutton:hover {
+  background-color: var(--theme-surface1) !important;
+  color: var(--theme-accent) !important;
+}
+
+menuitem[disabled="true"],
+.subviewbutton[disabled="true"] {
+  color: var(--theme-overlay0) !important;
+}
+
+menuseparator {
+  border-color: var(--theme-surface2) !important;
+}
+
+/* Panel arrow */
+.panel-arrowcontent {
+  background-color: var(--theme-surface0) !important;
+  border: 1px solid var(--theme-surface2) !important;
+}
+
+.panel-arrow[side="top"] {
+  fill: var(--theme-surface0) !important;
+  stroke: var(--theme-surface2) !important;
+}
+
+/* ================================
+ * BOOKMARKS TOOLBAR
+ * ================================ */
+#PersonalToolbar {
+  background-color: var(--theme-mantle) !important;
+  border-bottom: 1px solid var(--theme-surface0) !important;
+}
+
+.bookmark-item {
+  color: var(--theme-text) !important;
+  background-color: transparent !important;
+}
+
+.bookmark-item:hover {
+  background-color: var(--theme-surface0) !important;
+  color: var(--theme-accent) !important;
+  border-radius: var(--border-radius-small) !important;
+}
+
+/* ================================
+ * SCROLLBARS
+ * ================================ */
+scrollbar {
+  background-color: var(--theme-base) !important;
+}
+
+scrollbar thumb {
+  background-color: var(--theme-surface0) !important;
+  border-radius: var(--border-radius-medium) !important;
+}
+
+scrollbar thumb:hover {
+  background-color: var(--theme-surface1) !important;
+}
+
+/* ================================
+ * NOTIFICATIONS AND ALERTS
+ * ================================ */
+.notificationbox-stack notification {
+  background-color: var(--theme-surface0) !important;
+  border: 1px solid var(--theme-surface2) !important;
+  color: var(--theme-text) !important;
+}
+
+.messageText {
+  color: var(--theme-text) !important;
+}
+
+/* Info notifications */
+notification[type="info"] {
+  background-color: var(--theme-blue) !important;
+  color: var(--theme-crust) !important;
+}
+
+/* Warning notifications */
+notification[type="warning"] {
+  background-color: var(--theme-yellow) !important;
+  color: var(--theme-crust) !important;
+}
+
+/* Error notifications */
+notification[type="critical"] {
+  background-color: var(--theme-red) !important;
+  color: var(--theme-crust) !important;
+}
+
+/* ================================
+ * ZEN BROWSER SPECIFIC ELEMENTS
+ * ================================ */
+
+/* Zen workspace button */
+#zen-workspaces-button {
+  background-color: transparent !important;
+  color: var(--theme-text) !important;
+  border-radius: var(--border-radius-medium) !important;
+}
+
+#zen-workspaces-button:hover {
+  background-color: var(--theme-surface0) !important;
+  color: var(--theme-accent) !important;
+}
+
+/* Zen sidebar expanded state */
+[zen-sidebar-expanded="true"] #sidebar-box {
+  background-color: var(--theme-mantle) !important;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Zen single toolbar mode */
+[zen-single-toolbar="true"] #nav-bar {
+  background-color: var(--theme-mantle) !important;
+  border-bottom: 1px solid var(--theme-surface0) !important;
+}
+
+/* Zen compact mode */
+[zen-compact-mode="true"] #TabsToolbar {
+  background-color: var(--theme-surface0) !important;
+}
+
+/* Zen window buttons */
+[zen-window-buttons-reversed="true"] .titlebar-buttonbox {
+  background-color: transparent !important;
+}
+
+/* ================================
+ * SEARCH AND FIND BAR
+ * ================================ */
+.findbar {
+  background-color: var(--theme-surface0) !important;
+  border: 1px solid var(--theme-surface2) !important;
+  color: var(--theme-text) !important;
+}
+
+.findbar textbox {
+  background-color: var(--theme-surface1) !important;
+  color: var(--theme-text) !important;
+  border: 1px solid var(--theme-surface2) !important;
+}
+
+.findbar .findbar-button {
+  color: var(--theme-text) !important;
+}
+
+.findbar .findbar-button:hover {
+  background-color: var(--theme-surface1) !important;
+  color: var(--theme-accent) !important;
+}
+
+/* ================================
+ * DEVELOPER TOOLS ADJUSTMENTS
+ * ================================ */
+#developer-toolbar {
+  background-color: var(--theme-mantle) !important;
+  border-color: var(--theme-surface0) !important;
+}
+
+/* ================================
+ * MISCELLANEOUS FIXES
+ * ================================ */
+
+/* Remove unwanted borders and backgrounds */
+#navigator-toolbox {
+  border: none !important;
+  background-color: var(--theme-mantle) !important;
+}
+
+/* Status panel (link preview) */
+#statuspanel {
+  background-color: var(--theme-surface0) !important;
+  border: 1px solid var(--theme-surface2) !important;
+  color: var(--theme-text) !important;
+  border-radius: var(--border-radius-medium) !important;
+}
+
+#statuspanel-label {
+  background-color: transparent !important;
+  color: var(--theme-text) !important;
+}
+
+/* Downloads panel */
+#downloadsPanel {
+  background-color: var(--theme-surface0) !important;
+  border: 1px solid var(--theme-surface2) !important;
+  color: var(--theme-text) !important;
+}
+
+/* Extension button panels */
+.webextension-popup-browser {
+  background-color: var(--theme-surface0) !important;
+}
+
+/* Ensure smooth transitions */
+* {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease !important;
+}
