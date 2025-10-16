@@ -1,0 +1,396 @@
+/*
+ * Ristretto Theme for Zen Browser
+ * A rich, coffee-inspired dark theme with warm accents
+ */
+
+/* Import base theme styles */
+@import url("base.css");
+
+/* Ristretto Color Palette */
+:root {
+  /* Core Ristretto colors based on provided palette */
+  --ristretto-dark2: #191515;
+  --ristretto-dark1: #211c1c;
+  --ristretto-background: #2c2525;
+  --ristretto-text: #fff1f3;
+  --ristretto-accent1: #fd6883; /* pink/red */
+  --ristretto-accent2: #f38d70; /* coral/orange */
+  --ristretto-accent3: #f9cc6c; /* yellow */
+  --ristretto-accent4: #adda78; /* green */
+  --ristretto-accent5: #85dacc; /* teal/cyan */
+  --ristretto-accent6: #a8a9eb; /* purple/blue */
+  --ristretto-dimmed1: #c3b7b8;
+  --ristretto-dimmed2: #948a8b;
+  --ristretto-dimmed3: #72696a;
+  --ristretto-dimmed4: #5b5353;
+  --ristretto-dimmed5: #403838;
+
+  /* Extended palette for better UI coverage */
+  --ristretto-rosewater: #f38d70;
+  --ristretto-flamingo: #fd6883;
+  --ristretto-pink: #fd6883;
+  --ristretto-mauve: #a8a9eb;
+  --ristretto-red: #fd6883;
+  --ristretto-maroon: #fd6883;
+  --ristretto-peach: #f38d70;
+  --ristretto-yellow: #f9cc6c;
+  --ristretto-green: #adda78;
+  --ristretto-teal: #85dacc;
+  --ristretto-sky: #85dacc;
+  --ristretto-sapphire: #85dacc;
+  --ristretto-blue: #a8a9eb;
+  --ristretto-lavender: #a8a9eb;
+  --ristretto-subtext1: #c3b7b8;
+  --ristretto-subtext0: #948a8b;
+  --ristretto-overlay2: #72696a;
+  --ristretto-overlay1: #5b5353;
+  --ristretto-overlay0: #403838;
+  --ristretto-surface2: #403838;
+  --ristretto-surface1: #211c1c;
+  --ristretto-surface0: #191515;
+  --ristretto-base: #2c2525;
+  --ristretto-mantle: #211c1c;
+  --ristretto-crust: #191515;
+
+  /* Primary accent: Ristretto coral (accent2) */
+  --ristretto-accent: #f38d70;
+
+  /* Theme variable mappings */
+  --theme-rosewater: var(--ristretto-rosewater);
+  --theme-flamingo: var(--ristretto-flamingo);
+  --theme-pink: var(--ristretto-pink);
+  --theme-mauve: var(--ristretto-mauve);
+  --theme-red: var(--ristretto-red);
+  --theme-maroon: var(--ristretto-maroon);
+  --theme-peach: var(--ristretto-peach);
+  --theme-yellow: var(--ristretto-yellow);
+  --theme-green: var(--ristretto-green);
+  --theme-teal: var(--ristretto-teal);
+  --theme-sky: var(--ristretto-sky);
+  --theme-sapphire: var(--ristretto-sapphire);
+  --theme-blue: var(--ristretto-blue);
+  --theme-lavender: var(--ristretto-lavender);
+  --theme-text: var(--ristretto-text);
+  --theme-subtext1: var(--ristretto-subtext1);
+  --theme-subtext0: var(--ristretto-subtext0);
+  --theme-overlay2: var(--ristretto-overlay2);
+  --theme-overlay1: var(--ristretto-overlay1);
+  --theme-overlay0: var(--ristretto-overlay0);
+  --theme-surface2: var(--ristretto-surface2);
+  --theme-surface1: var(--ristretto-surface1);
+  --theme-surface0: var(--ristretto-surface0);
+  --theme-base: var(--ristretto-base);
+  --theme-mantle: var(--ristretto-mantle);
+  --theme-crust: var(--ristretto-crust);
+  --theme-accent: var(--ristretto-accent);
+
+  /* Zen Browser Variables Override */
+  --zen-primary-color: var(--ristretto-accent) !important;
+  --zen-border-radius: 8px !important;
+  --zen-element-separation: 8px !important;
+  --zen-background-opacity: 1 !important;
+  --zen-main-browser-background-toolbar: var(--ristretto-base) !important;
+  --zen-main-browser-background: var(--ristretto-base) !important;
+  --toolbox-textcolor: var(--ristretto-text) !important;
+
+  /* Consistent border radius variables */
+  --border-radius-small: 4px;
+  --border-radius-medium: 6px;
+  --border-radius-large: 8px;
+
+  /* Additional theme variables */
+  --toolbar-bgcolor: var(--ristretto-base) !important;
+  --toolbar-color: var(--ristretto-text) !important;
+  --toolbar-field-background-color: var(--ristretto-surface0) !important;
+  --toolbar-field-color: var(--ristretto-text) !important;
+  --toolbar-field-border-color: var(--ristretto-surface2) !important;
+  --toolbar-field-focus-background-color: var(--ristretto-surface1) !important;
+  --toolbar-field-focus-border-color: var(--ristretto-accent) !important;
+  --arrowpanel-background: var(--ristretto-surface0) !important;
+  --arrowpanel-color: var(--ristretto-text) !important;
+  --arrowpanel-border-color: var(--ristretto-surface2) !important;
+}
+
+/* ================================
+ * RISTRETTO SPECIFIC CUSTOMIZATIONS
+ * ================================ */
+
+/* Enhanced coral accent for active elements */
+.tabbrowser-tab[selected="true"] {
+  box-shadow: 0 2px 0 var(--ristretto-accent) !important;
+  background-color: var(--ristretto-mantle) !important;
+  color: var(--ristretto-text) !important;
+}
+
+/* Coral glow effect for focused URL bar */
+#urlbar:focus-within {
+  box-shadow: 0 0 0 1px var(--ristretto-accent), 
+              0 0 8px rgba(243, 141, 112, 0.3) !important;
+}
+
+/* Subtle coral tint for hover states */
+.toolbarbutton-1:hover {
+  box-shadow: inset 0 0 0 1px rgba(243, 141, 112, 0.2) !important;
+  background-color: var(--ristretto-mantle) !important;
+}
+
+/* Coral accent for workspace indicator */
+#zen-workspaces-button[active="true"] {
+  background-color: rgba(243, 141, 112, 0.1) !important;
+  border: 1px solid var(--ristretto-accent) !important;
+}
+
+/* Ristretto coral loading indicators */
+.tab-throbber,
+.tab-icon-pending {
+  filter: brightness(0) saturate(100%) invert(75%) sepia(35%) saturate(1500%) 
+          hue-rotate(15deg) brightness(95%) contrast(90%);
+}
+
+/* Enhanced sidebar with coral accent */
+[zen-sidebar-expanded="true"] #sidebar-box {
+  border-right: 2px solid var(--ristretto-accent) !important;
+  background-color: var(--ristretto-base) !important;
+}
+
+/* Coral progress bars and loading elements */
+progress {
+  background-color: var(--ristretto-surface0) !important;
+}
+
+progress::-moz-progress-bar {
+  background-color: var(--ristretto-accent) !important;
+}
+
+/* Coral selection colors */
+::selection {
+  background-color: rgba(243, 141, 112, 0.3) !important;
+  color: var(--ristretto-text) !important;
+}
+
+/* Enhanced status panel with coral accent */
+#statuspanel {
+  border-left: 3px solid var(--ristretto-accent) !important;
+  background-color: var(--ristretto-mantle) !important;
+}
+
+/* Ristretto specific error/warning/info styling using accent colors */
+.notificationbox-stack notification[type="info"] {
+  background-color: var(--ristretto-accent6) !important;
+  border-color: var(--ristretto-accent5) !important;
+  color: var(--ristretto-crust) !important;
+}
+
+.notificationbox-stack notification[type="warning"] {
+  background-color: var(--ristretto-accent3) !important;
+  border-color: var(--ristretto-accent2) !important;
+  color: var(--ristretto-crust) !important;
+}
+
+.notificationbox-stack notification[type="critical"] {
+  background-color: var(--ristretto-accent1) !important;
+  border-color: var(--ristretto-accent1) !important;
+  color: var(--ristretto-text) !important;
+}
+
+/* Ristretto specific inactive tab styling */
+.tabbrowser-tab:not([selected="true"]) {
+  color: var(--ristretto-dimmed1) !important;
+  background-color: var(--ristretto-base) !important;
+}
+
+.tabbrowser-tab:not([selected="true"]):hover {
+  background-color: var(--ristretto-mantle) !important;
+  color: var(--ristretto-text) !important;
+}
+
+/* Ristretto specific toolbar styling with coffee aesthetics */
+#nav-bar {
+  background-color: var(--ristretto-base) !important;
+  border-bottom: 1px solid var(--ristretto-dimmed5) !important;
+}
+
+#TabsToolbar {
+  background-color: var(--ristretto-base) !important;
+  border-bottom: 1px solid var(--ristretto-dimmed5) !important;
+}
+
+/* Ristretto specific menu styling */
+menupopup {
+  background-color: var(--ristretto-dark1) !important;
+  border: 1px solid var(--ristretto-dimmed5) !important;
+}
+
+menuitem:hover {
+  background-color: var(--ristretto-dimmed5) !important;
+  color: var(--ristretto-accent) !important;
+}
+
+/* Ristretto specific scrollbar styling */
+scrollbar thumb {
+  background-color: var(--ristretto-dimmed5) !important;
+}
+
+scrollbar thumb:hover {
+  background-color: var(--ristretto-dimmed4) !important;
+}
+
+/* Ristretto specific find bar styling */
+.findbar {
+  background-color: var(--ristretto-dark1) !important;
+  border: 1px solid var(--ristretto-dimmed5) !important;
+}
+
+.findbar textbox {
+  background-color: var(--ristretto-dimmed5) !important;
+  color: var(--ristretto-text) !important;
+  border: 1px solid var(--ristretto-dimmed4) !important;
+}
+
+/* Ristretto specific close button styling using accent1 (pink) */
+.tab-close-button:hover {
+  background-color: var(--ristretto-accent1) !important;
+  color: var(--ristretto-text) !important;
+  fill: var(--ristretto-text) !important;
+}
+
+/* Ristretto specific visual selection for multi-select using accent6 (purple) */
+.tabbrowser-tab[multiselected="true"]:not([selected="true"]) {
+  background-color: var(--ristretto-accent6) !important;
+  color: var(--ristretto-crust) !important;
+}
+
+/* Enhanced contrast for disabled elements */
+.toolbarbutton-1:disabled {
+  color: var(--ristretto-dimmed3) !important;
+  fill: var(--ristretto-dimmed3) !important;
+}
+
+/* Ristretto specific bookmark styling */
+.bookmark-item:hover {
+  background-color: var(--ristretto-mantle) !important;
+  color: var(--ristretto-accent) !important;
+}
+
+/* Ristretto specific URL styling with accent5 (teal) */
+#urlbar-input {
+  color: var(--ristretto-accent5) !important;
+}
+
+#urlbar-input::placeholder {
+  color: var(--ristretto-dimmed2) !important;
+  opacity: 0.8;
+}
+
+/* Coffee-inspired subtle gradients */
+.tabbrowser-tab[selected="true"] {
+  background: linear-gradient(135deg, 
+    var(--ristretto-mantle) 0%, 
+    var(--ristretto-dimmed5) 50%, 
+    var(--ristretto-mantle) 100%) !important;
+  border-bottom: 2px solid var(--ristretto-accent2) !important;
+}
+
+/* Enhanced visual hierarchy with rich coffee philosophy */
+#sidebar-header {
+  background-color: var(--ristretto-dark1) !important;
+  border-bottom: 1px solid var(--ristretto-dimmed5) !important;
+  color: var(--ristretto-text) !important;
+}
+
+/* Ristretto specific panel styling with warm accents */
+.panel-arrowcontent {
+  background-color: var(--ristretto-dark1) !important;
+  border: 1px solid var(--ristretto-dimmed5) !important;
+}
+
+/* Enhanced focus states with Ristretto colors */
+#urlbar:focus {
+  background-color: var(--ristretto-mantle) !important;
+  color: var(--ristretto-text) !important;
+}
+
+/* Ristretto specific workspace styling */
+#zen-workspaces-button {
+  color: var(--ristretto-dimmed1) !important;
+}
+
+#zen-workspaces-button:hover {
+  background-color: var(--ristretto-mantle) !important;
+  color: var(--ristretto-accent2) !important;
+}
+
+/* Ristretto color accents for special elements */
+.findbar .findbar-button:hover {
+  background-color: var(--ristretto-dimmed4) !important;
+  color: var(--ristretto-accent4) !important;
+}
+
+/* Ristretto specific notification text styling */
+.messageText {
+  color: inherit !important;
+}
+
+/* Rich coffee theme specific adjustments */
+menuitem[disabled="true"] {
+  color: var(--ristretto-dimmed3) !important;
+}
+
+/* Ristretto specific visual states */
+.tabbrowser-tab:hover:not([selected="true"]) {
+  background-color: var(--ristretto-dimmed5) !important;
+}
+
+/* Enhanced contrast for coffee theme readability */
+.toolbarbutton-1:not(:hover):not([open="true"]):not([checked="true"]) {
+  color: var(--ristretto-dimmed1) !important;
+  fill: var(--ristretto-dimmed1) !important;
+}
+
+/* Ristretto specific active states using appropriate warm colors */
+.toolbarbutton-1[open="true"],
+.toolbarbutton-1[checked="true"] {
+  background-color: var(--ristretto-dimmed5) !important;
+  color: var(--ristretto-text) !important;
+  fill: var(--ristretto-text) !important;
+}
+
+/* Coffee-inspired rich shadows */
+menupopup {
+  box-shadow: 0 4px 20px rgba(25, 21, 21, 0.4) !important;
+}
+
+.panel-arrowcontent {
+  box-shadow: 0 4px 20px rgba(25, 21, 21, 0.4) !important;
+}
+
+/* Enhanced readability with warm coffee tones */
+#statuspanel {
+  color: var(--ristretto-text) !important;
+  border: 1px solid var(--ristretto-dimmed4) !important;
+}
+
+/* Ristretto specific accent cycling for different UI elements */
+.bookmark-item:nth-child(6n+1):hover { color: var(--ristretto-accent1) !important; }
+.bookmark-item:nth-child(6n+2):hover { color: var(--ristretto-accent2) !important; }
+.bookmark-item:nth-child(6n+3):hover { color: var(--ristretto-accent3) !important; }
+.bookmark-item:nth-child(6n+4):hover { color: var(--ristretto-accent4) !important; }
+.bookmark-item:nth-child(6n+5):hover { color: var(--ristretto-accent5) !important; }
+.bookmark-item:nth-child(6n):hover { color: var(--ristretto-accent6) !important; }
+
+/* Rich coffee bean inspired texture for active elements */
+.tabbrowser-tab[selected="true"]:before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, 
+    var(--ristretto-accent1) 0%, 
+    var(--ristretto-accent2) 20%, 
+    var(--ristretto-accent3) 40%, 
+    var(--ristretto-accent4) 60%, 
+    var(--ristretto-accent5) 80%, 
+    var(--ristretto-accent6) 100%);
+}
