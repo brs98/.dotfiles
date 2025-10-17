@@ -2,3 +2,6 @@ home-manager/configs/nvim/.undodir
 
 # Private Git user configuration
 home-manager/modules/git-user.nix
+
+nvim/.config/nvim/.undodir
+stow/nvim/.config/nvim/.undodir
