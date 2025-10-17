@@ -1,13 +1,17 @@
 [user]
-    name = brs98
-    email = southwick.brandon21@gmail.com
+	name = Brandon Southwick
+	email = southwick.brandon21@gmail.com
 
 [core]
     editor = nvim
     ignorecase = false
 
-[credential]
-    helper = osxkeychain
+[credential "https://github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
 
 [pull]
     rebase = true
