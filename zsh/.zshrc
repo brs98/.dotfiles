@@ -32,11 +32,7 @@ else
 fi
 
 # Initialize tools (these need to be installed separately)
-# eval "$(starship init zsh)"
-# eval "$(zoxide init zsh)"
-# source ~/.config/fzf/fzf.zsh
+eval "$(starship init zsh)"
+eval "$(zoxide init zsh)"
 
-# Load syntax highlighting and autosuggestions if available
-# These need to be installed via package managers
-[ -f ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && source ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-[ -f ~/.zsh/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source ~/.zsh/zsh-autosuggestions/zsh-autosuggestions.zsh
+plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
