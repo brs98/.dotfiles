@@ -1,0 +1,340 @@
+/*
+ * Nord Theme for Zen Browser
+ * An arctic, north-bluish theme with clean and elegant colors
+ */
+
+/* Import base theme styles */
+@import url("base.css");
+
+/* Nord Color Palette */
+:root {
+  /* Polar Night - The four darker colors */
+  --nord-polar-night-1: #2e3440;  /* nord0 - darkest */
+  --nord-polar-night-2: #3b4252;  /* nord1 */
+  --nord-polar-night-3: #434c5e;  /* nord2 */
+  --nord-polar-night-4: #4c566a;  /* nord3 - lightest dark */
+  
+  /* Snow Storm - The three bright colors */
+  --nord-snow-storm-1: #d8dee9;   /* nord4 - darkest white */
+  --nord-snow-storm-2: #e5e9f0;   /* nord5 */
+  --nord-snow-storm-3: #eceff4;   /* nord6 - brightest white */
+  
+  /* Frost - The four bluish colors */
+  --nord-frost-1: #8fbcbb;        /* nord7 - teal */
+  --nord-frost-2: #88c0d0;        /* nord8 - cyan */
+  --nord-frost-3: #81a1c1;        /* nord9 - light blue */
+  --nord-frost-4: #5e81ac;        /* nord10 - dark blue */
+  
+  /* Aurora - The five colorful colors */
+  --nord-aurora-red: #bf616a;     /* nord11 - red */
+  --nord-aurora-orange: #d08770;  /* nord12 - orange */
+  --nord-aurora-yellow: #ebcb8b;  /* nord13 - yellow */
+  --nord-aurora-green: #a3be8c;   /* nord14 - green */
+  --nord-aurora-purple: #b48ead;  /* nord15 - purple */
+
+  /* Extended palette for better UI coverage */
+  --nord-rosewater: #d08770;
+  --nord-flamingo: #d08770;
+  --nord-pink: #b48ead;
+  --nord-mauve: #b48ead;
+  --nord-red: #bf616a;
+  --nord-maroon: #bf616a;
+  --nord-peach: #d08770;
+  --nord-yellow: #ebcb8b;
+  --nord-green: #a3be8c;
+  --nord-teal: #8fbcbb;
+  --nord-sky: #88c0d0;
+  --nord-sapphire: #81a1c1;
+  --nord-blue: #5e81ac;
+  --nord-lavender: #b48ead;
+  --nord-text: #eceff4;
+  --nord-subtext1: #e5e9f0;
+  --nord-subtext0: #d8dee9;
+  --nord-overlay2: #4c566a;
+  --nord-overlay1: #434c5e;
+  --nord-overlay0: #3b4252;
+  --nord-surface2: #434c5e;
+  --nord-surface1: #3b4252;
+  --nord-surface0: #2e3440;
+  --nord-base: #2e3440;
+  --nord-mantle: #242933;
+  --nord-crust: #1e222a;
+
+  /* Primary accent: Nord frost blue */
+  --nord-accent: #81a1c1;
+
+  /* Theme variable mappings */
+  --theme-rosewater: var(--nord-rosewater);
+  --theme-flamingo: var(--nord-flamingo);
+  --theme-pink: var(--nord-pink);
+  --theme-mauve: var(--nord-mauve);
+  --theme-red: var(--nord-red);
+  --theme-maroon: var(--nord-maroon);
+  --theme-peach: var(--nord-peach);
+  --theme-yellow: var(--nord-yellow);
+  --theme-green: var(--nord-green);
+  --theme-teal: var(--nord-teal);
+  --theme-sky: var(--nord-sky);
+  --theme-sapphire: var(--nord-sapphire);
+  --theme-blue: var(--nord-blue);
+  --theme-lavender: var(--nord-lavender);
+  --theme-text: var(--nord-text);
+  --theme-subtext1: var(--nord-subtext1);
+  --theme-subtext0: var(--nord-subtext0);
+  --theme-overlay2: var(--nord-overlay2);
+  --theme-overlay1: var(--nord-overlay1);
+  --theme-overlay0: var(--nord-overlay0);
+  --theme-surface2: var(--nord-surface2);
+  --theme-surface1: var(--nord-surface1);
+  --theme-surface0: var(--nord-surface0);
+  --theme-base: var(--nord-base);
+  --theme-mantle: var(--nord-mantle);
+  --theme-crust: var(--nord-crust);
+  --theme-accent: var(--nord-accent);
+
+  /* Zen Browser Variables Override */
+  --zen-primary-color: var(--nord-accent) !important;
+  --zen-border-radius: 8px !important;
+  --zen-element-separation: 8px !important;
+  --zen-background-opacity: 1 !important;
+  --zen-main-browser-background-toolbar: var(--nord-base) !important;
+  --zen-main-browser-background: var(--nord-base) !important;
+  --toolbox-textcolor: var(--nord-text) !important;
+
+  /* Consistent border radius variables */
+  --border-radius-small: 4px;
+  --border-radius-medium: 6px;
+  --border-radius-large: 8px;
+
+  /* Additional theme variables */
+  --toolbar-bgcolor: var(--nord-base) !important;
+  --toolbar-color: var(--nord-text) !important;
+  --toolbar-field-background-color: var(--nord-surface0) !important;
+  --toolbar-field-color: var(--nord-text) !important;
+  --toolbar-field-border-color: var(--nord-surface2) !important;
+  --toolbar-field-focus-background-color: var(--nord-surface1) !important;
+  --toolbar-field-focus-border-color: var(--nord-accent) !important;
+  --arrowpanel-background: var(--nord-surface0) !important;
+  --arrowpanel-color: var(--nord-text) !important;
+  --arrowpanel-border-color: var(--nord-surface2) !important;
+}
+
+/* ================================
+ * NORD SPECIFIC CUSTOMIZATIONS
+ * ================================ */
+
+/* Enhanced frost blue accent for active elements */
+.tabbrowser-tab[selected="true"] {
+  box-shadow: 0 2px 0 var(--nord-accent) !important;
+  background-color: var(--nord-polar-night-2) !important;
+  color: var(--nord-snow-storm-3) !important;
+}
+
+/* Frost blue glow effect for focused URL bar */
+#urlbar:focus-within {
+  box-shadow: 0 0 0 1px var(--nord-accent), 
+              0 0 8px rgba(129, 161, 193, 0.3) !important;
+}
+
+/* Subtle blue tint for hover states */
+.toolbarbutton-1:hover {
+  box-shadow: inset 0 0 0 1px rgba(129, 161, 193, 0.2) !important;
+  background-color: var(--nord-polar-night-2) !important;
+}
+
+/* Frost blue accent for workspace indicator */
+#zen-workspaces-button[active="true"] {
+  background-color: rgba(129, 161, 193, 0.1) !important;
+  border: 1px solid var(--nord-accent) !important;
+}
+
+/* Nord frost blue loading indicators */
+.tab-throbber,
+.tab-icon-pending {
+  filter: brightness(0) saturate(100%) invert(65%) sepia(25%) saturate(1200%) 
+          hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
+/* Enhanced sidebar with frost blue accent */
+[zen-sidebar-expanded="true"] #sidebar-box {
+  border-right: 2px solid var(--nord-accent) !important;
+  background-color: var(--nord-polar-night-1) !important;
+}
+
+/* Frost blue progress bars and loading elements */
+progress {
+  background-color: var(--nord-surface0) !important;
+}
+
+progress::-moz-progress-bar {
+  background-color: var(--nord-accent) !important;
+}
+
+/* Nord selection colors */
+::selection {
+  background-color: rgba(129, 161, 193, 0.3) !important;
+  color: var(--nord-text) !important;
+}
+
+/* Enhanced status panel with frost blue accent */
+#statuspanel {
+  border-left: 3px solid var(--nord-accent) !important;
+  background-color: var(--nord-polar-night-2) !important;
+}
+
+/* Nord specific error/warning/info styling using aurora colors */
+.notificationbox-stack notification[type="info"] {
+  background-color: var(--nord-frost-4) !important;
+  border-color: var(--nord-frost-3) !important;
+  color: var(--nord-polar-night-1) !important;
+}
+
+.notificationbox-stack notification[type="warning"] {
+  background-color: var(--nord-aurora-yellow) !important;
+  border-color: var(--nord-aurora-orange) !important;
+  color: var(--nord-polar-night-1) !important;
+}
+
+.notificationbox-stack notification[type="critical"] {
+  background-color: var(--nord-aurora-red) !important;
+  border-color: var(--nord-aurora-red) !important;
+  color: var(--nord-snow-storm-3) !important;
+}
+
+/* Nord specific inactive tab styling */
+.tabbrowser-tab:not([selected="true"]) {
+  color: var(--nord-snow-storm-1) !important;
+  background-color: var(--nord-polar-night-1) !important;
+}
+
+.tabbrowser-tab:not([selected="true"]):hover {
+  background-color: var(--nord-polar-night-2) !important;
+  color: var(--nord-snow-storm-2) !important;
+}
+
+/* Nord specific toolbar styling with arctic aesthetics */
+#nav-bar {
+  background-color: var(--nord-polar-night-1) !important;
+  border-bottom: 1px solid var(--nord-polar-night-3) !important;
+}
+
+#TabsToolbar {
+  background-color: var(--nord-polar-night-1) !important;
+  border-bottom: 1px solid var(--nord-polar-night-3) !important;
+}
+
+/* Nord specific menu styling */
+menupopup {
+  background-color: var(--nord-polar-night-2) !important;
+  border: 1px solid var(--nord-polar-night-4) !important;
+}
+
+menuitem:hover {
+  background-color: var(--nord-polar-night-3) !important;
+  color: var(--nord-frost-3) !important;
+}
+
+/* Nord specific scrollbar styling */
+scrollbar thumb {
+  background-color: var(--nord-polar-night-3) !important;
+}
+
+scrollbar thumb:hover {
+  background-color: var(--nord-polar-night-4) !important;
+}
+
+/* Nord specific find bar styling */
+.findbar {
+  background-color: var(--nord-polar-night-2) !important;
+  border: 1px solid var(--nord-polar-night-3) !important;
+}
+
+.findbar textbox {
+  background-color: var(--nord-polar-night-3) !important;
+  color: var(--nord-snow-storm-2) !important;
+  border: 1px solid var(--nord-polar-night-4) !important;
+}
+
+/* Nord specific close button styling using aurora red */
+.tab-close-button:hover {
+  background-color: var(--nord-aurora-red) !important;
+  color: var(--nord-snow-storm-3) !important;
+  fill: var(--nord-snow-storm-3) !important;
+}
+
+/* Nord specific visual selection for multi-select using frost colors */
+.tabbrowser-tab[multiselected="true"]:not([selected="true"]) {
+  background-color: var(--nord-frost-2) !important;
+  color: var(--nord-polar-night-1) !important;
+}
+
+/* Enhanced contrast for disabled elements */
+.toolbarbutton-1:disabled {
+  color: var(--nord-polar-night-4) !important;
+  fill: var(--nord-polar-night-4) !important;
+}
+
+/* Nord specific bookmark styling */
+.bookmark-item:hover {
+  background-color: var(--nord-polar-night-2) !important;
+  color: var(--nord-frost-3) !important;
+}
+
+/* Nord specific URL styling with frost colors */
+#urlbar-input {
+  color: var(--nord-frost-2) !important;
+}
+
+#urlbar-input::placeholder {
+  color: var(--nord-snow-storm-1) !important;
+  opacity: 0.7;
+}
+
+/* Arctic-inspired subtle gradients */
+.tabbrowser-tab[selected="true"] {
+  background: linear-gradient(135deg, 
+    var(--nord-polar-night-2) 0%, 
+    var(--nord-polar-night-3) 50%, 
+    var(--nord-polar-night-2) 100%) !important;
+  border-bottom: 2px solid var(--nord-frost-3) !important;
+}
+
+/* Enhanced visual hierarchy with nordic color philosophy */
+#sidebar-header {
+  background-color: var(--nord-polar-night-2) !important;
+  border-bottom: 1px solid var(--nord-polar-night-3) !important;
+  color: var(--nord-snow-storm-2) !important;
+}
+
+/* Nord specific panel styling with frost accents */
+.panel-arrowcontent {
+  background-color: var(--nord-polar-night-2) !important;
+  border: 1px solid var(--nord-polar-night-4) !important;
+}
+
+/* Enhanced focus states with frost colors */
+#urlbar:focus {
+  background-color: var(--nord-polar-night-2) !important;
+  color: var(--nord-snow-storm-3) !important;
+}
+
+/* Nord specific workspace styling */
+#zen-workspaces-button {
+  color: var(--nord-snow-storm-2) !important;
+}
+
+#zen-workspaces-button:hover {
+  background-color: var(--nord-polar-night-2) !important;
+  color: var(--nord-frost-3) !important;
+}
+
+/* Aurora color accents for special elements */
+.findbar .findbar-button:hover {
+  background-color: var(--nord-polar-night-3) !important;
+  color: var(--nord-aurora-green) !important;
+}
+
+/* Nord specific notification text styling */
+.messageText {
+  color: inherit !important;
+}

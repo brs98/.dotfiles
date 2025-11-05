@@ -1,0 +1,266 @@
+/*
+ * Everforest Theme for Zen Browser
+ * A warm, nature-inspired theme with green accents
+ */
+
+/* Import base theme styles */
+@import url("base.css");
+
+/* Everforest Color Palette */
+:root {
+  /* Core Everforest colors based on provided palette */
+  --everforest-bg-dim: #232A2E;
+  --everforest-bg0: #2D353B;
+  --everforest-bg1: #343F44;
+  --everforest-bg2: #3D484D;
+  --everforest-bg3: #475258;
+  --everforest-bg4: #4F585E;
+  --everforest-bg5: #56635f;
+  --everforest-bg-visual: #543A48;
+  --everforest-bg-red: #514045;
+  --everforest-bg-yellow: #4D4C43;
+  --everforest-bg-green: #425047;
+  --everforest-bg-blue: #3A515D;
+  --everforest-bg-purple: #4A444E;
+  
+  /* Foreground colors */
+  --everforest-fg: #D3C6AA;
+  --everforest-red: #E67E80;
+  --everforest-orange: #E69875;
+  --everforest-yellow: #DBBC7F;
+  --everforest-green: #A7C080;
+  --everforest-aqua: #83C092;
+  --everforest-blue: #7FBBB3;
+  --everforest-purple: #D699B6;
+  
+  /* Grey scales */
+  --everforest-grey0: #7A8478;
+  --everforest-grey1: #859289;
+  --everforest-grey2: #9DA9A0;
+  
+  /* Status line colors */
+  --everforest-statusline1: #A7C080;
+  --everforest-statusline2: #D3C6AA;
+  --everforest-statusline3: #E67E80;
+
+  /* Extended palette for better UI coverage */
+  --everforest-rosewater: #D699B6;
+  --everforest-flamingo: #E69875;
+  --everforest-pink: #D699B6;
+  --everforest-mauve: #D699B6;
+  --everforest-teal: #83C092;
+  --everforest-sky: #7FBBB3;
+  --everforest-sapphire: #7FBBB3;
+  --everforest-lavender: #D699B6;
+  --everforest-text: #D3C6AA;
+  --everforest-subtext1: #9DA9A0;
+  --everforest-subtext0: #859289;
+  --everforest-overlay2: #7A8478;
+  --everforest-overlay1: #56635f;
+  --everforest-overlay0: #4F585E;
+  --everforest-surface2: #475258;
+  --everforest-surface1: #3D484D;
+  --everforest-surface0: #343F44;
+  --everforest-base: #2D353B;
+  --everforest-mantle: #232A2E;
+  --everforest-crust: #1E252A;
+
+  /* Primary accent: Everforest green */
+  --everforest-accent: #A7C080;
+
+  /* Theme variable mappings */
+  --theme-rosewater: var(--everforest-rosewater);
+  --theme-flamingo: var(--everforest-flamingo);
+  --theme-pink: var(--everforest-pink);
+  --theme-mauve: var(--everforest-mauve);
+  --theme-red: var(--everforest-red);
+  --theme-maroon: var(--everforest-red);
+  --theme-peach: var(--everforest-orange);
+  --theme-yellow: var(--everforest-yellow);
+  --theme-green: var(--everforest-green);
+  --theme-teal: var(--everforest-teal);
+  --theme-sky: var(--everforest-sky);
+  --theme-sapphire: var(--everforest-sapphire);
+  --theme-blue: var(--everforest-blue);
+  --theme-lavender: var(--everforest-lavender);
+  --theme-text: var(--everforest-text);
+  --theme-subtext1: var(--everforest-subtext1);
+  --theme-subtext0: var(--everforest-subtext0);
+  --theme-overlay2: var(--everforest-overlay2);
+  --theme-overlay1: var(--everforest-overlay1);
+  --theme-overlay0: var(--everforest-overlay0);
+  --theme-surface2: var(--everforest-surface2);
+  --theme-surface1: var(--everforest-surface1);
+  --theme-surface0: var(--everforest-surface0);
+  --theme-base: var(--everforest-base);
+  --theme-mantle: var(--everforest-mantle);
+  --theme-crust: var(--everforest-crust);
+  --theme-accent: var(--everforest-accent);
+
+  /* Zen Browser Variables Override */
+  --zen-primary-color: var(--everforest-accent) !important;
+  --zen-border-radius: 8px !important;
+  --zen-element-separation: 8px !important;
+  --zen-background-opacity: 1 !important;
+  --zen-main-browser-background-toolbar: var(--everforest-base) !important;
+  --zen-main-browser-background: var(--everforest-base) !important;
+  --toolbox-textcolor: var(--everforest-text) !important;
+
+  /* Consistent border radius variables */
+  --border-radius-small: 4px;
+  --border-radius-medium: 6px;
+  --border-radius-large: 8px;
+
+  /* Additional theme variables */
+  --toolbar-bgcolor: var(--everforest-base) !important;
+  --toolbar-color: var(--everforest-text) !important;
+  --toolbar-field-background-color: var(--everforest-surface0) !important;
+  --toolbar-field-color: var(--everforest-text) !important;
+  --toolbar-field-border-color: var(--everforest-surface2) !important;
+  --toolbar-field-focus-background-color: var(--everforest-surface1) !important;
+  --toolbar-field-focus-border-color: var(--everforest-accent) !important;
+  --arrowpanel-background: var(--everforest-surface0) !important;
+  --arrowpanel-color: var(--everforest-text) !important;
+  --arrowpanel-border-color: var(--everforest-surface2) !important;
+}
+
+/* ================================
+ * EVERFOREST SPECIFIC CUSTOMIZATIONS
+ * ================================ */
+
+/* Enhanced green accent for active elements */
+.tabbrowser-tab[selected="true"] {
+  box-shadow: 0 2px 0 var(--everforest-accent) !important;
+  background-color: var(--everforest-bg1) !important;
+}
+
+/* Green glow effect for focused URL bar */
+#urlbar:focus-within {
+  box-shadow: 0 0 0 1px var(--everforest-accent), 
+              0 0 8px rgba(167, 192, 128, 0.3) !important;
+}
+
+/* Subtle green tint for hover states */
+.toolbarbutton-1:hover {
+  box-shadow: inset 0 0 0 1px rgba(167, 192, 128, 0.2) !important;
+  background-color: var(--everforest-bg1) !important;
+}
+
+/* Green accent for workspace indicator */
+#zen-workspaces-button[active="true"] {
+  background-color: rgba(167, 192, 128, 0.1) !important;
+  border: 1px solid var(--everforest-accent) !important;
+}
+
+/* Everforest green loading indicators */
+.tab-throbber,
+.tab-icon-pending {
+  filter: brightness(0) saturate(100%) invert(75%) sepia(25%) saturate(1000%) 
+          hue-rotate(80deg) brightness(95%) contrast(90%);
+}
+
+/* Enhanced sidebar with green accent */
+[zen-sidebar-expanded="true"] #sidebar-box {
+  border-right: 2px solid var(--everforest-accent) !important;
+  background-color: var(--everforest-bg0) !important;
+}
+
+/* Green progress bars and loading elements */
+progress {
+  background-color: var(--everforest-surface0) !important;
+}
+
+progress::-moz-progress-bar {
+  background-color: var(--everforest-accent) !important;
+}
+
+/* Green selection colors */
+::selection {
+  background-color: rgba(167, 192, 128, 0.3) !important;
+  color: var(--everforest-text) !important;
+}
+
+/* Enhanced status panel with green accent */
+#statuspanel {
+  border-left: 3px solid var(--everforest-accent) !important;
+  background-color: var(--everforest-bg2) !important;
+}
+
+/* Everforest specific visual selection styling */
+.tabbrowser-tab[multiselected="true"]:not([selected="true"]) {
+  background-color: var(--everforest-bg-visual) !important;
+  color: var(--everforest-text) !important;
+}
+
+/* Everforest specific error/warning/info styling */
+.notificationbox-stack notification[type="info"] {
+  background-color: var(--everforest-bg-blue) !important;
+  border-color: var(--everforest-blue) !important;
+  color: var(--everforest-text) !important;
+}
+
+.notificationbox-stack notification[type="warning"] {
+  background-color: var(--everforest-bg-yellow) !important;
+  border-color: var(--everforest-yellow) !important;
+  color: var(--everforest-text) !important;
+}
+
+.notificationbox-stack notification[type="critical"] {
+  background-color: var(--everforest-bg-red) !important;
+  border-color: var(--everforest-red) !important;
+  color: var(--everforest-text) !important;
+}
+
+/* Everforest specific inactive tab styling */
+.tabbrowser-tab:not([selected="true"]) {
+  color: var(--everforest-grey2) !important;
+  background-color: var(--everforest-bg0) !important;
+}
+
+.tabbrowser-tab:not([selected="true"]):hover {
+  background-color: var(--everforest-bg1) !important;
+  color: var(--everforest-text) !important;
+}
+
+/* Everforest specific toolbar styling with natural colors */
+#nav-bar {
+  background-color: var(--everforest-bg0) !important;
+  border-bottom: 1px solid var(--everforest-bg3) !important;
+}
+
+#TabsToolbar {
+  background-color: var(--everforest-bg0) !important;
+  border-bottom: 1px solid var(--everforest-bg3) !important;
+}
+
+/* Everforest specific menu styling */
+menupopup {
+  background-color: var(--everforest-bg2) !important;
+  border: 1px solid var(--everforest-bg4) !important;
+}
+
+menuitem:hover {
+  background-color: var(--everforest-bg-green) !important;
+  color: var(--everforest-text) !important;
+}
+
+/* Everforest specific scrollbar styling */
+scrollbar thumb {
+  background-color: var(--everforest-bg3) !important;
+}
+
+scrollbar thumb:hover {
+  background-color: var(--everforest-bg4) !important;
+}
+
+/* Everforest specific find bar styling */
+.findbar {
+  background-color: var(--everforest-bg1) !important;
+  border: 1px solid var(--everforest-bg3) !important;
+}
+
+.findbar textbox {
+  background-color: var(--everforest-bg2) !important;
+  color: var(--everforest-text) !important;
+  border: 1px solid var(--everforest-bg4) !important;
+}

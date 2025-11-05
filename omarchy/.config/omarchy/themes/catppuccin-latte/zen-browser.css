@@ -1,0 +1,355 @@
+/*
+ * Catppuccin Latte Theme for Zen Browser
+ * A light, warm theme based on the Catppuccin Latte color palette
+ */
+
+/* Import base theme styles */
+@import url("base.css");
+
+/* Catppuccin Latte Color Palette */
+:root {
+  /* Core Catppuccin Latte colors based on provided palette */
+  --ctp-latte-rosewater: #dc8a78;
+  --ctp-latte-flamingo: #dd7878;
+  --ctp-latte-pink: #ea76cb;
+  --ctp-latte-mauve: #8839ef;
+  --ctp-latte-red: #d20f39;
+  --ctp-latte-maroon: #e64553;
+  --ctp-latte-peach: #fe640b;
+  --ctp-latte-yellow: #df8e1d;
+  --ctp-latte-green: #40a02b;
+  --ctp-latte-teal: #179299;
+  --ctp-latte-sky: #04a5e5;
+  --ctp-latte-sapphire: #209fb5;
+  --ctp-latte-blue: #1e66f5;
+  --ctp-latte-lavender: #7287fd;
+  --ctp-latte-text: #4c4f69;
+  --ctp-latte-subtext1: #5c5f77;
+  --ctp-latte-subtext0: #6c6f85;
+  --ctp-latte-overlay2: #7c7f93;
+  --ctp-latte-overlay1: #8c8fa1;
+  --ctp-latte-overlay0: #9ca0b0;
+  --ctp-latte-surface2: #acb0be;
+  --ctp-latte-surface1: #bcc0cc;
+  --ctp-latte-surface0: #ccd0da;
+  --ctp-latte-base: #eff1f5;
+  --ctp-latte-mantle: #e6e9ef;
+  --ctp-latte-crust: #dce0e8;
+
+  /* Primary accent: Catppuccin Latte mauve */
+  --ctp-latte-accent: #8839ef;
+
+  /* Theme variable mappings */
+  --theme-rosewater: var(--ctp-latte-rosewater);
+  --theme-flamingo: var(--ctp-latte-flamingo);
+  --theme-pink: var(--ctp-latte-pink);
+  --theme-mauve: var(--ctp-latte-mauve);
+  --theme-red: var(--ctp-latte-red);
+  --theme-maroon: var(--ctp-latte-maroon);
+  --theme-peach: var(--ctp-latte-peach);
+  --theme-yellow: var(--ctp-latte-yellow);
+  --theme-green: var(--ctp-latte-green);
+  --theme-teal: var(--ctp-latte-teal);
+  --theme-sky: var(--ctp-latte-sky);
+  --theme-sapphire: var(--ctp-latte-sapphire);
+  --theme-blue: var(--ctp-latte-blue);
+  --theme-lavender: var(--ctp-latte-lavender);
+  --theme-text: var(--ctp-latte-text);
+  --theme-subtext1: var(--ctp-latte-subtext1);
+  --theme-subtext0: var(--ctp-latte-subtext0);
+  --theme-overlay2: var(--ctp-latte-overlay2);
+  --theme-overlay1: var(--ctp-latte-overlay1);
+  --theme-overlay0: var(--ctp-latte-overlay0);
+  --theme-surface2: var(--ctp-latte-surface2);
+  --theme-surface1: var(--ctp-latte-surface1);
+  --theme-surface0: var(--ctp-latte-surface0);
+  --theme-base: var(--ctp-latte-base);
+  --theme-mantle: var(--ctp-latte-mantle);
+  --theme-crust: var(--ctp-latte-crust);
+  --theme-accent: var(--ctp-latte-accent);
+
+  /* Zen Browser Variables Override */
+  --zen-primary-color: var(--ctp-latte-accent) !important;
+  --zen-border-radius: 8px !important;
+  --zen-element-separation: 8px !important;
+  --zen-background-opacity: 1 !important;
+  --zen-main-browser-background-toolbar: var(--ctp-latte-base) !important;
+  --zen-main-browser-background: var(--ctp-latte-base) !important;
+  --toolbox-textcolor: var(--ctp-latte-text) !important;
+
+  /* Consistent border radius variables */
+  --border-radius-small: 4px;
+  --border-radius-medium: 6px;
+  --border-radius-large: 8px;
+
+  /* Additional theme variables */
+  --toolbar-bgcolor: var(--ctp-latte-base) !important;
+  --toolbar-color: var(--ctp-latte-text) !important;
+  --toolbar-field-background-color: var(--ctp-latte-surface0) !important;
+  --toolbar-field-color: var(--ctp-latte-text) !important;
+  --toolbar-field-border-color: var(--ctp-latte-surface1) !important;
+  --toolbar-field-focus-background-color: var(--ctp-latte-mantle) !important;
+  --toolbar-field-focus-border-color: var(--ctp-latte-accent) !important;
+  --arrowpanel-background: var(--ctp-latte-surface0) !important;
+  --arrowpanel-color: var(--ctp-latte-text) !important;
+  --arrowpanel-border-color: var(--ctp-latte-surface2) !important;
+}
+
+/* ================================
+ * CATPPUCCIN LATTE SPECIFIC CUSTOMIZATIONS
+ * ================================ */
+
+/* Enhanced mauve accent for active elements */
+.tabbrowser-tab[selected="true"] {
+  box-shadow: 0 2px 0 var(--ctp-latte-accent) !important;
+  background-color: var(--ctp-latte-mantle) !important;
+  color: var(--ctp-latte-text) !important;
+}
+
+/* Mauve glow effect for focused URL bar */
+#urlbar:focus-within {
+  box-shadow: 0 0 0 1px var(--ctp-latte-accent), 
+              0 0 8px rgba(136, 57, 239, 0.3) !important;
+}
+
+/* Subtle mauve tint for hover states */
+.toolbarbutton-1:hover {
+  box-shadow: inset 0 0 0 1px rgba(136, 57, 239, 0.2) !important;
+  background-color: var(--ctp-latte-mantle) !important;
+}
+
+/* Mauve accent for workspace indicator */
+#zen-workspaces-button[active="true"] {
+  background-color: rgba(136, 57, 239, 0.1) !important;
+  border: 1px solid var(--ctp-latte-accent) !important;
+}
+
+/* Catppuccin Latte mauve loading indicators */
+.tab-throbber,
+.tab-icon-pending {
+  filter: brightness(0) saturate(100%) invert(35%) sepia(75%) saturate(4000%) 
+          hue-rotate(250deg) brightness(95%) contrast(100%);
+}
+
+/* Enhanced sidebar with mauve accent */
+[zen-sidebar-expanded="true"] #sidebar-box {
+  border-right: 2px solid var(--ctp-latte-accent) !important;
+  background-color: var(--ctp-latte-base) !important;
+}
+
+/* Mauve progress bars and loading elements */
+progress {
+  background-color: var(--ctp-latte-surface0) !important;
+}
+
+progress::-moz-progress-bar {
+  background-color: var(--ctp-latte-accent) !important;
+}
+
+/* Mauve selection colors */
+::selection {
+  background-color: rgba(136, 57, 239, 0.3) !important;
+  color: var(--ctp-latte-text) !important;
+}
+
+/* Enhanced status panel with mauve accent */
+#statuspanel {
+  border-left: 3px solid var(--ctp-latte-accent) !important;
+  background-color: var(--ctp-latte-mantle) !important;
+}
+
+/* Catppuccin Latte specific error/warning/info styling */
+.notificationbox-stack notification[type="info"] {
+  background-color: var(--ctp-latte-blue) !important;
+  border-color: var(--ctp-latte-sapphire) !important;
+  color: var(--ctp-latte-base) !important;
+}
+
+.notificationbox-stack notification[type="warning"] {
+  background-color: var(--ctp-latte-yellow) !important;
+  border-color: var(--ctp-latte-peach) !important;
+  color: var(--ctp-latte-base) !important;
+}
+
+.notificationbox-stack notification[type="critical"] {
+  background-color: var(--ctp-latte-red) !important;
+  border-color: var(--ctp-latte-maroon) !important;
+  color: var(--ctp-latte-base) !important;
+}
+
+/* Catppuccin Latte specific inactive tab styling */
+.tabbrowser-tab:not([selected="true"]) {
+  color: var(--ctp-latte-subtext1) !important;
+  background-color: var(--ctp-latte-base) !important;
+}
+
+.tabbrowser-tab:not([selected="true"]):hover {
+  background-color: var(--ctp-latte-mantle) !important;
+  color: var(--ctp-latte-text) !important;
+}
+
+/* Catppuccin Latte specific toolbar styling with light aesthetics */
+#nav-bar {
+  background-color: var(--ctp-latte-base) !important;
+  border-bottom: 1px solid var(--ctp-latte-surface1) !important;
+}
+
+#TabsToolbar {
+  background-color: var(--ctp-latte-base) !important;
+  border-bottom: 1px solid var(--ctp-latte-surface1) !important;
+}
+
+/* Catppuccin Latte specific menu styling */
+menupopup {
+  background-color: var(--ctp-latte-surface0) !important;
+  border: 1px solid var(--ctp-latte-surface2) !important;
+}
+
+menuitem:hover {
+  background-color: var(--ctp-latte-surface1) !important;
+  color: var(--ctp-latte-accent) !important;
+}
+
+/* Catppuccin Latte specific scrollbar styling */
+scrollbar thumb {
+  background-color: var(--ctp-latte-surface1) !important;
+}
+
+scrollbar thumb:hover {
+  background-color: var(--ctp-latte-surface2) !important;
+}
+
+/* Catppuccin Latte specific find bar styling */
+.findbar {
+  background-color: var(--ctp-latte-surface0) !important;
+  border: 1px solid var(--ctp-latte-surface1) !important;
+}
+
+.findbar textbox {
+  background-color: var(--ctp-latte-mantle) !important;
+  color: var(--ctp-latte-text) !important;
+  border: 1px solid var(--ctp-latte-surface2) !important;
+}
+
+/* Catppuccin Latte specific close button styling using red */
+.tab-close-button:hover {
+  background-color: var(--ctp-latte-red) !important;
+  color: var(--ctp-latte-base) !important;
+  fill: var(--ctp-latte-base) !important;
+}
+
+/* Catppuccin Latte specific visual selection for multi-select using lavender */
+.tabbrowser-tab[multiselected="true"]:not([selected="true"]) {
+  background-color: var(--ctp-latte-lavender) !important;
+  color: var(--ctp-latte-base) !important;
+}
+
+/* Enhanced contrast for disabled elements */
+.toolbarbutton-1:disabled {
+  color: var(--ctp-latte-overlay0) !important;
+  fill: var(--ctp-latte-overlay0) !important;
+}
+
+/* Catppuccin Latte specific bookmark styling */
+.bookmark-item:hover {
+  background-color: var(--ctp-latte-mantle) !important;
+  color: var(--ctp-latte-accent) !important;
+}
+
+/* Catppuccin Latte specific URL styling with sapphire */
+#urlbar-input {
+  color: var(--ctp-latte-sapphire) !important;
+}
+
+#urlbar-input::placeholder {
+  color: var(--ctp-latte-subtext0) !important;
+  opacity: 0.8;
+}
+
+/* Light theme inspired subtle gradients */
+.tabbrowser-tab[selected="true"] {
+  background: linear-gradient(135deg, 
+    var(--ctp-latte-mantle) 0%, 
+    var(--ctp-latte-surface0) 50%, 
+    var(--ctp-latte-mantle) 100%) !important;
+  border-bottom: 2px solid var(--ctp-latte-mauve) !important;
+}
+
+/* Enhanced visual hierarchy with light Catppuccin philosophy */
+#sidebar-header {
+  background-color: var(--ctp-latte-mantle) !important;
+  border-bottom: 1px solid var(--ctp-latte-surface1) !important;
+  color: var(--ctp-latte-text) !important;
+}
+
+/* Catppuccin Latte specific panel styling with light accents */
+.panel-arrowcontent {
+  background-color: var(--ctp-latte-surface0) !important;
+  border: 1px solid var(--ctp-latte-surface2) !important;
+}
+
+/* Enhanced focus states with Catppuccin Latte colors */
+#urlbar:focus {
+  background-color: var(--ctp-latte-mantle) !important;
+  color: var(--ctp-latte-text) !important;
+}
+
+/* Catppuccin Latte specific workspace styling */
+#zen-workspaces-button {
+  color: var(--ctp-latte-subtext1) !important;
+}
+
+#zen-workspaces-button:hover {
+  background-color: var(--ctp-latte-mantle) !important;
+  color: var(--ctp-latte-mauve) !important;
+}
+
+/* Catppuccin color accents for special elements */
+.findbar .findbar-button:hover {
+  background-color: var(--ctp-latte-surface1) !important;
+  color: var(--ctp-latte-green) !important;
+}
+
+/* Catppuccin Latte specific notification text styling */
+.messageText {
+  color: inherit !important;
+}
+
+/* Light theme specific adjustments */
+menuitem[disabled="true"] {
+  color: var(--ctp-latte-overlay0) !important;
+}
+
+/* Catppuccin Latte specific visual states */
+.tabbrowser-tab:hover:not([selected="true"]) {
+  background-color: var(--ctp-latte-surface0) !important;
+}
+
+/* Enhanced contrast for light theme readability */
+.toolbarbutton-1:not(:hover):not([open="true"]):not([checked="true"]) {
+  color: var(--ctp-latte-subtext1) !important;
+  fill: var(--ctp-latte-subtext1) !important;
+}
+
+/* Catppuccin Latte specific active states using appropriate light colors */
+.toolbarbutton-1[open="true"],
+.toolbarbutton-1[checked="true"] {
+  background-color: var(--ctp-latte-surface1) !important;
+  color: var(--ctp-latte-text) !important;
+  fill: var(--ctp-latte-text) !important;
+}
+
+/* Light theme specific shadows and borders */
+menupopup {
+  box-shadow: 0 4px 20px rgba(76, 79, 105, 0.15) !important;
+}
+
+.panel-arrowcontent {
+  box-shadow: 0 4px 20px rgba(76, 79, 105, 0.15) !important;
+}
+
+/* Enhanced readability for light theme */
+#statuspanel {
+  color: var(--ctp-latte-text) !important;
+  border: 1px solid var(--ctp-latte-surface2) !important;
+}

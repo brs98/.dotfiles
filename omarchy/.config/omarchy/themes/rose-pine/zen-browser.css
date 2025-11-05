@@ -1,0 +1,355 @@
+/*
+ * Rose Pine Theme for Zen Browser
+ * A soho vibes theme with warm rose and pine accents
+ */
+
+/* Import base theme styles */
+@import url("base.css");
+
+/* Rose Pine Color Palette */
+:root {
+  /* Core Rose Pine colors based on provided palette */
+  --rose-pine-base: #191724;
+  --rose-pine-surface: #1f1d2e;
+  --rose-pine-overlay: #26233a;
+  --rose-pine-muted: #6e6a86;
+  --rose-pine-subtle: #908caa;
+  --rose-pine-text: #e0def4;
+  --rose-pine-love: #eb6f92;
+  --rose-pine-gold: #f6c177;
+  --rose-pine-rose: #ebbcba;
+  --rose-pine-pine: #31748f;
+  --rose-pine-foam: #9ccfd8;
+  --rose-pine-iris: #c4a7e7;
+  --rose-pine-highlight-low: #21202e;
+  --rose-pine-highlight-med: #403d52;
+  --rose-pine-highlight-high: #524f67;
+
+  /* Extended palette for better UI coverage */
+  --rose-pine-rosewater: #ebbcba;
+  --rose-pine-flamingo: #eb6f92;
+  --rose-pine-pink: #eb6f92;
+  --rose-pine-mauve: #c4a7e7;
+  --rose-pine-red: #eb6f92;
+  --rose-pine-maroon: #eb6f92;
+  --rose-pine-peach: #f6c177;
+  --rose-pine-yellow: #f6c177;
+  --rose-pine-green: #31748f;
+  --rose-pine-teal: #9ccfd8;
+  --rose-pine-sky: #9ccfd8;
+  --rose-pine-sapphire: #31748f;
+  --rose-pine-blue: #31748f;
+  --rose-pine-lavender: #c4a7e7;
+  --rose-pine-subtext1: #908caa;
+  --rose-pine-subtext0: #6e6a86;
+  --rose-pine-overlay2: #524f67;
+  --rose-pine-overlay1: #403d52;
+  --rose-pine-overlay0: #26233a;
+  --rose-pine-surface2: #403d52;
+  --rose-pine-surface1: #26233a;
+  --rose-pine-surface0: #1f1d2e;
+  --rose-pine-mantle: #16141f;
+  --rose-pine-crust: #12101a;
+
+  /* Primary accent: Rose Pine gold */
+  --rose-pine-accent: #f6c177;
+
+  /* Theme variable mappings */
+  --theme-rosewater: var(--rose-pine-rosewater);
+  --theme-flamingo: var(--rose-pine-flamingo);
+  --theme-pink: var(--rose-pine-pink);
+  --theme-mauve: var(--rose-pine-mauve);
+  --theme-red: var(--rose-pine-red);
+  --theme-maroon: var(--rose-pine-maroon);
+  --theme-peach: var(--rose-pine-peach);
+  --theme-yellow: var(--rose-pine-yellow);
+  --theme-green: var(--rose-pine-green);
+  --theme-teal: var(--rose-pine-teal);
+  --theme-sky: var(--rose-pine-sky);
+  --theme-sapphire: var(--rose-pine-sapphire);
+  --theme-blue: var(--rose-pine-blue);
+  --theme-lavender: var(--rose-pine-lavender);
+  --theme-text: var(--rose-pine-text);
+  --theme-subtext1: var(--rose-pine-subtext1);
+  --theme-subtext0: var(--rose-pine-subtext0);
+  --theme-overlay2: var(--rose-pine-overlay2);
+  --theme-overlay1: var(--rose-pine-overlay1);
+  --theme-overlay0: var(--rose-pine-overlay0);
+  --theme-surface2: var(--rose-pine-surface2);
+  --theme-surface1: var(--rose-pine-surface1);
+  --theme-surface0: var(--rose-pine-surface0);
+  --theme-base: var(--rose-pine-base);
+  --theme-mantle: var(--rose-pine-mantle);
+  --theme-crust: var(--rose-pine-crust);
+  --theme-accent: var(--rose-pine-accent);
+
+  /* Zen Browser Variables Override */
+  --zen-primary-color: var(--rose-pine-accent) !important;
+  --zen-border-radius: 8px !important;
+  --zen-element-separation: 8px !important;
+  --zen-background-opacity: 1 !important;
+  --zen-main-browser-background-toolbar: var(--rose-pine-base) !important;
+  --zen-main-browser-background: var(--rose-pine-base) !important;
+  --toolbox-textcolor: var(--rose-pine-text) !important;
+
+  /* Consistent border radius variables */
+  --border-radius-small: 4px;
+  --border-radius-medium: 6px;
+  --border-radius-large: 8px;
+
+  /* Additional theme variables */
+  --toolbar-bgcolor: var(--rose-pine-base) !important;
+  --toolbar-color: var(--rose-pine-text) !important;
+  --toolbar-field-background-color: var(--rose-pine-surface0) !important;
+  --toolbar-field-color: var(--rose-pine-text) !important;
+  --toolbar-field-border-color: var(--rose-pine-surface2) !important;
+  --toolbar-field-focus-background-color: var(--rose-pine-surface1) !important;
+  --toolbar-field-focus-border-color: var(--rose-pine-accent) !important;
+  --arrowpanel-background: var(--rose-pine-surface0) !important;
+  --arrowpanel-color: var(--rose-pine-text) !important;
+  --arrowpanel-border-color: var(--rose-pine-surface2) !important;
+}
+
+/* ================================
+ * ROSE PINE SPECIFIC CUSTOMIZATIONS
+ * ================================ */
+
+/* Enhanced gold accent for active elements */
+.tabbrowser-tab[selected="true"] {
+  box-shadow: 0 2px 0 var(--rose-pine-accent) !important;
+  background-color: var(--rose-pine-surface) !important;
+  color: var(--rose-pine-text) !important;
+}
+
+/* Gold glow effect for focused URL bar */
+#urlbar:focus-within {
+  box-shadow: 0 0 0 1px var(--rose-pine-accent), 
+              0 0 8px rgba(246, 193, 119, 0.3) !important;
+}
+
+/* Subtle gold tint for hover states */
+.toolbarbutton-1:hover {
+  box-shadow: inset 0 0 0 1px rgba(246, 193, 119, 0.2) !important;
+  background-color: var(--rose-pine-surface) !important;
+}
+
+/* Gold accent for workspace indicator */
+#zen-workspaces-button[active="true"] {
+  background-color: rgba(246, 193, 119, 0.1) !important;
+  border: 1px solid var(--rose-pine-accent) !important;
+}
+
+/* Rose Pine gold loading indicators */
+.tab-throbber,
+.tab-icon-pending {
+  filter: brightness(0) saturate(100%) invert(85%) sepia(35%) saturate(1000%) 
+          hue-rotate(15deg) brightness(95%) contrast(90%);
+}
+
+/* Enhanced sidebar with gold accent */
+[zen-sidebar-expanded="true"] #sidebar-box {
+  border-right: 2px solid var(--rose-pine-accent) !important;
+  background-color: var(--rose-pine-base) !important;
+}
+
+/* Gold progress bars and loading elements */
+progress {
+  background-color: var(--rose-pine-surface0) !important;
+}
+
+progress::-moz-progress-bar {
+  background-color: var(--rose-pine-accent) !important;
+}
+
+/* Rose Pine selection colors */
+::selection {
+  background-color: rgba(246, 193, 119, 0.3) !important;
+  color: var(--rose-pine-text) !important;
+}
+
+/* Enhanced status panel with gold accent */
+#statuspanel {
+  border-left: 3px solid var(--rose-pine-accent) !important;
+  background-color: var(--rose-pine-surface) !important;
+}
+
+/* Rose Pine specific error/warning/info styling using theme colors */
+.notificationbox-stack notification[type="info"] {
+  background-color: var(--rose-pine-pine) !important;
+  border-color: var(--rose-pine-foam) !important;
+  color: var(--rose-pine-text) !important;
+}
+
+.notificationbox-stack notification[type="warning"] {
+  background-color: var(--rose-pine-gold) !important;
+  border-color: var(--rose-pine-rose) !important;
+  color: var(--rose-pine-base) !important;
+}
+
+.notificationbox-stack notification[type="critical"] {
+  background-color: var(--rose-pine-love) !important;
+  border-color: var(--rose-pine-love) !important;
+  color: var(--rose-pine-text) !important;
+}
+
+/* Rose Pine specific inactive tab styling */
+.tabbrowser-tab:not([selected="true"]) {
+  color: var(--rose-pine-subtle) !important;
+  background-color: var(--rose-pine-base) !important;
+}
+
+.tabbrowser-tab:not([selected="true"]):hover {
+  background-color: var(--rose-pine-surface) !important;
+  color: var(--rose-pine-text) !important;
+}
+
+/* Rose Pine specific toolbar styling with soho vibes */
+#nav-bar {
+  background-color: var(--rose-pine-base) !important;
+  border-bottom: 1px solid var(--rose-pine-overlay) !important;
+}
+
+#TabsToolbar {
+  background-color: var(--rose-pine-base) !important;
+  border-bottom: 1px solid var(--rose-pine-overlay) !important;
+}
+
+/* Rose Pine specific menu styling */
+menupopup {
+  background-color: var(--rose-pine-surface) !important;
+  border: 1px solid var(--rose-pine-overlay) !important;
+}
+
+menuitem:hover {
+  background-color: var(--rose-pine-highlight-low) !important;
+  color: var(--rose-pine-gold) !important;
+}
+
+/* Rose Pine specific scrollbar styling */
+scrollbar thumb {
+  background-color: var(--rose-pine-overlay) !important;
+}
+
+scrollbar thumb:hover {
+  background-color: var(--rose-pine-highlight-med) !important;
+}
+
+/* Rose Pine specific find bar styling */
+.findbar {
+  background-color: var(--rose-pine-surface) !important;
+  border: 1px solid var(--rose-pine-overlay) !important;
+}
+
+.findbar textbox {
+  background-color: var(--rose-pine-highlight-low) !important;
+  color: var(--rose-pine-text) !important;
+  border: 1px solid var(--rose-pine-highlight-med) !important;
+}
+
+/* Rose Pine specific close button styling using love color */
+.tab-close-button:hover {
+  background-color: var(--rose-pine-love) !important;
+  color: var(--rose-pine-text) !important;
+  fill: var(--rose-pine-text) !important;
+}
+
+/* Rose Pine specific visual selection for multi-select using iris */
+.tabbrowser-tab[multiselected="true"]:not([selected="true"]) {
+  background-color: var(--rose-pine-iris) !important;
+  color: var(--rose-pine-base) !important;
+}
+
+/* Enhanced contrast for disabled elements */
+.toolbarbutton-1:disabled {
+  color: var(--rose-pine-muted) !important;
+  fill: var(--rose-pine-muted) !important;
+}
+
+/* Rose Pine specific bookmark styling */
+.bookmark-item:hover {
+  background-color: var(--rose-pine-surface) !important;
+  color: var(--rose-pine-gold) !important;
+}
+
+/* Rose Pine specific URL styling with foam colors */
+#urlbar-input {
+  color: var(--rose-pine-foam) !important;
+}
+
+#urlbar-input::placeholder {
+  color: var(--rose-pine-subtle) !important;
+  opacity: 0.7;
+}
+
+/* Soho-inspired subtle gradients */
+.tabbrowser-tab[selected="true"] {
+  background: linear-gradient(135deg, 
+    var(--rose-pine-surface) 0%, 
+    var(--rose-pine-highlight-low) 50%, 
+    var(--rose-pine-surface) 100%) !important;
+  border-bottom: 2px solid var(--rose-pine-gold) !important;
+}
+
+/* Enhanced visual hierarchy with warm rose pine philosophy */
+#sidebar-header {
+  background-color: var(--rose-pine-surface) !important;
+  border-bottom: 1px solid var(--rose-pine-overlay) !important;
+  color: var(--rose-pine-text) !important;
+}
+
+/* Rose Pine specific panel styling with warm accents */
+.panel-arrowcontent {
+  background-color: var(--rose-pine-surface) !important;
+  border: 1px solid var(--rose-pine-overlay) !important;
+}
+
+/* Enhanced focus states with rose pine colors */
+#urlbar:focus {
+  background-color: var(--rose-pine-surface) !important;
+  color: var(--rose-pine-text) !important;
+}
+
+/* Rose Pine specific workspace styling */
+#zen-workspaces-button {
+  color: var(--rose-pine-subtle) !important;
+}
+
+#zen-workspaces-button:hover {
+  background-color: var(--rose-pine-surface) !important;
+  color: var(--rose-pine-gold) !important;
+}
+
+/* Rose pine color accents for special elements */
+.findbar .findbar-button:hover {
+  background-color: var(--rose-pine-highlight-med) !important;
+  color: var(--rose-pine-rose) !important;
+}
+
+/* Rose Pine specific notification text styling */
+.messageText {
+  color: inherit !important;
+}
+
+/* Highlight states using Rose Pine highlight colors */
+menuitem[disabled="true"] {
+  color: var(--rose-pine-muted) !important;
+}
+
+/* Rose Pine specific visual states */
+.tabbrowser-tab:hover:not([selected="true"]) {
+  background-color: var(--rose-pine-highlight-low) !important;
+}
+
+/* Enhanced contrast for better readability */
+.toolbarbutton-1:not(:hover):not([open="true"]):not([checked="true"]) {
+  color: var(--rose-pine-subtle) !important;
+  fill: var(--rose-pine-subtle) !important;
+}
+
+/* Rose Pine specific active states using appropriate highlight colors */
+.toolbarbutton-1[open="true"],
+.toolbarbutton-1[checked="true"] {
+  background-color: var(--rose-pine-highlight-med) !important;
+  color: var(--rose-pine-text) !important;
+  fill: var(--rose-pine-text) !important;
+}
