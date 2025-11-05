@@ -51,10 +51,10 @@ return {
 		--   ╚═════╝ ╚══════╝  ╚═══╝  ╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚═╝  ╚═══╝ ╚═════╝╚══════╝
 		-- stylua: ignore
 		dashboard.section.buttons.val = {
-		  dashboard.button("f", " " .. " Find file",       "<cmd> Telescope find_files <cr>"),
+		  dashboard.button("f", " " .. " Find file",       "<cmd> FzfLua files <cr>"),
 		  dashboard.button("n", " " .. " New file",        "<cmd> ene <BAR> startinsert <cr>"),
-		  dashboard.button("r", " " .. " Recent files",    "<cmd> Telescope oldfiles <cr>"),
-		  dashboard.button("g", " " .. " Find text",       "<cmd> Telescope live_grep <cr>"),
+		  dashboard.button("r", " " .. " Recent files",    "<cmd> FzfLua oldfiles <cr>"),
+		  dashboard.button("g", " " .. " Find text",       "<cmd> FzfLua live_grep <cr>"),
 		  dashboard.button("s", " " .. " Restore Session", "<cmd> lua require('persistence').load({ last = true }) <cr>"),
 		  dashboard.button("d", "⛃ " .. " Database", "<cmd> DBUI <cr> <cmd> only <cr>"),
 		  dashboard.button("l", "󰒲 " .. " Lazy",            "<cmd> Lazy <cr>"),

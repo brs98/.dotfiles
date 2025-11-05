@@ -10,10 +10,13 @@ vim.api.nvim_set_hl(0, "Folded", { bg = "none" })
 vim.api.nvim_set_hl(0, "SignColumn", { bg = "none" })
 vim.api.nvim_set_hl(0, "NormalNC", { bg = "none" })
 vim.api.nvim_set_hl(0, "WhichKeyFloat", { bg = "none" })
-vim.api.nvim_set_hl(0, "TelescopeBorder", { bg = "none" })
-vim.api.nvim_set_hl(0, "TelescopeNormal", { bg = "none" })
-vim.api.nvim_set_hl(0, "TelescopePromptBorder", { bg = "none" })
-vim.api.nvim_set_hl(0, "TelescopePromptTitle", { bg = "none" })
+
+-- transparent background for fzf-lua
+vim.api.nvim_set_hl(0, "FzfLuaBorder", { bg = "none" })
+vim.api.nvim_set_hl(0, "FzfLuaNormal", { bg = "none" })
+vim.api.nvim_set_hl(0, "FzfLuaPreviewBorder", { bg = "none" })
+vim.api.nvim_set_hl(0, "FzfLuaPreviewNormal", { bg = "none" })
+vim.api.nvim_set_hl(0, "FzfLuaTitle", { bg = "none" })
 
 -- transparent background for neotree
 vim.api.nvim_set_hl(0, "NeoTreeNormal", { bg = "none" })
