@@ -1,8 +1,7 @@
 # Path configuration
-export PATH="$PATH:$HOME/.dotfiles/bin:$HOME/.bun/bin:$HOME/.local/bin"
+export PATH="$PATH:$HOME/.bun/bin:$HOME/.local/bin"
 
-# Add custom completions directory to fpath
-fpath=(~/.dotfiles/bin $fpath)
+# Initialize completions
 autoload -U compinit && compinit
 
 # Zsh options
@@ -25,10 +24,10 @@ alias c="claude"
 # Platform specific aliases
 if [[ "$OSTYPE" == "darwin"* ]]; then
     alias open="open"
-    alias sdf="stow -t ~ -S git nvim wezterm starship zsh tmux scripts aerospace sketchybar"
+    alias sdf="cd ~/.dotfiles && (cd shared && stow -t ~ *) && (cd mac && stow -t ~ *)"
 else
     alias open="xdg-open"
-    alias sdf="stow -t ~ -S git nvim wezterm starship zsh tmux scripts hyprpaper"
+    alias sdf="cd ~/.dotfiles && (cd shared && stow -t ~ *) && (cd linux && stow -t ~ *)"
 fi
 
 # Initialize tools (these need to be installed separately)
