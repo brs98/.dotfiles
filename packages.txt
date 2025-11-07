@@ -2,3 +2,4 @@ stow
 tree
 claude-code
 go
+tmux
