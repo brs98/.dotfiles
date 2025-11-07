@@ -9,15 +9,15 @@ cd "$(dirname "$0")"
 
 # Stow all shared configs
 echo "  → Stowing shared configs..."
-(cd shared && stow --adopt -t ~ *)
+(cd shared && stow -t ~ *)
 
 # Stow platform-specific configs
 if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "  → Detected macOS, stowing mac configs..."
-    (cd mac && stow --adopt -t ~ *)
+    (cd mac && stow -t ~ *)
 else
     echo "  → Detected Linux, stowing linux configs..."
-    (cd linux && stow --adopt -t ~ *)
+    (cd linux && stow -t ~ *)
 fi
 
 echo "✓ Dotfiles installed successfully!"
