@@ -17,7 +17,34 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     (cd mac && stow -t ~ *)
 else
     echo "  → Detected Linux, stowing linux configs..."
-    (cd linux && stow -t ~ *)
+    (cd linux && for dir in */; do
+        if [ "$dir" != "omarchy/" ]; then
+            stow -t ~ "${dir%/}"
+        fi
+    done)
+
+    echo "  → Creating symlinks for omarchy configs..."
+    # Create symlinks for all files in omarchy config directory
+    OMARCHY_SOURCE="$PWD/linux/omarchy/.config/omarchy"
+    OMARCHY_TARGET="$HOME/.config/omarchy"
+
+    if [ -d "$OMARCHY_SOURCE" ]; then
+        # Find all files (not directories) in the omarchy config
+        while IFS= read -r -d '' file; do
+            # Get the relative path from the omarchy config directory
+            rel_path="${file#$OMARCHY_SOURCE/}"
+            target_file="$OMARCHY_TARGET/$rel_path"
+            target_dir="$(dirname "$target_file")"
+
+            # Create target directory if it doesn't exist
+            mkdir -p "$target_dir"
+
+            # Create symlink
+            ln -sf "$file" "$target_file"
+        done < <(find "$OMARCHY_SOURCE" -type f -print0)
+
+        echo "    ✓ Omarchy symlinks created"
+    fi
 fi
 
 echo "✓ Dotfiles installed successfully!"
