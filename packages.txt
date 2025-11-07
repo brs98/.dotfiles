@@ -1,3 +1,4 @@
 stow
 tree
 claude-code
+go
