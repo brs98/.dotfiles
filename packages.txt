@@ -3,3 +3,4 @@ tree
 claude-code
 go
 tmux
+ghostty
