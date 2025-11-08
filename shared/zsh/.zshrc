@@ -20,15 +20,7 @@ alias ls="eza --color=always --long --git --no-filesize --icons=always --no-time
 alias cd="z"
 alias cdd="cd ~/.dotfiles/"
 alias c="claude"
-
-# Platform specific aliases
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    alias open="open"
-    alias sdf="cd ~/.dotfiles && (cd shared && stow -t ~ *) && (cd mac && stow -t ~ *)"
-else
-    alias open="xdg-open"
-    alias sdf="cd ~/.dotfiles && (cd shared && stow -t ~ *) && (cd linux && stow -t ~ *)"
-fi
+alias sdf="cd ~/.dotfiles && ./install.sh"
 
 # Initialize tools (these need to be installed separately)
 eval "$(starship init zsh)"
