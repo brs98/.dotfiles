@@ -4,3 +4,4 @@ claude-code
 go
 tmux
 ghostty
+zsh
