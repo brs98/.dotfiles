@@ -19,6 +19,7 @@ alias cat="bat --theme=base16"
 alias ls="eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions"
 alias cd="z"
 alias cdd="cd ~/.dotfiles/"
+alias cdc="cd ~/.config/"
 alias c="claude"
 alias sdf="cd ~/.dotfiles && ./install.sh"
 
