@@ -1,0 +1,3 @@
+- Zen themes
+- Zoxide message
+- fzf zsh plugin for \*\*

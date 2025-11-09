@@ -8,3 +8,5 @@ ghostty
 zsh
 zsh-autosuggestions
 zsh-syntax-highlighting
+
+zen-browser-bin
