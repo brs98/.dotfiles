@@ -4,4 +4,7 @@ claude-code
 go
 tmux
 ghostty
+
 zsh
+zsh-autosuggestions
+zsh-syntax-highlighting

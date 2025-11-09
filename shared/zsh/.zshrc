@@ -26,4 +26,6 @@ alias sdf="cd ~/.dotfiles && ./install.sh"
 eval "$(starship init zsh)"
 eval "$(zoxide init zsh)"
 
-plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
+# Load zsh plugins
+source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
