@@ -47,7 +47,7 @@ alias ....='cd ../../..'
 if command -v eza &> /dev/null; then
 	alias ls="eza --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions --group-directories-first"
 	alias lsa='ls -a'
-	alias lt='eza --tree --level=2 --long --icons --git'
+	alias lt='eza  --color=always --long --git --no-filesize --icons=always --no-time --no-user --no-permissions --group-directories-first --tree --level=2'
 	alias lta='lt -a'
 fi
 
