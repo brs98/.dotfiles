@@ -1,4 +1,3 @@
-- Zoxide message
 - fzf zsh plugin for \*\*
 - tmux theme
 - auto refresh zen? (not sure it is possible)
