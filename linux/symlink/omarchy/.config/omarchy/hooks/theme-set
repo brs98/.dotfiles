@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# This hook is called when the theme is changed.
+# It reloads tmux configuration to apply the new theme.
+
+# Reload tmux configuration for all running tmux sessions
+if command -v tmux &> /dev/null; then
+    # Check if tmux server is running
+    if tmux info &> /dev/null; then
+        tmux source-file ~/.tmux.conf
+    fi
+fi
