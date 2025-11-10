@@ -1,3 +1,2 @@
-- tmux theme
 - auto refresh zen? (not sure it is possible)
 - backup game save state
