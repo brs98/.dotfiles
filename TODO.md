@@ -1,2 +1,3 @@
 - auto refresh zen? (not sure it is possible)
 - backup game save state
+- cleanup zen css files so that they only change color. some weird border radius sometimes
