@@ -1,3 +1,2 @@
 - auto refresh zen? (not sure it is possible)
-- backup game save state
 - auto update nvim themes on theme change
