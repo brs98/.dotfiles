@@ -1,0 +1,6 @@
+[Unit]
+Description=Backup RetroArch save files to git
+
+[Service]
+Type=oneshot
+ExecStart=%h/.dotfiles/linux/scripts/backup-retroarch-saves.sh

@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch RetroArch saves directory for changes
+After=local-fs.target
+
+[Path]
+PathModified=%h/.dotfiles/shared/stow/retroarch/.config/retroarch/saves
+Unit=retroarch-saves.service
+
+[Install]
+WantedBy=default.target

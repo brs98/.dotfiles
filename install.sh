@@ -104,6 +104,17 @@ else
     if [ -d "linux/stow" ]; then
         (cd linux/stow && stow -t ~ *)
     fi
+
+    # Enable systemd user units
+    echo "  → Enabling systemd user units..."
+    if [ -f "$HOME/.config/systemd/user/retroarch-saves.path" ]; then
+        systemctl --user daemon-reload
+        systemctl --user enable retroarch-saves.path
+        systemctl --user start retroarch-saves.path
+        echo "    ✓ RetroArch saves auto-backup enabled"
+    else
+        echo "    ⚠ Warning: retroarch-saves.path not found, skipping..."
+    fi
 fi
 
 # Create symlinks for shared configs
