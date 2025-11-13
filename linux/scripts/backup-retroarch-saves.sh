@@ -7,8 +7,8 @@ SAVES_DIR="shared/symlink/retroarch/.config/retroarch/saves/dolphin-emu/User/GC/
 
 cd "$DOTFILES_DIR" || exit 1
 
-# Check if there are any changes to save files
-if git diff --quiet "$SAVES_DIR" && git diff --cached --quiet "$SAVES_DIR"; then
+# Check if there are any changes to save files (tracked changes or untracked files)
+if [ -z "$(git status --porcelain "$SAVES_DIR")" ]; then
     # No changes detected
     exit 0
 fi
