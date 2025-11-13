@@ -20,5 +20,4 @@ git add "$SAVES_DIR"
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 git commit -m "Auto-backup RetroArch saves - $TIMESTAMP"
 
-# Optional: Push to remote (uncomment if desired)
-# git push
+git push
