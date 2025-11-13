@@ -89,6 +89,33 @@ setup_zen_browser() {
     echo "    ✓ Zen browser theming setup complete"
 }
 
+# Setup RetroArch saves symlinks
+setup_retroarch_saves() {
+    echo "  → Setting up RetroArch saves symlinks..."
+
+    local dotfiles_dir="$PWD"
+    local source_dir="$dotfiles_dir/shared/symlink/retroarch/.config/retroarch/saves/dolphin-emu/User/GC/USA/Card A"
+    local target_dir="$HOME/.config/retroarch/saves/dolphin-emu/User/GC/USA"
+    local target_link="$target_dir/Card A"
+
+    if [ ! -d "$source_dir" ]; then
+        echo "    ⚠ Warning: RetroArch saves source not found at $source_dir, skipping..."
+        return
+    fi
+
+    # Create parent directory if it doesn't exist
+    mkdir -p "$target_dir"
+
+    # Remove existing directory or symlink if it exists
+    if [ -e "$target_link" ] || [ -L "$target_link" ]; then
+        rm -rf "$target_link"
+    fi
+
+    # Create symlink
+    ln -sf "$source_dir" "$target_link"
+    echo "    ✓ RetroArch Card A saves symlinked"
+}
+
 # Stow all shared configs
 echo "  → Stowing shared configs..."
 if [ -d "shared/stow" ]; then
@@ -126,6 +153,11 @@ if [ -d "shared/symlink" ]; then
             # Skip zen - it has special setup requirements
             if [ "$package_name" = "zen" ]; then
                 setup_zen_browser
+                continue
+            fi
+            # Skip retroarch - it has special setup requirements
+            if [ "$package_name" = "retroarch" ]; then
+                setup_retroarch_saves
                 continue
             fi
             echo "  → Creating symlinks for $package_name..."

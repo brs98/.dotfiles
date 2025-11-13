@@ -3,7 +3,7 @@ Description=Watch RetroArch saves directory for changes
 After=local-fs.target
 
 [Path]
-PathModified=%h/.dotfiles/shared/stow/retroarch/.config/retroarch/saves
+PathModified=%h/.dotfiles/shared/symlink/retroarch/.config/retroarch/saves/dolphin-emu/User/GC/USA/Card A
 Unit=retroarch-saves.service
 
 [Install]

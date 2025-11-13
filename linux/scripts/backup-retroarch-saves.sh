@@ -3,7 +3,7 @@
 # Auto-commit RetroArch save file changes
 
 DOTFILES_DIR="$HOME/.dotfiles"
-SAVES_DIR="shared/stow/retroarch/.config/retroarch/saves"
+SAVES_DIR="shared/symlink/retroarch/.config/retroarch/saves/dolphin-emu/User/GC/USA/Card A"
 
 cd "$DOTFILES_DIR" || exit 1
 
