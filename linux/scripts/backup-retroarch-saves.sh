@@ -3,21 +3,24 @@
 # Auto-commit RetroArch save file changes
 
 DOTFILES_DIR="$HOME/.dotfiles"
-SAVES_DIR="shared/symlink/retroarch/.config/retroarch/saves/dolphin-emu/User/GC/USA/Card A"
+SAVES_SUBMODULE="shared/symlink/retroarch/.config/retroarch/saves"
+CARD_A_DIR="dolphin-emu/User/GC/USA/Card A"
 
-cd "$DOTFILES_DIR" || exit 1
+# Change to the submodule directory
+cd "$DOTFILES_DIR/$SAVES_SUBMODULE" || exit 1
 
-# Check if there are any changes to save files (tracked changes or untracked files)
-if [ -z "$(git status --porcelain "$SAVES_DIR")" ]; then
+# Check if there are any changes to Card A save files (tracked changes or untracked files)
+if [ -z "$(git status --porcelain "$CARD_A_DIR")" ]; then
     # No changes detected
     exit 0
 fi
 
-# Add all changes in the saves directory
-git add "$SAVES_DIR"
+# Add all changes in the Card A directory
+git add "$CARD_A_DIR"
 
 # Create commit with timestamp
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 git commit -m "Auto-backup RetroArch saves - $TIMESTAMP"
 
+# Push from the submodule
 git push
