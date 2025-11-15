@@ -38,3 +38,5 @@
     c = commit
     cm = commit -m
     p = push
+[protocol "file"]
+	allow = always
