@@ -1,6 +1,9 @@
 -- Set bash
--- vim.opt.shell = "/bin/bash" -- macos
-vim.opt.shell = "/run/current-system/sw/bin/bash" -- linux
+vim.opt.shell = "/bin/bash" -- linux/macos
+
+-- Ensure PATH includes common binary locations for tools like fzf, rg, fd, etc.
+-- This is especially important when Neovim is launched from GUI or non-shell contexts
+vim.env.PATH = vim.env.PATH .. ":/usr/local/bin" .. ":/usr/bin" .. ":/bin" .. ":/home/brandon/.local/bin"
 
 -- Do not use swapfiles
 vim.opt.swapfile = false

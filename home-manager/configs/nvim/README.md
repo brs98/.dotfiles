@@ -185,17 +185,14 @@ return {
 
 ### Windows Installation
 
-Installation may require installing build tools and updating the run command for `telescope-fzf-native`
+Windows installation requires the following tools:
 
-See `telescope-fzf-native` documentation for [more details](https://github.com/nvim-telescope/telescope-fzf-native.nvim#installation)
+- `fzf` - Install via scoop, chocolatey, or winget
+- `rg` (ripgrep) - Required for grep and search functionality
+- `fd` - Optional but recommended for better file finding
+- `git` - Required for git-related features
 
-This requires:
-
-- Install CMake and the Microsoft C++ Build Tools on Windows
-
-```lua
-{'nvim-telescope/telescope-fzf-native.nvim', build = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release && cmake --install build --prefix build' }
-```
+See the [fzf-lua Windows documentation](https://github.com/ibhagwan/fzf-lua/blob/main/README-Win.md) for more details.
 
 Alternatively, one can install gcc and make which don't require changing the config,
 the easiest way is to use choco:

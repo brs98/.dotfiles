@@ -5,17 +5,17 @@ return { -- Useful plugin to show you pending keybinds.
 		require("which-key").setup()
 
 		-- Document existing key chains
-		require("which-key").register({
-			["<leader>b"] = { name = "[B]uffers", _ = "which_key_ignore" },
-			["<leader>c"] = { name = "[C]ode", _ = "which_key_ignore" },
-			["<leader>d"] = { name = "[D]ocument", _ = "which_key_ignore" },
-			["<leader>f"] = { name = "[F]ile", _ = "which_key_ignore" },
-			["<leader>g"] = { name = "[G]it", _ = "which_key_ignore" },
-			["<leader>h"] = { name = "[H]arpoon", _ = "which_key_ignore" },
-			["<leader>r"] = { name = "[R]ename / [R]emove / [R]estart", _ = "which_key_ignore" },
-			["<leader>s"] = { name = "[S]earch", _ = "which_key_ignore" },
-			["<leader>t"] = { name = "[T]est", _ = "which_key_ignore" },
-			["<leader>w"] = { name = "[W]orkspace", _ = "which_key_ignore" },
+		require("which-key").add({
+			{ "<leader>b", group = "[B]uffers" },
+			{ "<leader>c", group = "[C]ode" },
+			{ "<leader>d", group = "[D]ocument" },
+			{ "<leader>f", group = "[F]ile" },
+			{ "<leader>g", group = "[G]it" },
+			{ "<leader>h", group = "[H]arpoon" },
+			{ "<leader>r", group = "[R]ename / [R]emove / [R]estart" },
+			{ "<leader>s", group = "[S]earch" },
+			{ "<leader>t", group = "[T]est" },
+			{ "<leader>w", group = "[W]orkspace" },
 		})
 	end,
 }

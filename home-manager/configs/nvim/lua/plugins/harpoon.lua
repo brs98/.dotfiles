@@ -2,6 +2,7 @@ local utils = require("../utils")
 local addDescription = utils.addDescription
 return {
 	"ThePrimeagen/harpoon",
+	branch = "harpoon2",
       --stylua: ignore
       keys = {
         { "<leader>ha", function() require("harpoon.mark").add_file() end, desc = "Add File" },
