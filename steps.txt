@@ -1,4 +1,0 @@
-create user.js file with these contents:
-	user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
-
-ln -sf ~/.dotfiles/symlinks/zen/themes
