@@ -125,7 +125,9 @@ fi
 # Stow platform-specific configs
 if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "  → Detected macOS, stowing mac configs..."
-    (cd mac && stow -t ~ *)
+    if [ -d "mac/stow" ]; then
+        (cd mac/stow && stow -t ~ *)
+    fi
 else
     echo "  → Detected Linux, stowing linux configs..."
     if [ -d "linux/stow" ]; then

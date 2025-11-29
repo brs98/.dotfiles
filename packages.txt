@@ -4,6 +4,10 @@ claude-code
 go
 tmux
 ghostty
+neovim
+fd
+rg
+lazygit
 
 zsh
 zsh-autosuggestions
