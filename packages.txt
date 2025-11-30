@@ -8,6 +8,8 @@ neovim
 fd
 rg
 lazygit
+mise
+bun
 
 zsh
 zsh-autosuggestions
