@@ -1,0 +1,112 @@
+/*
+ * Matte Black Theme for Zen Browser
+ * A sleek, minimal black theme with subtle accent colors
+ */
+
+/* Import base theme styles */
+@import url("base.css");
+
+/* Matte Black Color Palette */
+:root {
+  /* Core Matte Black colors based on provided palette */
+  --matte-black-background: #121212;
+  --matte-black-foreground: #bebebe;
+  --matte-black-dim-foreground: #8a8a8d;
+  --matte-black-cursor-text: #121212;
+  --matte-black-cursor: #eaeaea;
+  --matte-black-selection-background: #333333;
+  
+  /* Normal colors */
+  --matte-black-black: #333333;
+  --matte-black-red: #D35F5F;
+  --matte-black-green: #FFC107;
+  --matte-black-yellow: #b91c1c;
+  --matte-black-blue: #e68e0d;
+  --matte-black-magenta: #D35F5F;
+  --matte-black-cyan: #bebebe;
+  --matte-black-white: #bebebe;
+  
+  /* Bright colors */
+  --matte-black-bright-black: #8a8a8d;
+  --matte-black-bright-red: #B91C1C;
+  --matte-black-bright-green: #FFC107;
+  --matte-black-bright-yellow: #b90a0a;
+  --matte-black-bright-blue: #f59e0b;
+  --matte-black-bright-magenta: #B91C1C;
+  --matte-black-bright-cyan: #eaeaea;
+  --matte-black-bright-white: #ffffff;
+
+  /* Extended palette for better UI coverage */
+  --matte-black-rosewater: #D35F5F;
+  --matte-black-flamingo: #D35F5F;
+  --matte-black-pink: #D35F5F;
+  --matte-black-mauve: #D35F5F;
+  --matte-black-maroon: #B91C1C;
+  --matte-black-peach: #e68e0d;
+  --matte-black-teal: #bebebe;
+  --matte-black-sky: #eaeaea;
+  --matte-black-sapphire: #eaeaea;
+  --matte-black-lavender: #eaeaea;
+  --matte-black-text: #bebebe;
+  --matte-black-subtext1: #8a8a8d;
+  --matte-black-subtext0: #707070;
+  --matte-black-overlay2: #555555;
+  --matte-black-overlay1: #444444;
+  --matte-black-overlay0: #333333;
+  --matte-black-surface2: #2a2a2a;
+  --matte-black-surface1: #1f1f1f;
+  --matte-black-surface0: #181818;
+  --matte-black-base: #121212;
+  --matte-black-mantle: #0f0f0f;
+  --matte-black-crust: #0a0a0a;
+
+  /* Primary accent: Matte Black orange/amber */
+  --matte-black-accent: #f59e0b;
+
+  /* Theme variable mappings */
+  --theme-rosewater: var(--matte-black-rosewater);
+  --theme-flamingo: var(--matte-black-flamingo);
+  --theme-pink: var(--matte-black-pink);
+  --theme-mauve: var(--matte-black-mauve);
+  --theme-red: var(--matte-black-red);
+  --theme-maroon: var(--matte-black-maroon);
+  --theme-peach: var(--matte-black-peach);
+  --theme-yellow: var(--matte-black-green); /* Using green (FFC107) as it's more yellow */
+  --theme-green: var(--matte-black-green);
+  --theme-teal: var(--matte-black-teal);
+  --theme-sky: var(--matte-black-sky);
+  --theme-sapphire: var(--matte-black-sapphire);
+  --theme-blue: var(--matte-black-blue);
+  --theme-lavender: var(--matte-black-lavender);
+  --theme-text: var(--matte-black-text);
+  --theme-subtext1: var(--matte-black-subtext1);
+  --theme-subtext0: var(--matte-black-subtext0);
+  --theme-overlay2: var(--matte-black-overlay2);
+  --theme-overlay1: var(--matte-black-overlay1);
+  --theme-overlay0: var(--matte-black-overlay0);
+  --theme-surface2: var(--matte-black-surface2);
+  --theme-surface1: var(--matte-black-surface1);
+  --theme-surface0: var(--matte-black-surface0);
+  --theme-base: var(--matte-black-base);
+  --theme-mantle: var(--matte-black-mantle);
+  --theme-crust: var(--matte-black-crust);
+  --theme-accent: var(--matte-black-accent);
+
+  /* Zen Browser color variable overrides */
+  --zen-primary-color: var(--matte-black-accent) !important;
+  --zen-main-browser-background-toolbar: var(--matte-black-base) !important;
+  --zen-main-browser-background: var(--matte-black-base) !important;
+  --toolbox-textcolor: var(--matte-black-text) !important;
+
+  /* Additional color variable overrides */
+  --toolbar-bgcolor: var(--matte-black-base) !important;
+  --toolbar-color: var(--matte-black-text) !important;
+  --toolbar-field-background-color: var(--matte-black-surface0) !important;
+  --toolbar-field-color: var(--matte-black-text) !important;
+  --toolbar-field-border-color: var(--matte-black-surface2) !important;
+  --toolbar-field-focus-background-color: var(--matte-black-surface1) !important;
+  --toolbar-field-focus-border-color: var(--matte-black-accent) !important;
+  --arrowpanel-background: var(--matte-black-surface0) !important;
+  --arrowpanel-color: var(--matte-black-text) !important;
+  --arrowpanel-border-color: var(--matte-black-surface2) !important;
+}
