@@ -116,6 +116,27 @@ setup_retroarch_saves() {
     echo "    ✓ RetroArch Card A saves symlinked"
 }
 
+# Make all scripts executable
+make_scripts_executable() {
+    echo "  → Making scripts executable..."
+
+    local scripts_dirs=(
+        "shared/stow/scripts/.local/bin"
+        "mac/stow/scripts/.local/bin"
+        "linux/stow/scripts/.local/bin"
+    )
+
+    for scripts_dir in "${scripts_dirs[@]}"; do
+        if [ -d "$scripts_dir" ]; then
+            find "$scripts_dir" -type f -exec chmod +x {} \;
+            echo "    ✓ Made scripts in $scripts_dir executable"
+        fi
+    done
+}
+
+# Make scripts executable before stowing
+make_scripts_executable
+
 # Stow all shared configs
 echo "  → Stowing shared configs..."
 if [ -d "shared/stow" ]; then
