@@ -1,11 +1,11 @@
 return {
 	{
-		"bjarneo/ethereal.nvim",
-		name = "ethereal",
+		"folke/tokyonight.nvim",
+		name = "tokyonight",
 		lazy = false,
 		priority = 1000,
 		config = function()
-			vim.cmd("colorscheme ethereal")
+			vim.cmd("colorscheme tokyonight")
 		end,
 	},
 }
