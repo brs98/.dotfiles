@@ -100,13 +100,13 @@ local function navigate_pane_or_tab(direction)
 end
 
 local act = wezterm.action
-config.keys = {
-	-- Create new tab
+config.keys = { -- Create new tab
 	{
 		key = "t",
 		mods = "CTRL",
 		action = act.SpawnTab("CurrentPaneDomain"),
 	},
+	{ key = "Enter", mods = "SHIFT", action = wezterm.action({ SendString = "\x1b\r" }) },
 	-- Close tab
 	{
 		key = "w",
