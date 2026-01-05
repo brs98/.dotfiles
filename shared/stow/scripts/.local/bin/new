@@ -1,16 +1,31 @@
 #!/bin/bash
 
 # CLI script to create a new git worktree and wezterm workspace
-# Usage: new <worktree-name> [--cwd <directory>]
+# Usage: new <worktree-name> [-f|--frontend] [-b|--backend] [--cwd <directory>]
 
 set -e
 
+# Repository paths
+FRONTEND_REPO="~/work/fluid-mono-with-backend/fluid-mono.git"
+BACKEND_REPO="~/work/fluid-mono-with-backend/fluid.git"
+
 WORKTREE_NAME=""
-CWD="~/work/fluid-mono.git"
+CWD="$FRONTEND_REPO"
+DEFAULT_BRANCH="main"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        -f|--frontend)
+            CWD="$FRONTEND_REPO"
+            DEFAULT_BRANCH="main"
+            shift
+            ;;
+        -b|--backend)
+            CWD="$BACKEND_REPO"
+            DEFAULT_BRANCH="master"
+            shift
+            ;;
         --cwd)
             CWD="$2"
             shift 2
@@ -28,9 +43,18 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "$WORKTREE_NAME" ]; then
-    echo "Usage: new <worktree-name> [--cwd <directory>]"
-    echo "Example: new brandon/feature-1"
-    echo "Example: new brandon/feature-1 --cwd ~/my-project"
+    echo "Usage: new <worktree-name> [-f|--frontend] [-b|--backend] [--cwd <directory>]"
+    echo ""
+    echo "Options:"
+    echo "  -f, --frontend    Use frontend repo (fluid-mono.git) [default]"
+    echo "  -b, --backend     Use backend repo (fluid.git)"
+    echo "  --cwd <dir>       Use custom directory"
+    echo ""
+    echo "Examples:"
+    echo "  new brandon/feature-1           # Creates in frontend repo (default)"
+    echo "  new brandon/feature-1 -b        # Creates in backend repo"
+    echo "  new brandon/feature-1 --backend # Creates in backend repo"
+    echo "  new brandon/feature-1 --cwd ~/my-project"
     exit 1
 fi
 
@@ -41,6 +65,6 @@ osascript -e 'tell application "WezTerm" to activate' &&
 osascript -e 'tell application "System Events" to keystroke "s" using {command down, option down}' && 
 osascript -e 'tell application "System Events" to keystroke "'$WORKTREE_NAME'"' && 
 osascript -e 'tell application "System Events" to key code 36' && 
-wezterm cli send-text --pane-id "$PANE_ID" "cd $CWD/main && git checkout main && git pull origin main && cd $CWD && git worktree add $WORKTREE_NAME && cd $WORKTREE_NAME && git push -u"
+wezterm cli send-text --pane-id "$PANE_ID" "cd $CWD/$DEFAULT_BRANCH && git checkout $DEFAULT_BRANCH && git pull origin $DEFAULT_BRANCH && cd $CWD && git worktree add $WORKTREE_NAME && cd $WORKTREE_NAME && git push -u"
 
 echo "Created wezterm workspace '$WORKTREE_NAME' with git worktree"
