@@ -5,13 +5,48 @@ local wezterm = require("wezterm")
 local config = wezterm.config_builder()
 
 config.enable_wayland = false
-config.color_scheme = "catppuccin-mocha"
+
+-- Flowstate WezTerm integration
+local flowstate_colors = wezterm.home_dir .. "/Library/Application Support/Flowstate/wezterm-colors.lua"
+wezterm.add_to_config_reload_watch_list(flowstate_colors)
+config.colors = dofile(flowstate_colors)
+
+-- Fix tab bar contrast (Flowstate's tab_bar colors have poor contrast)
+-- Use ANSI colors from Flowstate theme for better visibility
+config.colors.tab_bar = {
+	background = config.colors.background,
+	active_tab = {
+		bg_color = config.colors.background,
+		fg_color = config.colors.ansi[8], -- Foreground color (bright cyan)
+	},
+	inactive_tab = {
+		bg_color = config.colors.background,
+		fg_color = config.colors.ansi[7], -- Light gray
+	},
+	inactive_tab_hover = {
+		bg_color = config.colors.selection_bg,
+		fg_color = config.colors.ansi[8],
+	},
+	new_tab = {
+		bg_color = config.colors.background,
+		fg_color = config.colors.ansi[7],
+	},
+	new_tab_hover = {
+		bg_color = config.colors.selection_bg,
+		fg_color = config.colors.ansi[8],
+	},
+}
 
 config.audible_bell = "Disabled"
 
 local bar = wezterm.plugin.require("https://github.com/adriankarlen/bar.wezterm")
 bar.apply_to_config(config, {
-	-- separator = "|",
+	position = "bottom",
+	max_width = 32,
+	padding = {
+		left = 1,
+		right = 1,
+	},
 	modules = {
 		pane = {
 			enabled = false,
@@ -28,12 +63,14 @@ bar.apply_to_config(config, {
 		workspace = {
 			enabled = true,
 			icon = " ",
-			color = 8,
-			max_width = 64,
+			color = 8, -- Bright cyan (#70dcef) for better contrast
+			max_width = 32,
 		},
 		tabs = {
-			active_tab_fg = 3,
-			inactive_tab_fg = 8,
+			-- Note: These only work with named color_scheme, not config.colors
+			-- Tab colors are set above via config.colors.tab_bar override
+			active_tab_fg = 8,
+			inactive_tab_fg = 7,
 		},
 	},
 })
@@ -63,6 +100,9 @@ config.enable_csi_u_key_encoding = false
 if wezterm.target_triple:find("darwin") then
 	config.native_macos_fullscreen_mode = false
 	config.use_dead_keys = false
+	-- Treat Option as raw modifier for keybindings (disables special character input via Option+key)
+	config.send_composed_key_when_left_alt_is_pressed = false
+	config.send_composed_key_when_right_alt_is_pressed = false
 end
 
 -- Better text rendering
@@ -127,18 +167,14 @@ config.keys = { -- Create new tab
 			name = "default",
 		}),
 	},
-	-- Switch to config workspace
+	-- Switch to .dotfiles workspace
 	{
 		key = "2",
 		mods = "SUPER|ALT",
 		action = act.SwitchToWorkspace({
-			name = "config",
+			name = ".dotfiles",
 			spawn = {
-				args = {
-					os.getenv("SHELL"),
-					"-c",
-					"cd ~/.dotfiles && nvim",
-				},
+				cwd = wezterm.home_dir .. "/.dotfiles",
 			},
 		}),
 	},
