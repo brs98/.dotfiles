@@ -25,10 +25,6 @@
 [rebase]
     updateRefs = true
 
-[delta]
-    navigate = true
-    side-by-side = true
-
 [alias]
     co = checkout
     br = branch
@@ -40,3 +36,106 @@
     p = push
 [protocol "file"]
 	allow = always
+
+# Ricekit delta Configuration
+# Preset: full
+[interactive]
+    diffFilter = delta --color-only
+
+[merge]
+    conflictstyle = diff3
+
+[diff]
+    colorMoved = default
+
+# Ricekit delta Configuration
+# Preset: minimal
+[interactive]
+    diffFilter = delta --color-only
+
+[merge]
+    conflictstyle = diff3
+
+[diff]
+    colorMoved = default
+
+# Ricekit delta Configuration
+# Preset: side-by-side
+[interactive]
+    diffFilter = delta --color-only
+
+[merge]
+    conflictstyle = diff3
+
+[diff]
+    colorMoved = default
+
+# Ricekit delta Configuration
+# Preset: full
+[interactive]
+    diffFilter = delta --color-only
+
+[merge]
+    conflictstyle = diff3
+
+[diff]
+    colorMoved = default
+
+# Ricekit delta Configuration
+# Preset: minimal
+[interactive]
+    diffFilter = delta --color-only
+
+[merge]
+    conflictstyle = diff3
+
+[diff]
+    colorMoved = default
+
+# Ricekit delta Configuration
+# Preset: full
+[core]
+    pager = delta
+
+[interactive]
+    diffFilter = delta --color-only
+
+[merge]
+    conflictstyle = diff3
+
+[diff]
+    colorMoved = default
+
+# Ricekit delta Configuration
+# Preset: minimal
+[core]
+    pager = delta
+
+[interactive]
+    diffFilter = delta --color-only
+
+[merge]
+    conflictstyle = diff3
+
+[diff]
+    colorMoved = default
+
+# Ricekit delta Configuration
+# Preset: side-by-side
+[core]
+    pager = delta
+
+[delta]
+    navigate = true
+    line-numbers = true
+    side-by-side = true
+    syntax-theme = ansi
+
+[interactive]
+    diffFilter = delta --color-only
+
+[merge]
+    conflictstyle = diff3
+
+[diff]
+    colorMoved = default

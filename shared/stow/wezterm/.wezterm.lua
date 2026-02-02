@@ -6,13 +6,13 @@ local config = wezterm.config_builder()
 
 config.enable_wayland = false
 
--- Flowstate WezTerm integration
-local flowstate_colors = wezterm.home_dir .. "/Library/Application Support/Flowstate/wezterm-colors.lua"
-wezterm.add_to_config_reload_watch_list(flowstate_colors)
-config.colors = dofile(flowstate_colors)
+-- Ricekit WezTerm integration
+local ricekit_colors = wezterm.home_dir .. "/Library/Application Support/Ricekit/wezterm-colors.lua"
+wezterm.add_to_config_reload_watch_list(ricekit_colors)
+config.colors = dofile(ricekit_colors)
 
--- Fix tab bar contrast (Flowstate's tab_bar colors have poor contrast)
--- Use ANSI colors from Flowstate theme for better visibility
+-- Fix tab bar contrast (Ricekit's tab_bar colors have poor contrast)
+-- Use ANSI colors from Ricekit theme for better visibility
 config.colors.tab_bar = {
 	background = config.colors.background,
 	active_tab = {

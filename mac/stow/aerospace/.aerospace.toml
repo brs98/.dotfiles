@@ -12,7 +12,9 @@ after-login-command = []
 # You can use it to add commands that run after AeroSpace startup.
 # 'after-startup-command' is run after 'after-login-command'
 # Available commands : https://nikitabobko.github.io/AeroSpace/commands
-after-startup-command = []
+after-startup-command = [
+  'exec-and-forget source "~/Library/Application Support/Ricekit/current/theme/aerospace-borders.sh"'
+]
 
 # Start AeroSpace at login
 start-at-login = true
@@ -70,7 +72,7 @@ inner.horizontal = 12
 inner.vertical =   12
 outer.left =       12
 outer.bottom =     12
-outer.top =        [{ monitor.built-in = 12 }, 40]
+outer.top =        [{ monitor.built-in = 24 }, 56]
 outer.right =      12
 
 # 'main' binding mode declaration
@@ -102,10 +104,10 @@ cmd-slash = 'layout tiles horizontal vertical'
 cmd-comma = 'layout accordion horizontal vertical'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#focus
-ctrl-alt-left = 'focus left'
-ctrl-alt-down = 'focus down'
-ctrl-alt-up = 'focus up'
-ctrl-alt-right = 'focus right'
+ctrl-alt-left = 'focus --boundaries all-monitors-outer-frame left'
+ctrl-alt-down = 'focus --boundaries all-monitors-outer-frame down'
+ctrl-alt-up = 'focus --boundaries all-monitors-outer-frame up'
+ctrl-alt-right = 'focus --boundaries all-monitors-outer-frame right'
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#move
 cmd-shift-h = 'move left'
@@ -114,6 +116,10 @@ cmd-shift-k = 'move up'
 cmd-shift-l = 'move right'
 cmd-shift-left = 'move left'
 cmd-shift-right = 'move right'
+
+# Move window to different monitor
+ctrl-cmd-left = 'move-node-to-monitor --wrap-around prev'
+ctrl-cmd-right = 'move-node-to-monitor --wrap-around next'
 
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#workspace
