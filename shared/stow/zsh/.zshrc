@@ -28,9 +28,9 @@ if command -v zoxide &> /dev/null; then
   }
 fi
 
-open() {
-  xdg-open "$@" >/dev/null 2>&1 &
-}
+# open() {
+#   xdg-open "$@" >/dev/null 2>&1 &
+# }
 
 alias cdc="cd ~/.config/"
 alias cdd="cd ~/.dotfiles/"
@@ -74,3 +74,14 @@ else
   source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 fi
 eval "$(mise activate zsh)"
+
+# Local binaries
+export PATH="$HOME/.local/bin:$PATH"
+
+# pnpm
+export PNPM_HOME="/Users/brandon/Library/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end

@@ -21,6 +21,7 @@
 ]]
 
 -- import globals
+require("custom.theme")
 require("custom.globals")
 require("custom.options")
 require("custom.keymaps")
