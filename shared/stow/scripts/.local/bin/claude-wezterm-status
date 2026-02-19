@@ -1,0 +1,30 @@
+#!/bin/bash
+# Bridge between Claude Code hooks and WezTerm display system
+# Usage: claude-wezterm-status set [permission|idle]
+#        claude-wezterm-status clear
+
+# Skip silently if not running inside WezTerm
+[ -z "$WEZTERM_UNIX_SOCKET" ] && exit 0
+
+set_user_var() {
+  printf '\033]1337;SetUserVar=%s=%s\007' "$1" "$(printf '%s' "$2" | base64)" > /dev/tty 2>/dev/null
+}
+
+case "${1:-}" in
+  set)
+    TYPE="${2:-idle}"
+    set_user_var claude_status "$TYPE"
+    case "$TYPE" in
+      permission) wezterm cli set-tab-title "🔐 Needs Permission" 2>/dev/null ;;
+      idle)       wezterm cli set-tab-title "💤 Waiting for Input" 2>/dev/null ;;
+    esac
+    ;;
+  clear)
+    set_user_var claude_status ""
+    wezterm cli set-tab-title "" 2>/dev/null
+    ;;
+  *)
+    echo "Usage: claude-wezterm-status set [permission|idle] | clear"
+    exit 1
+    ;;
+esac

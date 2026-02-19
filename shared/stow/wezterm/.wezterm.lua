@@ -37,7 +37,25 @@ config.colors.tab_bar = {
 	},
 }
 
+-- Pane borders: match jankyborders active color and dim inactive panes
+config.colors.split = config.colors.ansi[5] -- Same accent as jankyborders active_color
+config.inactive_pane_hsb = {
+	saturation = 0.7,
+	brightness = 0.4,
+}
+
 config.audible_bell = "Disabled"
+
+-- Claude Code alert: toast notification when waiting for input
+wezterm.on("user-var-changed", function(window, pane, name, value)
+	if name == "claude_status" and value ~= "" then
+		local messages = {
+			permission = "Needs permission approval",
+			idle = "Waiting for your input",
+		}
+		window:toast_notification("Claude Code", messages[value] or "Needs attention", nil, 5000)
+	end
+end)
 
 local bar = wezterm.plugin.require("https://github.com/adriankarlen/bar.wezterm")
 bar.apply_to_config(config, {
