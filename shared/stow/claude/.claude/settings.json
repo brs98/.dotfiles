@@ -49,16 +49,6 @@
   },
   "alwaysThinkingEnabled": true,
   "hooks": {
-    "Notification": [
-      {
-        "matcher": "permission_prompt",
-        "hooks": [{ "type": "command", "command": "claude-wezterm-status set permission" }]
-      },
-      {
-        "matcher": "idle_prompt",
-        "hooks": [{ "type": "command", "command": "claude-wezterm-status set idle" }]
-      }
-    ],
     "Stop": [
       {
         "matcher": "",

@@ -11,8 +11,9 @@ setopt HIST_SAVE_NO_DUPS
 setopt SHARE_HISTORY
 
 # Aliases
-alias c="claude"
+alias c="claude --dangerously-skip-permissions"
 alias cat="bat --theme=base16"
+alias mizu="ssh mizu@100.121.123.91"
 
 # Better cd
 if command -v zoxide &> /dev/null; then
