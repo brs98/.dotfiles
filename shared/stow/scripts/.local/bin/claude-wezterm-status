@@ -25,6 +25,8 @@ case "${1:-}" in
   set)
     set_user_var claude_status "idle"
     wezterm cli set-tab-title "💤 Waiting for Input" 2>/dev/null
+    folder="${PWD##*/}"
+    osascript -e "display notification \"Waiting for your input in $folder\" with title \"Claude Code\"" 2>/dev/null &
     ;;
   clear)
     set_user_var claude_status ""
