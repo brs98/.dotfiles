@@ -5,8 +5,20 @@
 # Skip silently if not running inside WezTerm
 [ -z "$WEZTERM_UNIX_SOCKET" ] && exit 0
 
+# Resolve the pane's actual PTY (/dev/tty isn't available in hook subprocesses)
+pane_tty=$(wezterm cli list --format json 2>/dev/null \
+  | python3 -c "
+import json, sys, os
+pane_id = int(os.environ.get('WEZTERM_PANE', -1))
+for p in json.load(sys.stdin):
+    if p['pane_id'] == pane_id:
+        print(p.get('tty_name', ''))
+        break
+" 2>/dev/null)
+[ -z "$pane_tty" ] && exit 0
+
 set_user_var() {
-  printf '\033]1337;SetUserVar=%s=%s\007' "$1" "$(printf '%s' "$2" | base64)" > /dev/tty 2>/dev/null
+  printf '\033]1337;SetUserVar=%s=%s\007' "$1" "$(printf '%s' "$2" | base64)" > "$pane_tty" 2>/dev/null
 }
 
 case "${1:-}" in

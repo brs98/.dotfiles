@@ -44,66 +44,35 @@ config.inactive_pane_hsb = {
 	brightness = 0.4,
 }
 
+config.use_fancy_tab_bar = false
+config.tab_bar_at_bottom = true
+config.tab_max_width = 32
 config.audible_bell = "Disabled"
 
 -- Claude Code alert: toast notification when waiting for input
 wezterm.on("user-var-changed", function(window, pane, name, value)
 	if name == "claude_status" and value ~= "" then
-		window:toast_notification("Claude Code", "Waiting for your input", nil, 5000)
+		local messages = {
+			permission = "Needs permission approval",
+			idle = "Waiting for your input",
+		}
+		window:toast_notification("Claude Code", messages[value] or "Needs attention", nil, 5000)
 	end
 end)
 
--- Show current directory in the top title bar
-wezterm.on("format-window-title", function(tab, pane, tabs, panes, cfg)
-	local cwd_uri = pane.current_working_dir
-	if cwd_uri then
-		local cwd = cwd_uri.file_path
-		local home = wezterm.home_dir
-		if cwd and home and cwd:sub(1, #home) == home then
-			cwd = "~" .. cwd:sub(#home + 1)
-		end
-		if cwd and #cwd > 1 and cwd:sub(-1) == "/" then
-			cwd = cwd:sub(1, -2)
-		end
-		if cwd and cwd ~= "" then
-			return cwd
-		end
+-- Custom tab title: "1 → zsh" (respects explicitly set tab titles)
+wezterm.on("format-tab-title", function(tab, _, _, _, _, max_width)
+	local title = tab.tab_title
+	if not title or title == "" then
+		title = tab.active_pane.title
 	end
-	return "WezTerm"
+	local index = tab.tab_index + 1
+	local formatted = index .. " → " .. title
+	if #formatted > max_width - 2 then
+		formatted = wezterm.truncate_right(formatted, max_width - 3) .. "…"
+	end
+	return " " .. formatted .. " "
 end)
-
-local bar = wezterm.plugin.require("https://github.com/adriankarlen/bar.wezterm")
-bar.apply_to_config(config, {
-	position = "bottom",
-	max_width = 32,
-	padding = {
-		left = 1,
-		right = 1,
-	},
-	modules = {
-		pane = {
-			enabled = false,
-		},
-		username = {
-			enabled = false,
-		},
-		clock = {
-			enabled = false,
-		},
-		hostname = {
-			enabled = false,
-		},
-		workspace = {
-			enabled = false,
-		},
-		tabs = {
-			-- Note: These only work with named color_scheme, not config.colors
-			-- Tab colors are set above via config.colors.tab_bar override
-			active_tab_fg = 8,
-			inactive_tab_fg = 7,
-		},
-	},
-})
 
 config.font = wezterm.font("Hack Nerd Font")
 
@@ -121,20 +90,8 @@ config.initial_cols = 120
 config.initial_rows = 35
 
 -- Window configuration
-config.window_decorations = "INTEGRATED_BUTTONS|RESIZE"
+config.window_decorations = "RESIZE"
 config.window_background_opacity = 0.7
-
--- Top bar: show current directory in the integrated title bar
-config.window_frame = {
-	font = wezterm.font("Hack Nerd Font"),
-	font_size = 14.0,
-	active_titlebar_bg = config.colors.background,
-	inactive_titlebar_bg = config.colors.background,
-	active_titlebar_fg = config.colors.ansi[8],
-	inactive_titlebar_fg = config.colors.ansi[7],
-	active_titlebar_border_bottom = config.colors.background,
-	inactive_titlebar_border_bottom = config.colors.background,
-}
 config.enable_kitty_keyboard = true
 config.enable_csi_u_key_encoding = false
 
@@ -150,6 +107,16 @@ end
 -- Better text rendering
 config.freetype_load_target = "Normal"
 config.freetype_render_target = "HorizontalLcd"
+
+-- Listen for workspace updates and update the status bar
+-- wezterm.on("update-status", function(window, _)
+-- 	local status = wezterm.format({
+-- 		{ Attribute = { Intensity = "Bold" } },
+-- 		{ Foreground = { AnsiColor = "Purple" } },
+-- 		{ Text = "  " .. window:active_workspace() .. "  " },
+-- 	})
+-- 	window:set_right_status(status)
+-- end)
 
 -- Handles same key for navigating panes and tabs
 local function navigate_pane_or_tab(direction)
