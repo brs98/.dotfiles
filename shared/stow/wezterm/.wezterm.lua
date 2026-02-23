@@ -6,29 +6,29 @@ local config = wezterm.config_builder()
 
 config.enable_wayland = false
 
--- Ricekit WezTerm integration
-local ricekit_colors = wezterm.home_dir .. "/Library/Application Support/Ricekit/wezterm-colors.lua"
+-- Ricekit v2 WezTerm integration
+local ricekit_colors = wezterm.home_dir .. "/Library/Application Support/ricekit/active/wezterm/ricekit-colors.lua"
 wezterm.add_to_config_reload_watch_list(ricekit_colors)
 config.colors = dofile(ricekit_colors)
 
 -- Fix tab bar contrast (Ricekit's tab_bar colors have poor contrast)
 -- Use ANSI colors from Ricekit theme for better visibility
 config.colors.tab_bar = {
-	background = config.colors.background,
+	background = "transparent",
 	active_tab = {
-		bg_color = config.colors.background,
-		fg_color = config.colors.ansi[8], -- Foreground color (bright cyan)
+		bg_color = "transparent",
+		fg_color = config.colors.ansi[7], -- Light gray
 	},
 	inactive_tab = {
-		bg_color = config.colors.background,
-		fg_color = config.colors.ansi[7], -- Light gray
+		bg_color = "transparent",
+		fg_color = config.colors.ansi[8], -- Brighter for inactive
 	},
 	inactive_tab_hover = {
 		bg_color = config.colors.selection_bg,
 		fg_color = config.colors.ansi[8],
 	},
 	new_tab = {
-		bg_color = config.colors.background,
+		bg_color = "transparent",
 		fg_color = config.colors.ansi[7],
 	},
 	new_tab_hover = {
