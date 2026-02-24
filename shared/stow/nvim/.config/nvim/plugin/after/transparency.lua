@@ -12,6 +12,14 @@ local function set_transparency()
   vim.api.nvim_set_hl(0, "NormalNC", { bg = "none" })
   vim.api.nvim_set_hl(0, "WhichKeyFloat", { bg = "none" })
 
+  -- transparent tabline (bufferline highlights are configured in the plugin itself)
+  vim.api.nvim_set_hl(0, "TabLine", { bg = "none" })
+  vim.api.nvim_set_hl(0, "TabLineFill", { bg = "none" })
+
+  -- transparent statusline / lualine
+  vim.api.nvim_set_hl(0, "StatusLine", { bg = "none" })
+  vim.api.nvim_set_hl(0, "StatusLineNC", { bg = "none" })
+
   -- transparent background for fzf-lua
   vim.api.nvim_set_hl(0, "FzfLuaBorder", { bg = "none" })
   vim.api.nvim_set_hl(0, "FzfLuaNormal", { bg = "none" })
