@@ -1,1 +1,1 @@
-/Users/brandon/Library/Application Support/ricekit/active/neovim/ricekit.lua
+/Users/brandon/.config/ricekit/active/neovim/ricekit.lua
