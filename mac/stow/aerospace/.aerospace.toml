@@ -144,7 +144,7 @@ cmd-shift-7 = 'move-node-to-workspace 7'
 cmd-shift-8 = 'move-node-to-workspace 8'
 cmd-shift-9 = 'move-node-to-workspace 9'
 
-cmd-shift-f = 'fullscreen'
+cmd-shift-f = ['fullscreen', 'exec-and-forget ~/.config/aerospace/fullscreen-toggle.sh']
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
 cmd-tab = 'workspace-back-and-forth'

@@ -9,6 +9,10 @@ config.enable_wayland = false
 -- Ricekit v2 WezTerm integration
 local ricekit_colors = wezterm.home_dir .. "/.config/ricekit/active/wezterm/ricekit-colors.lua"
 wezterm.add_to_config_reload_watch_list(ricekit_colors)
+
+-- Watch AeroSpace fullscreen state for opacity toggle
+local fullscreen_state_file = wezterm.home_dir .. "/.config/aerospace/wezterm-fullscreen-state.lua"
+wezterm.add_to_config_reload_watch_list(fullscreen_state_file)
 config.colors = dofile(ricekit_colors)
 
 -- Fix tab bar contrast (Ricekit's tab_bar colors have poor contrast)
@@ -58,6 +62,18 @@ wezterm.on("user-var-changed", function(window, pane, name, value)
 		}
 		window:toast_notification("Claude Code", messages[value] or "Needs attention", nil, 5000)
 	end
+end)
+
+-- Toggle opacity when AeroSpace fullscreens the WezTerm window
+wezterm.on("window-config-reloaded", function(window, pane)
+	local ok, fs_state = pcall(dofile, fullscreen_state_file)
+	local overrides = window:get_config_overrides() or {}
+	if ok and fs_state and fs_state.fullscreen then
+		overrides.window_background_opacity = 1.0
+	else
+		overrides.window_background_opacity = nil
+	end
+	window:set_config_overrides(overrides)
 end)
 
 -- Custom tab title: "1 → zsh" (respects explicitly set tab titles)
