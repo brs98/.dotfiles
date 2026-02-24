@@ -7,7 +7,7 @@ local config = wezterm.config_builder()
 config.enable_wayland = false
 
 -- Ricekit v2 WezTerm integration
-local ricekit_colors = wezterm.home_dir .. "/Library/Application Support/ricekit/active/wezterm/ricekit-colors.lua"
+local ricekit_colors = wezterm.home_dir .. "/.config/ricekit/active/wezterm/ricekit-colors.lua"
 wezterm.add_to_config_reload_watch_list(ricekit_colors)
 config.colors = dofile(ricekit_colors)
 
@@ -41,7 +41,7 @@ config.colors.tab_bar = {
 config.colors.split = config.colors.ansi[5] -- Same accent as jankyborders active_color
 config.inactive_pane_hsb = {
 	saturation = 0.7,
-	brightness = 0.4,
+	brightness = 0.5,
 }
 
 config.use_fancy_tab_bar = false
@@ -91,7 +91,7 @@ config.initial_rows = 35
 
 -- Window configuration
 config.window_decorations = "RESIZE"
-config.window_background_opacity = 0.7
+config.window_background_opacity = 0.75
 config.enable_kitty_keyboard = true
 config.enable_csi_u_key_encoding = false
 
