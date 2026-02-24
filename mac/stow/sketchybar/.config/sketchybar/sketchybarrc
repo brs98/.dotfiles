@@ -1,5 +1,5 @@
 # Ricekit SketchyBar integration
-source "$HOME/Library/Application Support/Ricekit/current/theme/sketchybar-colors.sh"
+source "$CONFIG_DIR/colors.sh"
 
 # This is a demo config to showcase some of the most important commands.
 # It is meant to be changed and configured, as it is intentionally kept sparse.

@@ -1,5 +1,5 @@
-# Dynamic theme colors
-config-file = ?"~/.config/omarchy/current/theme/ghostty.conf"
+# Ricekit v2 theme colors
+config-file = ?~/.config/ghostty/ricekit-theme
 
 window-decoration = "none"
 

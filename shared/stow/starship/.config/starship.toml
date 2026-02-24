@@ -1,5 +1,6 @@
 
 "$schema" = 'https://starship.rs/config-schema.json'
+palette = "ricekit"
 format = """$all $fill $cmd_duration
 $character"""
 
@@ -25,6 +26,7 @@ disabled = true
 format = '| [$symbol($version )]($style)' 
 
 [git_branch]
+style = 'bold accent'
 format = '[$symbol$branch(:$remote_branch)]($style)'
 
 [git_metrics]
@@ -39,3 +41,114 @@ disabled = true
 
 [battery]
 disabled = true
+# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml# Ricekit generated Starship palette
+# Do not edit — regenerated on theme apply
+# Add `palette = "ricekit"` to your starship.toml
+
+[palettes.ricekit]
+foreground = "#949b9f"
+background = "#1b1f23"
+black = "#2e3337"
+red = "#a15b56"
+green = "#4e804f"
+yellow = "#94672f"
+blue = "#214979"
+magenta = "#895f93"
+cyan = "#195c70"
+white = "#7c8387"
+bright_black = "#565b5f"
+bright_red = "#d28881"
+bright_green = "#7aae7b"
+bright_yellow = "#c4945d"
+bright_blue = "#4b74a8"
+bright_magenta = "#b88bc2"
+bright_cyan = "#49889d"
+bright_white = "#a9b1b5"
+accent = "#214979"
+error = "#a15b56"
+warning = "#94672f"
+success = "#4e804f"
+info = "#195c70"
+surface = "#101417"
+border = "#33383c"
+muted = "#54595d"

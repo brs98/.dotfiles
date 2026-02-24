@@ -1,0 +1,1 @@
+/Users/brandon/Library/Application Support/ricekit/active/sketchybar/colors.sh
