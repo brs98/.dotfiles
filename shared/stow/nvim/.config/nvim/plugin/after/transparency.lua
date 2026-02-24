@@ -49,8 +49,10 @@ local function set_transparency()
   vim.api.nvim_set_hl(0, "NotifyDEBUGBorder", { bg = "none" })
 end
 
--- Apply when theme.lua finishes loading
-vim.api.nvim_create_autocmd("User", {
-  pattern = "ThemeLoaded",
+-- Apply transparency after any colorscheme change
+vim.api.nvim_create_autocmd("ColorScheme", {
   callback = set_transparency,
 })
+
+-- Apply immediately since the colorscheme is already loaded by the time this file is sourced
+set_transparency()
