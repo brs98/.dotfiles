@@ -10,9 +10,9 @@ config.enable_wayland = false
 local ricekit_colors = wezterm.home_dir .. "/.config/ricekit/active/wezterm/ricekit-colors.lua"
 wezterm.add_to_config_reload_watch_list(ricekit_colors)
 
--- Watch AeroSpace fullscreen state for opacity toggle
-local fullscreen_state_file = wezterm.home_dir .. "/.config/aerospace/wezterm-fullscreen-state.lua"
-wezterm.add_to_config_reload_watch_list(fullscreen_state_file)
+-- Watch AeroSpace state file for fullscreen and opacity toggles
+local wezterm_state_file = wezterm.home_dir .. "/.config/aerospace/wezterm-fullscreen-state.lua"
+wezterm.add_to_config_reload_watch_list(wezterm_state_file)
 config.colors = dofile(ricekit_colors)
 
 -- Fix tab bar contrast (Ricekit's tab_bar colors have poor contrast)
@@ -64,11 +64,12 @@ wezterm.on("user-var-changed", function(window, pane, name, value)
 	end
 end)
 
--- Toggle opacity when AeroSpace fullscreens the WezTerm window
+-- Toggle opacity based on the opaque flag in the state file.
+-- Both fullscreen-toggle.sh and opacity-toggle.sh write to this flag.
 wezterm.on("window-config-reloaded", function(window, pane)
-	local ok, fs_state = pcall(dofile, fullscreen_state_file)
+	local ok, state = pcall(dofile, wezterm_state_file)
 	local overrides = window:get_config_overrides() or {}
-	if ok and fs_state and fs_state.fullscreen then
+	if ok and state and state.opaque then
 		overrides.window_background_opacity = 1.0
 	else
 		overrides.window_background_opacity = nil
