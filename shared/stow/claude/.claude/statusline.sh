@@ -242,7 +242,7 @@ get_oauth_token() {
 
 # ── Fetch usage data (cached) ──────────────────────────
 cache_file="/tmp/claude/statusline-usage-cache.json"
-cache_max_age=60
+cache_max_age=300
 mkdir -p /tmp/claude
 
 needs_refresh=true
@@ -259,6 +259,10 @@ if [ -f "$cache_file" ]; then
 fi
 
 if $needs_refresh; then
+    # Always load stale cache first so we have fallback data
+    if [ -f "$cache_file" ]; then
+        usage_data=$(cat "$cache_file" 2>/dev/null)
+    fi
     token=$(get_oauth_token)
     if [ -n "$token" ] && [ "$token" != "null" ]; then
         response=$(curl -s --max-time 5 \
@@ -271,10 +275,10 @@ if $needs_refresh; then
         if [ -n "$response" ] && echo "$response" | jq -e '.five_hour' >/dev/null 2>&1; then
             usage_data="$response"
             echo "$response" > "$cache_file"
+        elif [ -n "$usage_data" ]; then
+            # API failed (429/timeout) but we have stale cache — touch to delay next retry
+            touch "$cache_file"
         fi
-    fi
-    if [ -z "$usage_data" ] && [ -f "$cache_file" ]; then
-        usage_data=$(cat "$cache_file" 2>/dev/null)
     fi
 fi
 
