@@ -24,13 +24,15 @@
       "Bash(cat:*)",
       "Bash(sed:*)",
       "Bash(python3:*)",
+      "Bash(obsidian:*)",
       "Bash(gh api:*)",
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
       "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_snapshot",
       "mcp__playwright__browser_click",
-      "mcp__playwright__browser_evaluate"
+      "mcp__playwright__browser_evaluate",
+      "mcp__pencil"
     ]
   },
   "hooks": {
@@ -93,6 +95,6 @@
     }
   },
   "alwaysThinkingEnabled": true,
-  "skipDangerousModePermissionPrompt": true,
-  "effortLevel": "high"
+  "effortLevel": "high",
+  "skipDangerousModePermissionPrompt": true
 }
