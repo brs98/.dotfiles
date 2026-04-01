@@ -1,3 +1,6 @@
+# Load secrets (API keys, tokens) — machine-local, not in dotfiles
+[[ -f ~/.secrets ]] && source ~/.secrets
+
 # Path configuration
 export PATH="$PATH:$HOME/.bun/bin:$HOME/.local/bin"
 
@@ -35,7 +38,7 @@ fi
 
 alias cdc="cd ~/.config/"
 alias cdd="cd ~/.dotfiles/"
-alias ff="fzf --preview 'bat --style=numbers --color=always {}'"
+alias ff="tv files"
 alias ldk="lazydocker"
 alias lg="lazygit"
 
@@ -118,7 +121,7 @@ eval "$(starship init zsh)"
 eval "$(zoxide init zsh)"
 
 # Load zsh plugins
-source <(fzf --zsh)
+eval "$(tv init zsh)"
 
 # Load zsh-autosuggestions based on OS
 if [[ "$OSTYPE" == "darwin"* ]]; then
