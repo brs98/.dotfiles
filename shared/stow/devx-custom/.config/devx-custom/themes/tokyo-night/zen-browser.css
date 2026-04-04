@@ -1,0 +1,108 @@
+/*
+ * Tokyo Night Theme for Zen Browser
+ * A dark purple/blue theme inspired by Tokyo Night
+ */
+
+/* Import base theme styles */
+@import url("base.css");
+
+/* Tokyo Night Color Palette */
+:root {
+  /* Core Tokyo Night colors based on provided palette */
+  --tokyo-foreground: #959cbd;
+  --tokyo-panel-active-border: #3d59a1;
+  --tokyo-panel-active-foreground: #bdc7f0;
+  --tokyo-panel-inactive-foreground: #959cbd;
+  --tokyo-tab-active-foreground: #bdc7f0;
+  --tokyo-tab-inactive-foreground: #959cbd;
+  --tokyo-breadcrumb-foreground: #959cbd;
+  --tokyo-breadcrumb-focus: #bdc7f0;
+  --tokyo-statusbar-foreground: #bdc7f0;
+  --tokyo-list-focus: #bdc7f0;
+  --tokyo-list-selection-background: #202330;
+  --tokyo-sidebar-foreground: #959cbd;
+  --tokyo-dropdown-foreground: #959cbd;
+  --tokyo-menu-foreground: #bdc7f0;
+  --tokyo-input-foreground: #959cbd;
+  --tokyo-activitybar-foreground: #bdc7f0;
+  --tokyo-activitybar-inactive: #787c99;
+  --tokyo-git-ignored: #696d87;
+
+  /* Extended palette based on Tokyo Night theme */
+  --tokyo-rosewater: #f7768e;
+  --tokyo-flamingo: #ff9e64;
+  --tokyo-pink: #bb9af7;
+  --tokyo-mauve: #9d7cd8;
+  --tokyo-red: #f7768e;
+  --tokyo-maroon: #e06c75;
+  --tokyo-peach: #ff9e64;
+  --tokyo-yellow: #e0af68;
+  --tokyo-green: #9ece6a;
+  --tokyo-teal: #73daca;
+  --tokyo-sky: #7dcfff;
+  --tokyo-sapphire: #7aa2f7;
+  --tokyo-blue: #7aa2f7;
+  --tokyo-lavender: #bb9af7;
+  --tokyo-text: #bdc7f0;
+  --tokyo-subtext1: #959cbd;
+  --tokyo-subtext0: #787c99;
+  --tokyo-overlay2: #696d87;
+  --tokyo-overlay1: #565f89;
+  --tokyo-overlay0: #454a75;
+  --tokyo-surface2: #363a5f;
+  --tokyo-surface1: #292e42;
+  --tokyo-surface0: #1f2335;
+  --tokyo-base: #1a1b26;
+  --tokyo-mantle: #16161e;
+  --tokyo-crust: #0f0f14;
+
+  /* Primary accent: Tokyo Night blue */
+  --tokyo-accent: #7aa2f7;
+
+  /* Theme variable mappings */
+  --theme-rosewater: var(--tokyo-rosewater);
+  --theme-flamingo: var(--tokyo-flamingo);
+  --theme-pink: var(--tokyo-pink);
+  --theme-mauve: var(--tokyo-mauve);
+  --theme-red: var(--tokyo-red);
+  --theme-maroon: var(--tokyo-maroon);
+  --theme-peach: var(--tokyo-peach);
+  --theme-yellow: var(--tokyo-yellow);
+  --theme-green: var(--tokyo-green);
+  --theme-teal: var(--tokyo-teal);
+  --theme-sky: var(--tokyo-sky);
+  --theme-sapphire: var(--tokyo-sapphire);
+  --theme-blue: var(--tokyo-blue);
+  --theme-lavender: var(--tokyo-lavender);
+  --theme-text: var(--tokyo-text);
+  --theme-subtext1: var(--tokyo-subtext1);
+  --theme-subtext0: var(--tokyo-subtext0);
+  --theme-overlay2: var(--tokyo-overlay2);
+  --theme-overlay1: var(--tokyo-overlay1);
+  --theme-overlay0: var(--tokyo-overlay0);
+  --theme-surface2: var(--tokyo-surface2);
+  --theme-surface1: var(--tokyo-surface1);
+  --theme-surface0: var(--tokyo-surface0);
+  --theme-base: var(--tokyo-base);
+  --theme-mantle: var(--tokyo-mantle);
+  --theme-crust: var(--tokyo-crust);
+  --theme-accent: var(--tokyo-accent);
+
+  /* Zen Browser color variable overrides */
+  --zen-primary-color: var(--tokyo-accent) !important;
+  --zen-main-browser-background-toolbar: var(--tokyo-base) !important;
+  --zen-main-browser-background: var(--tokyo-base) !important;
+  --toolbox-textcolor: var(--tokyo-text) !important;
+
+  /* Additional color variable overrides */
+  --toolbar-bgcolor: var(--tokyo-base) !important;
+  --toolbar-color: var(--tokyo-text) !important;
+  --toolbar-field-background-color: var(--tokyo-surface0) !important;
+  --toolbar-field-color: var(--tokyo-text) !important;
+  --toolbar-field-border-color: var(--tokyo-surface2) !important;
+  --toolbar-field-focus-background-color: var(--tokyo-surface1) !important;
+  --toolbar-field-focus-border-color: var(--tokyo-accent) !important;
+  --arrowpanel-background: var(--tokyo-surface0) !important;
+  --arrowpanel-color: var(--tokyo-text) !important;
+  --arrowpanel-border-color: var(--tokyo-surface2) !important;
+}

@@ -116,6 +116,54 @@ setup_retroarch_saves() {
     echo "    ✓ RetroArch Card A saves symlinked"
 }
 
+# Setup Claude skills symlinks
+setup_claude_skills() {
+    echo "  → Setting up Claude skills symlinks..."
+
+    local dotfiles_dir="$PWD"
+    local source_dir="$dotfiles_dir/shared/symlink/claude/.claude/skills"
+    local target_dir="$HOME/.claude"
+    local target_link="$target_dir/skills"
+
+    if [ ! -d "$source_dir" ]; then
+        echo "    ⚠ Warning: Claude skills source not found at $source_dir, skipping..."
+        return
+    fi
+
+    # Create parent directory if it doesn't exist
+    mkdir -p "$target_dir"
+
+    # Remove existing directory or symlink if it exists
+    if [ -e "$target_link" ] || [ -L "$target_link" ]; then
+        rm -rf "$target_link"
+    fi
+
+    # Create symlink
+    ln -sf "$source_dir" "$target_link"
+    echo "    ✓ Claude skills symlinked"
+}
+
+# Make all scripts executable
+make_scripts_executable() {
+    echo "  → Making scripts executable..."
+
+    local scripts_dirs=(
+        "shared/stow/scripts/.local/bin"
+        "mac/stow/scripts/.local/bin"
+        "linux/stow/scripts/.local/bin"
+    )
+
+    for scripts_dir in "${scripts_dirs[@]}"; do
+        if [ -d "$scripts_dir" ]; then
+            find "$scripts_dir" -type f -exec chmod +x {} \;
+            echo "    ✓ Made scripts in $scripts_dir executable"
+        fi
+    done
+}
+
+# Make scripts executable before stowing
+make_scripts_executable
+
 # Stow all shared configs
 echo "  → Stowing shared configs..."
 if [ -d "shared/stow" ]; then
@@ -125,7 +173,9 @@ fi
 # Stow platform-specific configs
 if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "  → Detected macOS, stowing mac configs..."
-    (cd mac && stow -t ~ *)
+    if [ -d "mac/stow" ]; then
+        (cd mac/stow && stow -t ~ *)
+    fi
 else
     echo "  → Detected Linux, stowing linux configs..."
     if [ -d "linux/stow" ]; then
@@ -158,6 +208,11 @@ if [ -d "shared/symlink" ]; then
             # Skip retroarch - it has special setup requirements
             if [ "$package_name" = "retroarch" ]; then
                 setup_retroarch_saves
+                continue
+            fi
+            # Skip claude - it has special setup requirements
+            if [ "$package_name" = "claude" ]; then
+                setup_claude_skills
                 continue
             fi
             echo "  → Creating symlinks for $package_name..."

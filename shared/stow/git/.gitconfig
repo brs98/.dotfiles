@@ -1,0 +1,56 @@
+[user]
+	name = Brandon Southwick
+	email = southwick.brandon21@gmail.com
+
+[core]
+    editor = nvim
+    ignorecase = false
+
+[credential "https://github.com"]
+	helper =
+	helper = !gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !gh auth git-credential
+
+[pull]
+    rebase = false
+
+[push]
+    autoSetupRemote = true
+
+[init]
+    defaultBranch = main
+
+[rebase]
+    updateRefs = true
+
+[alias]
+    co = checkout
+    br = branch
+    st = status
+    f = fetch
+    a = add
+    c = commit
+    cm = commit -m
+    p = push
+[protocol "file"]
+	allow = always
+
+[pager]
+    diff = diffnav
+
+[delta]
+    navigate = true
+    line-numbers = true
+    side-by-side = true
+    syntax-theme = ansi
+
+[interactive]
+    diffFilter = delta --color-only
+
+[merge]
+    conflictstyle = diff3
+
+[diff]
+    colorMoved = default

@@ -1,0 +1,103 @@
+/*
+ * Rose Pine Theme for Zen Browser
+ * A soho vibes theme with warm rose and pine accents
+ */
+
+/* Import base theme styles */
+@import url("base.css");
+
+/* Rose Pine Color Palette */
+:root {
+  /* Core Rose Pine colors based on provided palette */
+  --rose-pine-base: #191724;
+  --rose-pine-surface: #1f1d2e;
+  --rose-pine-overlay: #26233a;
+  --rose-pine-muted: #6e6a86;
+  --rose-pine-subtle: #908caa;
+  --rose-pine-text: #e0def4;
+  --rose-pine-love: #eb6f92;
+  --rose-pine-gold: #f6c177;
+  --rose-pine-rose: #ebbcba;
+  --rose-pine-pine: #31748f;
+  --rose-pine-foam: #9ccfd8;
+  --rose-pine-iris: #c4a7e7;
+  --rose-pine-highlight-low: #21202e;
+  --rose-pine-highlight-med: #403d52;
+  --rose-pine-highlight-high: #524f67;
+
+  /* Extended palette for better UI coverage */
+  --rose-pine-rosewater: #ebbcba;
+  --rose-pine-flamingo: #eb6f92;
+  --rose-pine-pink: #eb6f92;
+  --rose-pine-mauve: #c4a7e7;
+  --rose-pine-red: #eb6f92;
+  --rose-pine-maroon: #eb6f92;
+  --rose-pine-peach: #f6c177;
+  --rose-pine-yellow: #f6c177;
+  --rose-pine-green: #31748f;
+  --rose-pine-teal: #9ccfd8;
+  --rose-pine-sky: #9ccfd8;
+  --rose-pine-sapphire: #31748f;
+  --rose-pine-blue: #31748f;
+  --rose-pine-lavender: #c4a7e7;
+  --rose-pine-subtext1: #908caa;
+  --rose-pine-subtext0: #6e6a86;
+  --rose-pine-overlay2: #524f67;
+  --rose-pine-overlay1: #403d52;
+  --rose-pine-overlay0: #26233a;
+  --rose-pine-surface2: #403d52;
+  --rose-pine-surface1: #26233a;
+  --rose-pine-surface0: #1f1d2e;
+  --rose-pine-mantle: #16141f;
+  --rose-pine-crust: #12101a;
+
+  /* Primary accent: Rose Pine gold */
+  --rose-pine-accent: #f6c177;
+
+  /* Theme variable mappings */
+  --theme-rosewater: var(--rose-pine-rosewater);
+  --theme-flamingo: var(--rose-pine-flamingo);
+  --theme-pink: var(--rose-pine-pink);
+  --theme-mauve: var(--rose-pine-mauve);
+  --theme-red: var(--rose-pine-red);
+  --theme-maroon: var(--rose-pine-maroon);
+  --theme-peach: var(--rose-pine-peach);
+  --theme-yellow: var(--rose-pine-yellow);
+  --theme-green: var(--rose-pine-green);
+  --theme-teal: var(--rose-pine-teal);
+  --theme-sky: var(--rose-pine-sky);
+  --theme-sapphire: var(--rose-pine-sapphire);
+  --theme-blue: var(--rose-pine-blue);
+  --theme-lavender: var(--rose-pine-lavender);
+  --theme-text: var(--rose-pine-text);
+  --theme-subtext1: var(--rose-pine-subtext1);
+  --theme-subtext0: var(--rose-pine-subtext0);
+  --theme-overlay2: var(--rose-pine-overlay2);
+  --theme-overlay1: var(--rose-pine-overlay1);
+  --theme-overlay0: var(--rose-pine-overlay0);
+  --theme-surface2: var(--rose-pine-surface2);
+  --theme-surface1: var(--rose-pine-surface1);
+  --theme-surface0: var(--rose-pine-surface0);
+  --theme-base: var(--rose-pine-base);
+  --theme-mantle: var(--rose-pine-mantle);
+  --theme-crust: var(--rose-pine-crust);
+  --theme-accent: var(--rose-pine-accent);
+
+  /* Zen Browser color variable overrides */
+  --zen-primary-color: var(--rose-pine-accent) !important;
+  --zen-main-browser-background-toolbar: var(--rose-pine-base) !important;
+  --zen-main-browser-background: var(--rose-pine-base) !important;
+  --toolbox-textcolor: var(--rose-pine-text) !important;
+
+  /* Additional color variable overrides */
+  --toolbar-bgcolor: var(--rose-pine-base) !important;
+  --toolbar-color: var(--rose-pine-text) !important;
+  --toolbar-field-background-color: var(--rose-pine-surface0) !important;
+  --toolbar-field-color: var(--rose-pine-text) !important;
+  --toolbar-field-border-color: var(--rose-pine-surface2) !important;
+  --toolbar-field-focus-background-color: var(--rose-pine-surface1) !important;
+  --toolbar-field-focus-border-color: var(--rose-pine-accent) !important;
+  --arrowpanel-background: var(--rose-pine-surface0) !important;
+  --arrowpanel-color: var(--rose-pine-text) !important;
+  --arrowpanel-border-color: var(--rose-pine-surface2) !important;
+}

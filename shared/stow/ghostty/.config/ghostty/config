@@ -1,7 +1,9 @@
-command = /usr/bin/zsh
+# Ricekit v2 theme colors
+config-file = ?~/.config/ghostty/ricekit-theme
 
-# Dynamic theme colors
-config-file = ?"~/.config/omarchy/current/theme/ghostty.conf"
+window-decoration = "none"
+
+background-opacity = 0.5
 
 # Font
 font-family = "CaskaydiaMono Nerd Font"
@@ -11,7 +13,7 @@ font-size = 9
 # Window
 window-padding-x = 14
 window-padding-y = 14
-confirm-close-surface=false
+confirm-close-surface = false
 resize-overlay = never
 
 # Cursor styling

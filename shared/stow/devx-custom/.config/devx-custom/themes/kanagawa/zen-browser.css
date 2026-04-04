@@ -1,0 +1,126 @@
+/*
+ * Kanagawa Theme for Zen Browser
+ * A dark theme inspired by the colors of the famous painting "The Great Wave off Kanagawa"
+ */
+
+/* Import base theme styles */
+@import url("base.css");
+
+/* Kanagawa Color Palette */
+:root {
+  /* Core Kanagawa colors based on provided palette */
+  --kanagawa-background: #1F1F28;
+  --kanagawa-foreground: #DCD7BA;
+  --kanagawa-selection-background: #2D4F67;
+  --kanagawa-selection-foreground: #C8C093;
+  --kanagawa-url-color: #72A7BC;
+  --kanagawa-cursor: #C8C093;
+  
+  /* Tab colors */
+  --kanagawa-active-tab-background: #1F1F28;
+  --kanagawa-active-tab-foreground: #C8C093;
+  --kanagawa-inactive-tab-background: #1F1F28;
+  --kanagawa-inactive-tab-foreground: #727169;
+  
+  /* Normal colors (0-7) */
+  --kanagawa-color0: #16161D;  /* black */
+  --kanagawa-color1: #C34043;  /* red */
+  --kanagawa-color2: #76946A;  /* green */
+  --kanagawa-color3: #C0A36E;  /* yellow */
+  --kanagawa-color4: #7E9CD8;  /* blue */
+  --kanagawa-color5: #957FB8;  /* magenta */
+  --kanagawa-color6: #6A9589;  /* cyan */
+  --kanagawa-color7: #C8C093;  /* white */
+  
+  /* Bright colors (8-15) */
+  --kanagawa-color8: #727169;   /* bright black */
+  --kanagawa-color9: #E82424;   /* bright red */
+  --kanagawa-color10: #98BB6C;  /* bright green */
+  --kanagawa-color11: #E6C384;  /* bright yellow */
+  --kanagawa-color12: #7FB4CA;  /* bright blue */
+  --kanagawa-color13: #938AA9;  /* bright magenta */
+  --kanagawa-color14: #7AA89F;  /* bright cyan */
+  --kanagawa-color15: #DCD7BA;  /* bright white */
+  
+  /* Extended colors */
+  --kanagawa-color16: #FFA066;  /* orange */
+  --kanagawa-color17: #FF5D62;  /* bright orange/red */
+
+  /* Extended palette for better UI coverage */
+  --kanagawa-rosewater: #FF5D62;
+  --kanagawa-flamingo: #FFA066;
+  --kanagawa-pink: #957FB8;
+  --kanagawa-mauve: #957FB8;
+  --kanagawa-red: #C34043;
+  --kanagawa-maroon: #E82424;
+  --kanagawa-peach: #FFA066;
+  --kanagawa-yellow: #C0A36E;
+  --kanagawa-green: #76946A;
+  --kanagawa-teal: #6A9589;
+  --kanagawa-sky: #7FB4CA;
+  --kanagawa-sapphire: #72A7BC;
+  --kanagawa-blue: #7E9CD8;
+  --kanagawa-lavender: #938AA9;
+  --kanagawa-text: #DCD7BA;
+  --kanagawa-subtext1: #C8C093;
+  --kanagawa-subtext0: #727169;
+  --kanagawa-overlay2: #54546D;
+  --kanagawa-overlay1: #43436C;
+  --kanagawa-overlay0: #363646;
+  --kanagawa-surface2: #2A2A37;
+  --kanagawa-surface1: #1F1F28;
+  --kanagawa-surface0: #16161D;
+  --kanagawa-base: #1F1F28;
+  --kanagawa-mantle: #16161D;
+  --kanagawa-crust: #12121B;
+
+  /* Primary accent: Kanagawa blue (wave color) */
+  --kanagawa-accent: #7E9CD8;
+
+  /* Theme variable mappings */
+  --theme-rosewater: var(--kanagawa-rosewater);
+  --theme-flamingo: var(--kanagawa-flamingo);
+  --theme-pink: var(--kanagawa-pink);
+  --theme-mauve: var(--kanagawa-mauve);
+  --theme-red: var(--kanagawa-red);
+  --theme-maroon: var(--kanagawa-maroon);
+  --theme-peach: var(--kanagawa-peach);
+  --theme-yellow: var(--kanagawa-yellow);
+  --theme-green: var(--kanagawa-green);
+  --theme-teal: var(--kanagawa-teal);
+  --theme-sky: var(--kanagawa-sky);
+  --theme-sapphire: var(--kanagawa-sapphire);
+  --theme-blue: var(--kanagawa-blue);
+  --theme-lavender: var(--kanagawa-lavender);
+  --theme-text: var(--kanagawa-text);
+  --theme-subtext1: var(--kanagawa-subtext1);
+  --theme-subtext0: var(--kanagawa-subtext0);
+  --theme-overlay2: var(--kanagawa-overlay2);
+  --theme-overlay1: var(--kanagawa-overlay1);
+  --theme-overlay0: var(--kanagawa-overlay0);
+  --theme-surface2: var(--kanagawa-surface2);
+  --theme-surface1: var(--kanagawa-surface1);
+  --theme-surface0: var(--kanagawa-surface0);
+  --theme-base: var(--kanagawa-base);
+  --theme-mantle: var(--kanagawa-mantle);
+  --theme-crust: var(--kanagawa-crust);
+  --theme-accent: var(--kanagawa-accent);
+
+  /* Zen Browser color variable overrides */
+  --zen-primary-color: var(--kanagawa-accent) !important;
+  --zen-main-browser-background-toolbar: var(--kanagawa-base) !important;
+  --zen-main-browser-background: var(--kanagawa-base) !important;
+  --toolbox-textcolor: var(--kanagawa-text) !important;
+
+  /* Additional color variable overrides */
+  --toolbar-bgcolor: var(--kanagawa-base) !important;
+  --toolbar-color: var(--kanagawa-text) !important;
+  --toolbar-field-background-color: var(--kanagawa-surface0) !important;
+  --toolbar-field-color: var(--kanagawa-text) !important;
+  --toolbar-field-border-color: var(--kanagawa-surface2) !important;
+  --toolbar-field-focus-background-color: var(--kanagawa-surface1) !important;
+  --toolbar-field-focus-border-color: var(--kanagawa-accent) !important;
+  --arrowpanel-background: var(--kanagawa-surface0) !important;
+  --arrowpanel-color: var(--kanagawa-text) !important;
+  --arrowpanel-border-color: var(--kanagawa-surface2) !important;
+}

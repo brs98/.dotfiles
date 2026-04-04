@@ -1,0 +1,88 @@
+/*
+ * Catppuccin Latte Theme for Zen Browser
+ * A light, warm theme based on the Catppuccin Latte color palette
+ */
+
+/* Import base theme styles */
+@import url("base.css");
+
+/* Catppuccin Latte Color Palette */
+:root {
+  /* Core Catppuccin Latte colors based on provided palette */
+  --ctp-latte-rosewater: #dc8a78;
+  --ctp-latte-flamingo: #dd7878;
+  --ctp-latte-pink: #ea76cb;
+  --ctp-latte-mauve: #8839ef;
+  --ctp-latte-red: #d20f39;
+  --ctp-latte-maroon: #e64553;
+  --ctp-latte-peach: #fe640b;
+  --ctp-latte-yellow: #df8e1d;
+  --ctp-latte-green: #40a02b;
+  --ctp-latte-teal: #179299;
+  --ctp-latte-sky: #04a5e5;
+  --ctp-latte-sapphire: #209fb5;
+  --ctp-latte-blue: #1e66f5;
+  --ctp-latte-lavender: #7287fd;
+  --ctp-latte-text: #4c4f69;
+  --ctp-latte-subtext1: #5c5f77;
+  --ctp-latte-subtext0: #6c6f85;
+  --ctp-latte-overlay2: #7c7f93;
+  --ctp-latte-overlay1: #8c8fa1;
+  --ctp-latte-overlay0: #9ca0b0;
+  --ctp-latte-surface2: #acb0be;
+  --ctp-latte-surface1: #bcc0cc;
+  --ctp-latte-surface0: #ccd0da;
+  --ctp-latte-base: #eff1f5;
+  --ctp-latte-mantle: #e6e9ef;
+  --ctp-latte-crust: #dce0e8;
+
+  /* Primary accent: Catppuccin Latte mauve */
+  --ctp-latte-accent: #8839ef;
+
+  /* Theme variable mappings */
+  --theme-rosewater: var(--ctp-latte-rosewater);
+  --theme-flamingo: var(--ctp-latte-flamingo);
+  --theme-pink: var(--ctp-latte-pink);
+  --theme-mauve: var(--ctp-latte-mauve);
+  --theme-red: var(--ctp-latte-red);
+  --theme-maroon: var(--ctp-latte-maroon);
+  --theme-peach: var(--ctp-latte-peach);
+  --theme-yellow: var(--ctp-latte-yellow);
+  --theme-green: var(--ctp-latte-green);
+  --theme-teal: var(--ctp-latte-teal);
+  --theme-sky: var(--ctp-latte-sky);
+  --theme-sapphire: var(--ctp-latte-sapphire);
+  --theme-blue: var(--ctp-latte-blue);
+  --theme-lavender: var(--ctp-latte-lavender);
+  --theme-text: var(--ctp-latte-text);
+  --theme-subtext1: var(--ctp-latte-subtext1);
+  --theme-subtext0: var(--ctp-latte-subtext0);
+  --theme-overlay2: var(--ctp-latte-overlay2);
+  --theme-overlay1: var(--ctp-latte-overlay1);
+  --theme-overlay0: var(--ctp-latte-overlay0);
+  --theme-surface2: var(--ctp-latte-surface2);
+  --theme-surface1: var(--ctp-latte-surface1);
+  --theme-surface0: var(--ctp-latte-surface0);
+  --theme-base: var(--ctp-latte-base);
+  --theme-mantle: var(--ctp-latte-mantle);
+  --theme-crust: var(--ctp-latte-crust);
+  --theme-accent: var(--ctp-latte-accent);
+
+  /* Zen Browser color variable overrides */
+  --zen-primary-color: var(--ctp-latte-accent) !important;
+  --zen-main-browser-background-toolbar: var(--ctp-latte-base) !important;
+  --zen-main-browser-background: var(--ctp-latte-base) !important;
+  --toolbox-textcolor: var(--ctp-latte-text) !important;
+
+  /* Additional color variable overrides */
+  --toolbar-bgcolor: var(--ctp-latte-base) !important;
+  --toolbar-color: var(--ctp-latte-text) !important;
+  --toolbar-field-background-color: var(--ctp-latte-surface0) !important;
+  --toolbar-field-color: var(--ctp-latte-text) !important;
+  --toolbar-field-border-color: var(--ctp-latte-surface1) !important;
+  --toolbar-field-focus-background-color: var(--ctp-latte-mantle) !important;
+  --toolbar-field-focus-border-color: var(--ctp-latte-accent) !important;
+  --arrowpanel-background: var(--ctp-latte-surface0) !important;
+  --arrowpanel-color: var(--ctp-latte-text) !important;
+  --arrowpanel-border-color: var(--ctp-latte-surface2) !important;
+}

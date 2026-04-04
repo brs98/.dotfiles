@@ -1,0 +1,1 @@
+/Users/brandon/.config/ricekit/active/neovim/ricekit.lua

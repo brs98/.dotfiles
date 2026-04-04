@@ -1,0 +1,39 @@
+#!/bin/bash
+# Bridge between Claude Code hooks and WezTerm display system
+# Usage: claude-wezterm-status set | clear
+
+# Skip silently if not running inside WezTerm
+[ -z "$WEZTERM_UNIX_SOCKET" ] && exit 0
+
+# Resolve the pane's actual PTY (/dev/tty isn't available in hook subprocesses)
+pane_tty=$(wezterm cli list --format json 2>/dev/null \
+  | python3 -c "
+import json, sys, os
+pane_id = int(os.environ.get('WEZTERM_PANE', -1))
+for p in json.load(sys.stdin):
+    if p['pane_id'] == pane_id:
+        print(p.get('tty_name', ''))
+        break
+" 2>/dev/null)
+[ -z "$pane_tty" ] && exit 0
+
+set_user_var() {
+  printf '\033]1337;SetUserVar=%s=%s\007' "$1" "$(printf '%s' "$2" | base64)" > "$pane_tty" 2>/dev/null
+}
+
+case "${1:-}" in
+  set)
+    set_user_var claude_status "idle"
+    wezterm cli set-tab-title "💤 Waiting for Input" 2>/dev/null
+    folder="${PWD##*/}"
+    osascript -e "display notification \"Waiting for your input in $folder\" with title \"Claude Code\"" 2>/dev/null &
+    ;;
+  clear)
+    set_user_var claude_status ""
+    wezterm cli set-tab-title "" 2>/dev/null
+    ;;
+  *)
+    echo "Usage: claude-wezterm-status set | clear"
+    exit 1
+    ;;
+esac

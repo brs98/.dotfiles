@@ -1,0 +1,112 @@
+/*
+ * Nord Theme for Zen Browser
+ * An arctic, north-bluish theme with clean and elegant colors
+ */
+
+/* Import base theme styles */
+@import url("base.css");
+
+/* Nord Color Palette */
+:root {
+  /* Polar Night - The four darker colors */
+  --nord-polar-night-1: #2e3440;  /* nord0 - darkest */
+  --nord-polar-night-2: #3b4252;  /* nord1 */
+  --nord-polar-night-3: #434c5e;  /* nord2 */
+  --nord-polar-night-4: #4c566a;  /* nord3 - lightest dark */
+  
+  /* Snow Storm - The three bright colors */
+  --nord-snow-storm-1: #d8dee9;   /* nord4 - darkest white */
+  --nord-snow-storm-2: #e5e9f0;   /* nord5 */
+  --nord-snow-storm-3: #eceff4;   /* nord6 - brightest white */
+  
+  /* Frost - The four bluish colors */
+  --nord-frost-1: #8fbcbb;        /* nord7 - teal */
+  --nord-frost-2: #88c0d0;        /* nord8 - cyan */
+  --nord-frost-3: #81a1c1;        /* nord9 - light blue */
+  --nord-frost-4: #5e81ac;        /* nord10 - dark blue */
+  
+  /* Aurora - The five colorful colors */
+  --nord-aurora-red: #bf616a;     /* nord11 - red */
+  --nord-aurora-orange: #d08770;  /* nord12 - orange */
+  --nord-aurora-yellow: #ebcb8b;  /* nord13 - yellow */
+  --nord-aurora-green: #a3be8c;   /* nord14 - green */
+  --nord-aurora-purple: #b48ead;  /* nord15 - purple */
+
+  /* Extended palette for better UI coverage */
+  --nord-rosewater: #d08770;
+  --nord-flamingo: #d08770;
+  --nord-pink: #b48ead;
+  --nord-mauve: #b48ead;
+  --nord-red: #bf616a;
+  --nord-maroon: #bf616a;
+  --nord-peach: #d08770;
+  --nord-yellow: #ebcb8b;
+  --nord-green: #a3be8c;
+  --nord-teal: #8fbcbb;
+  --nord-sky: #88c0d0;
+  --nord-sapphire: #81a1c1;
+  --nord-blue: #5e81ac;
+  --nord-lavender: #b48ead;
+  --nord-text: #eceff4;
+  --nord-subtext1: #e5e9f0;
+  --nord-subtext0: #d8dee9;
+  --nord-overlay2: #4c566a;
+  --nord-overlay1: #434c5e;
+  --nord-overlay0: #3b4252;
+  --nord-surface2: #434c5e;
+  --nord-surface1: #3b4252;
+  --nord-surface0: #2e3440;
+  --nord-base: #2e3440;
+  --nord-mantle: #242933;
+  --nord-crust: #1e222a;
+
+  /* Primary accent: Nord frost blue */
+  --nord-accent: #81a1c1;
+
+  /* Theme variable mappings */
+  --theme-rosewater: var(--nord-rosewater);
+  --theme-flamingo: var(--nord-flamingo);
+  --theme-pink: var(--nord-pink);
+  --theme-mauve: var(--nord-mauve);
+  --theme-red: var(--nord-red);
+  --theme-maroon: var(--nord-maroon);
+  --theme-peach: var(--nord-peach);
+  --theme-yellow: var(--nord-yellow);
+  --theme-green: var(--nord-green);
+  --theme-teal: var(--nord-teal);
+  --theme-sky: var(--nord-sky);
+  --theme-sapphire: var(--nord-sapphire);
+  --theme-blue: var(--nord-blue);
+  --theme-lavender: var(--nord-lavender);
+  --theme-text: var(--nord-text);
+  --theme-subtext1: var(--nord-subtext1);
+  --theme-subtext0: var(--nord-subtext0);
+  --theme-overlay2: var(--nord-overlay2);
+  --theme-overlay1: var(--nord-overlay1);
+  --theme-overlay0: var(--nord-overlay0);
+  --theme-surface2: var(--nord-surface2);
+  --theme-surface1: var(--nord-surface1);
+  --theme-surface0: var(--nord-surface0);
+  --theme-base: var(--nord-base);
+  --theme-mantle: var(--nord-mantle);
+  --theme-crust: var(--nord-crust);
+  --theme-accent: var(--nord-accent);
+
+  /* Zen Browser color variable overrides */
+  --zen-primary-color: var(--nord-accent) !important;
+  --zen-main-browser-background-toolbar: var(--nord-base) !important;
+  --zen-main-browser-background: var(--nord-base) !important;
+  --toolbox-textcolor: var(--nord-text) !important;
+
+  /* Additional color variable overrides */
+  --toolbar-bgcolor: var(--nord-base) !important;
+  --toolbar-color: var(--nord-text) !important;
+  --toolbar-field-background-color: var(--nord-surface0) !important;
+  --toolbar-field-color: var(--nord-text) !important;
+  --toolbar-field-border-color: var(--nord-surface2) !important;
+  --toolbar-field-focus-background-color: var(--nord-surface1) !important;
+  --toolbar-field-focus-border-color: var(--nord-accent) !important;
+  --arrowpanel-background: var(--nord-surface0) !important;
+  --arrowpanel-color: var(--nord-text) !important;
+  --arrowpanel-border-color: var(--nord-surface2) !important;
+}
