@@ -28,3 +28,4 @@
 
 - When working with typescript projects, always load the typescript-best-practices skill
 - When working with react project, always load the react-best-practices skill
+- When adding packages, ALWAYS use the project's package manager so the latest version is always installed. NEVER hardcode the package versions for packages you add.

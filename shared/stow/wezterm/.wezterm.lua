@@ -8,12 +8,13 @@ config.enable_wayland = false
 
 -- Ricekit v2 WezTerm integration
 local ricekit_colors = wezterm.home_dir .. "/.config/ricekit/active/wezterm/ricekit-colors.lua"
+config.colors = dofile(ricekit_colors)
+
 wezterm.add_to_config_reload_watch_list(ricekit_colors)
 
 -- Watch AeroSpace state file for fullscreen and opacity toggles
 local wezterm_state_file = wezterm.home_dir .. "/.config/aerospace/wezterm-fullscreen-state.lua"
 wezterm.add_to_config_reload_watch_list(wezterm_state_file)
-config.colors = dofile(ricekit_colors)
 
 -- Fix tab bar contrast (Ricekit's tab_bar colors have poor contrast)
 -- Use ANSI colors from Ricekit theme for better visibility
