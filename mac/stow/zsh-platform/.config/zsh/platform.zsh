@@ -2,8 +2,10 @@
 
 # Zsh plugins via Homebrew (use $HOMEBREW_PREFIX to avoid shelling out on every startup)
 BREW_PREFIX="${HOMEBREW_PREFIX:-/opt/homebrew}"
-source "$BREW_PREFIX/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
-source "$BREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+[[ -f "$BREW_PREFIX/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]] && \
+  source "$BREW_PREFIX/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+[[ -f "$BREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && \
+  source "$BREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
 
 # pnpm
 export PNPM_HOME="$HOME/Library/pnpm"

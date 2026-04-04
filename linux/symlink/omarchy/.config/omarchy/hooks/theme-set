@@ -1,4 +1,8 @@
 #!/bin/bash
 
 # Delegate to devx-custom hook (canonical copy, shared across platforms)
-exec "$HOME/.config/devx-custom/hooks/theme-set" "$@"
+if [ -x "$HOME/.config/devx-custom/hooks/theme-set" ]; then
+    exec "$HOME/.config/devx-custom/hooks/theme-set" "$@"
+else
+    echo "Warning: devx-custom theme-set hook not found" >&2
+fi
