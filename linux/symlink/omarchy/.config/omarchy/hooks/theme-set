@@ -1,11 +1,22 @@
 #!/bin/bash
 
 # This hook is called when the theme is changed.
-# It reloads tmux configuration to apply the new theme.
+# $1 is the snake-cased theme name (e.g. "tokyo-night")
+
+THEME_NAME="$1"
+DEVX_OVERRIDE="$HOME/.config/devx-custom/themes/$THEME_NAME/neovim.lua"
+NVIM_THEME_TARGET="$HOME/.config/nvim/lua/plugins/theme.lua"
+
+# Use devx-custom neovim override if available (avoids LazyVim-format defaults)
+if [ -f "$DEVX_OVERRIDE" ]; then
+    ln -sf "$DEVX_OVERRIDE" "$NVIM_THEME_TARGET"
+else
+    # Fall back to omarchy's default
+    ln -sf "$HOME/.config/omarchy/current/theme/neovim.lua" "$NVIM_THEME_TARGET"
+fi
 
 # Reload tmux configuration for all running tmux sessions
 if command -v tmux &> /dev/null; then
-    # Check if tmux server is running
     if tmux info &> /dev/null; then
         tmux source-file ~/.tmux.conf
     fi
