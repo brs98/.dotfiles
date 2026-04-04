@@ -182,10 +182,15 @@ else
         (cd linux/stow && stow -t ~ *)
     fi
 
-    # Link omarchy nvim theme into shared nvim config
-    if [ -f "$HOME/.config/omarchy/current/theme/neovim.lua" ]; then
+    # Link nvim theme — prefer devx-custom override, fall back to omarchy default
+    CURRENT_THEME=$(cat "$HOME/.config/omarchy/current/theme.name" 2>/dev/null)
+    DEVX_OVERRIDE="$HOME/.config/devx-custom/themes/$CURRENT_THEME/neovim.lua"
+    if [ -n "$CURRENT_THEME" ] && [ -f "$DEVX_OVERRIDE" ]; then
+        ln -sf "$DEVX_OVERRIDE" "$HOME/.config/nvim/lua/plugins/theme.lua"
+        echo "    ✓ Linked nvim theme to devx-custom override ($CURRENT_THEME)"
+    elif [ -f "$HOME/.config/omarchy/current/theme/neovim.lua" ]; then
         ln -sf "$HOME/.config/omarchy/current/theme/neovim.lua" "$HOME/.config/nvim/lua/plugins/theme.lua"
-        echo "    ✓ Linked nvim theme to omarchy"
+        echo "    ✓ Linked nvim theme to omarchy default ($CURRENT_THEME)"
     else
         echo "    ⚠ Warning: omarchy nvim theme not found, skipping..."
     fi
