@@ -1,5 +1,5 @@
-# Optional theme (ricekit or other)
-config-file = ?~/.config/ghostty/theme.conf
+# Optional theme (ricekit writes here on macOS)
+config-file = ?~/.config/ghostty/ricekit-theme
 
 # Window
 window-decoration = "none"
