@@ -1,5 +1,6 @@
-# Optional theme (ricekit writes here on macOS)
+# Optional theme — ricekit on macOS, omarchy on Linux
 config-file = ?~/.config/ghostty/ricekit-theme
+config-file = ?~/.config/omarchy/current/theme/ghostty.conf
 
 # Window
 window-decoration = "none"

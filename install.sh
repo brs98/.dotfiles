@@ -182,6 +182,14 @@ else
         (cd linux/stow && stow -t ~ *)
     fi
 
+    # Link omarchy nvim theme into shared nvim config
+    if [ -f "$HOME/.config/omarchy/current/theme/neovim.lua" ]; then
+        ln -sf "$HOME/.config/omarchy/current/theme/neovim.lua" "$HOME/.config/nvim/lua/plugins/theme.lua"
+        echo "    ✓ Linked nvim theme to omarchy"
+    else
+        echo "    ⚠ Warning: omarchy nvim theme not found, skipping..."
+    fi
+
     # Enable systemd user units
     echo "  → Enabling systemd user units..."
     if [ -f "$HOME/.config/systemd/user/retroarch-saves.path" ]; then
