@@ -61,8 +61,8 @@ elif command -v fzf &> /dev/null; then
 fi
 
 # Initialize tools
-eval "$(starship init zsh)"
-eval "$(zoxide init zsh)"
+command -v starship &> /dev/null && eval "$(starship init zsh)"
+command -v zoxide &> /dev/null && eval "$(zoxide init zsh)"
 if command -v mise &> /dev/null; then
   eval "$(mise activate zsh)"
 fi
