@@ -13,40 +13,45 @@ wezterm.add_to_config_reload_watch_list(ricekit_colors)
 -- Watch AeroSpace state file for fullscreen and opacity toggles
 local wezterm_state_file = wezterm.home_dir .. "/.config/aerospace/wezterm-fullscreen-state.lua"
 wezterm.add_to_config_reload_watch_list(wezterm_state_file)
-config.colors = dofile(ricekit_colors)
+local ok, colors = pcall(dofile, ricekit_colors)
+if ok and colors then
+	config.colors = colors
+end
 
--- Fix tab bar contrast (Ricekit's tab_bar colors have poor contrast)
--- Use ANSI colors from Ricekit theme for better visibility
-config.colors.tab_bar = {
-	background = "transparent",
-	active_tab = {
-		bg_color = "transparent",
-		fg_color = config.colors.ansi[7], -- Light gray
-	},
-	inactive_tab = {
-		bg_color = "transparent",
-		fg_color = config.colors.ansi[8], -- Brighter for inactive
-	},
-	inactive_tab_hover = {
-		bg_color = config.colors.selection_bg,
-		fg_color = config.colors.ansi[8],
-	},
-	new_tab = {
-		bg_color = "transparent",
-		fg_color = config.colors.ansi[7],
-	},
-	new_tab_hover = {
-		bg_color = config.colors.selection_bg,
-		fg_color = config.colors.ansi[8],
-	},
-}
+if config.colors then
+	-- Fix tab bar contrast (Ricekit's tab_bar colors have poor contrast)
+	-- Use ANSI colors from Ricekit theme for better visibility
+	config.colors.tab_bar = {
+		background = "transparent",
+		active_tab = {
+			bg_color = "transparent",
+			fg_color = config.colors.ansi[7], -- Light gray
+		},
+		inactive_tab = {
+			bg_color = "transparent",
+			fg_color = config.colors.ansi[8], -- Brighter for inactive
+		},
+		inactive_tab_hover = {
+			bg_color = config.colors.selection_bg,
+			fg_color = config.colors.ansi[8],
+		},
+		new_tab = {
+			bg_color = "transparent",
+			fg_color = config.colors.ansi[7],
+		},
+		new_tab_hover = {
+			bg_color = config.colors.selection_bg,
+			fg_color = config.colors.ansi[8],
+		},
+	}
 
--- Pane borders: match jankyborders active color and dim inactive panes
-config.colors.split = config.colors.ansi[5] -- Same accent as jankyborders active_color
-config.inactive_pane_hsb = {
-	saturation = 0.7,
-	brightness = 0.5,
-}
+	-- Pane borders: match jankyborders active color and dim inactive panes
+	config.colors.split = config.colors.ansi[5] -- Same accent as jankyborders active_color
+	config.inactive_pane_hsb = {
+		saturation = 0.7,
+		brightness = 0.5,
+	}
+end
 
 config.use_fancy_tab_bar = false
 config.tab_bar_at_bottom = true

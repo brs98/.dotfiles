@@ -255,6 +255,8 @@ echo "  - eza (better ls)"
 echo "  - bat (better cat)"
 echo "  - lazygit"
 echo "  - nvim"
+echo "  - diffnav (git diff pager)"
+echo "  - tv (television fuzzy finder)"
 if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "  - pbcopy (should be pre-installed)"
     echo "  - aerospace (window manager)"
