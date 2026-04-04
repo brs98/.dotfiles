@@ -1,1 +1,4 @@
 *.undodir/
+
+# Runtime symlink managed by omarchy theme-set hook / install.sh
+shared/stow/nvim/.config/nvim/lua/plugins/theme.lua
