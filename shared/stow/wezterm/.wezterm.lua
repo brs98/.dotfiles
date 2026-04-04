@@ -8,6 +8,8 @@ config.enable_wayland = false
 
 -- Ricekit v2 WezTerm integration
 local ricekit_colors = wezterm.home_dir .. "/.config/ricekit/active/wezterm/ricekit-colors.lua"
+config.colors = dofile(ricekit_colors)
+
 wezterm.add_to_config_reload_watch_list(ricekit_colors)
 
 -- Watch AeroSpace state file for fullscreen and opacity toggles

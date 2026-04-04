@@ -1,0 +1,9 @@
+[metadata]
+name = "worktrees"
+description = "List git worktrees by branch name"
+
+[source]
+command = "git worktree list --porcelain | awk '/^branch /{sub(/^branch refs\\/heads\\//, \"\"); print}'"
+
+[preview]
+command = "git log --oneline --graph --decorate -15 '{}'"
