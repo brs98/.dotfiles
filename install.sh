@@ -140,7 +140,16 @@ make_scripts_executable
 # Stow all shared configs
 echo "  → Stowing shared configs..."
 if [ -d "shared/stow" ]; then
-    (cd shared/stow && stow -t ~ *)
+    # claude needs --no-folding so skills.sh can add symlinks into ~/.claude/skills/
+    # alongside its own (e.g. from `npx skills add`)
+    (cd shared/stow && for pkg in */; do
+        pkg="${pkg%/}"
+        if [ "$pkg" = "claude" ]; then
+            stow -t ~ --no-folding "$pkg"
+        else
+            stow -t ~ "$pkg"
+        fi
+    done)
 fi
 
 # Stow platform-specific configs
