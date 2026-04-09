@@ -3,7 +3,7 @@
     "DISABLE_ZOXIDE": "1",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_NEW_INIT": "true",
-    "CLAUDE_CODE_NO_FLICKER": 1
+    "CLAUDE_CODE_NO_FLICKER": "1"
   },
   "permissions": {
     "allow": [
@@ -89,7 +89,6 @@
   },
   "enabledPlugins": {
     "agent-sdk-dev@claude-code-plugins": true,
-    "code-review@claude-code-plugins": true,
     "explanatory-output-style@claude-code-plugins": true,
     "frontend-design@claude-code-plugins": true,
     "typescript-lsp@claude-plugins-official": true,
@@ -98,20 +97,13 @@
     "linear@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,
     "worktrunk@worktrunk": true,
-    "ruby-lsp@claude-plugins-official": true,
-    "fluid-skills@fluid-skills-marketplace": true
+    "ruby-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "worktrunk": {
       "source": {
         "source": "github",
         "repo": "max-sixty/worktrunk"
-      }
-    },
-    "fluid-skills-marketplace": {
-      "source": {
-        "source": "git",
-        "url": "https://github.com/fluid-commerce/fluid-skills.git"
       }
     }
   },
