@@ -43,7 +43,7 @@ if ok and colors then
 		},
 	}
 
-	config.colors.split = config.colors.ansi[5]
+	-- split color is already set by ricekit ({{border}} with accent tint)
 end
 
 -- Dim inactive panes (useful with or without ricekit)
