@@ -37,6 +37,7 @@
       "mcp__pencil"
     ]
   },
+  "model": "claude-opus-4-7",
   "hooks": {
     "PreToolUse": [
       {
@@ -109,5 +110,8 @@
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark-ansi",
+  "remoteControlAtStartup": true,
+  "agentPushNotifEnabled": true
 }
