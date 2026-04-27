@@ -49,9 +49,14 @@ devcontainer up --workspace-folder <worktree-path>
      DATABASE_URL=postgres://postgres:postgres@postgres:5432
      REDIS_URL=redis://redis:6379/1
      ```
-   - **Add portal CDN** (if testing portal features):
+   - **Add portal CDN** (if testing portal features). Choose one:
      ```
+     # Production CDN — fine for non-portal work or testing prod assets
      PORTAL_CDN_BASE=https://storage.googleapis.com/portals-cdn/default/assets
+
+     # OR — for portal feature dev with HMR. Run `pnpm --filter portal dev`
+     # in fluid-mono and Rails will serve the SPA from your local Vite.
+     PORTAL_CDN_BASE=http://localhost:5173
      ```
 
 3. **Start the devcontainer**:
@@ -96,9 +101,11 @@ devcontainer up --workspace-folder <worktree-path>
 
 8. **Report access URLs** to the user:
    ```
-   Rails:    http://portal.fluid.localhost:<rails-port>/login
+   Login:    http://portal.fluid.localhost:<rails-port>/login
+   Handoff:  http://portal.fluid.localhost:<rails-port>/handoff/<tenant-subdomain>
+             (visit after MFA to mint the portal_tenant cookie)
    Tenants:  http://www.portal.fluid.localhost:<rails-port>/
-              http://tacobell.portal.fluid.localhost:<rails-port>/
+             http://tacobell.portal.fluid.localhost:<rails-port>/
    ```
 
 ### Finding the Container Name
@@ -111,7 +118,21 @@ docker ps --format '{{.Names}}' | grep <worktree-dirname>
 
 ### Getting MFA Codes (for portal login testing)
 
-After the user submits an email on the login page, use one of these methods:
+Pick whichever fits the workflow:
+
+**Method 0: Mint via Rails runner (preferred — no email-flow needed)**
+
+Creates an MFA record directly and prints both UUID and code in one step. Skip the email-submission step entirely:
+```bash
+docker exec -u vscode <container> bash -i -c \
+  "cd /workspaces/fluid && bin/rails runner \
+   \"u=User.find_by(email:'collins-johnie@hessel.example'); \
+     m=MfaHandler.insert(entity:u); \
+     puts m.uuid; puts m.verification_code\""
+```
+Then visit `http://portal.fluid.localhost:<rails-port>/auth/verify/<UUID>`, enter the code, click "Verify email".
+
+The methods below assume the user has already submitted an email at `/login`:
 
 **Method 1: Sidekiq retry queue** (preferred when using `bin/dev`):
 The email job fails (no Postmark configured) and lands in the retry queue with the code in the job args:
@@ -129,7 +150,9 @@ docker exec -u vscode <container> bash -i -c \
 **Method 3: Mailpit** (if configured in compose):
 Visit `http://localhost:8025` to see the email with the code.
 
-**Available test users:** `collins-johnie@hessel.example` (Fluid/www), `latasha-harvey@rowe.test` (Taco Bell).
+**Available test users (root admins):**
+- `collins-johnie@hessel.example` (Taco Bell / `tacobell`)
+- `everett-buckridge@ritchie-funk.example` (Fluid / `www`)
 
 ### List Running Devcontainers
 
