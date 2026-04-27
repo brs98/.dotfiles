@@ -75,6 +75,26 @@ outer.bottom =     12
 outer.top =        [{ monitor.built-in = 24 }, 56]
 outer.right =      12
 
+# Numbered workspaces live on the primary display. Opening the laptop adds a
+# third monitor, but 'main' tracks the macOS Displays preference and stays put.
+[workspace-to-monitor-force-assignment]
+1 = 'main'
+2 = 'main'
+3 = 'main'
+4 = 'main'
+5 = 'main'
+6 = 'main'
+7 = 'main'
+8 = 'main'
+9 = 'main'
+# Parking workspace lives on the rightmost external. Both externals are the
+# same model, so name regex can't disambiguate; pin by physical index instead.
+# Aerospace orders monitors left-to-right (1-based). With the lid closed there
+# are 2 monitors → index 2 wins. With the lid open, the laptop adds a 3rd
+# monitor → index 3 (rightmost) wins, assuming macOS Displays arranges it
+# leftmost.
+10 = [3, 2]
+
 # 'main' binding mode declaration
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes
 # 'main' binding mode must be always presented
@@ -117,9 +137,11 @@ cmd-shift-l = 'move right'
 cmd-shift-left = 'move left'
 cmd-shift-right = 'move right'
 
-# Move window to different monitor
+# Move window to different monitor. Right parks to workspace 10 (Monitor B via
+# pin) so the parking slot is always a known name. Left still does a generic
+# "move to previous monitor" to send a parked window back to Monitor A.
 ctrl-cmd-left = 'move-node-to-monitor --wrap-around prev'
-ctrl-cmd-right = 'move-node-to-monitor --wrap-around next'
+ctrl-cmd-right = 'move-node-to-workspace 10'
 
 
 # See: https://nikitabobko.github.io/AeroSpace/commands#workspace
