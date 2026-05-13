@@ -23,19 +23,50 @@ description: Create new agent skills with proper structure, progressive disclosu
    - Anything missing or unclear?
    - Should any section be more/less detailed?
 
-4. **Publish to dotfiles** - once approved:
+4. **Activate locally via symlink** - skills you author live in `~/.dotfiles/skills/` and
+   are exposed to every harness through a symlink under `~/.agents/skills/`. For a new
+   skill, create the symlink once:
+   ```bash
+   ln -s ~/.dotfiles/skills/<skill-name> ~/.agents/skills/<skill-name>
+   ```
+   Editing an existing dotfiles-authored skill needs no symlink step — the symlink chain
+   (`~/.claude/skills/` → `~/.agents/skills/<skill-name>` → `~/.dotfiles/skills/<skill-name>`)
+   means edits in dotfiles are live across all harnesses immediately.
+
+5. **Commit and push to dotfiles** - once approved:
    ```bash
    cd ~/.dotfiles
    git add skills/<skill-name>
    git commit -m "Add <skill-name> skill"
    git push origin main
-   npx -y skills add brs98/.dotfiles --skill <skill-name> -g -y
    ```
-   This commits the skill, pushes to `brs98/.dotfiles`, then registers it in
-   `~/.agents/.skill-lock.json` with the dotfiles repo as the source so future
-   `npx skills update` pulls from there. Order matters: push must complete
-   before the `skills add` step, because `npx skills` fetches from GitHub —
-   a local install (`npx skills add .`) skips the lockfile entry.
+   The push is for version history and distribution to other machines — not for local
+   activation (the symlink already handles that).
+
+### Bootstrapping a new machine
+
+On a fresh machine, install the dotfiles-authored skills via `npx skills`:
+```bash
+npx -y skills add brs98/.dotfiles --skill <skill-name> -g -y
+```
+This installs them as real copies under `~/.agents/skills/` and registers them in
+`~/.agents/.skill-lock.json`. After bootstrapping, replace each one with a symlink to the
+dotfiles checkout for the same instant-edit workflow:
+```bash
+rm -rf ~/.agents/skills/<skill-name>
+ln -s ~/.dotfiles/skills/<skill-name> ~/.agents/skills/<skill-name>
+```
+
+### Caveats
+
+- **Do not run `npx skills update`** for skills you've symlinked from dotfiles — it would
+  overwrite the symlink with a freshly-fetched copy from GitHub. Only run `skills update`
+  for third-party skills (mattpocock, vercel-labs, etc.) that remain as real copies under
+  `~/.agents/skills/`.
+- **Don't snapshot upstream skills into dotfiles.** If a skill is installed from an
+  upstream source (e.g. `mattpocock/skills`), don't keep a duplicate in `~/.dotfiles/skills/` —
+  it'll drift from upstream and create confusion. Either fork it intentionally (and remove
+  the upstream tracking from `~/.agents/.skill-lock.json`) or just consume it from upstream.
 
 ## Skill Structure
 
