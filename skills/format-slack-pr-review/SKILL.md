@@ -12,23 +12,20 @@ Format GitHub pull request(s) as concise Slack-ready text: `<url> <title>` with 
 
 ## Workflow
 
-1. **Determine which PRs to format.** Accept any of:
-   - PR URLs (`https://github.com/owner/repo/pull/123`)
-   - PR numbers with optional repo (`#123`, `owner/repo#123`)
-   - A repo name to list recent open PRs (`owner/repo`)
-   - No argument — use the current repo's open PRs authored by the current user
+1. **Determine which PRs to format.** Only format PRs that are already known to this agent in its current context. Resolve in this order:
 
-2. **Fetch PR details** using `gh`:
+   1. **Explicit arguments from the user** — PR URLs (`https://github.com/owner/repo/pull/123`) or numbers with optional repo (`#123`, `owner/repo#123`).
+   2. **PRs present in the current conversation context** — PRs this agent created earlier in the session (e.g. via `gh pr create`), PR URLs/numbers the user pasted, or PRs returned by previous tool calls in this conversation.
+
+   **Do not** run `gh pr list`, `gh pr list --author @me`, or any other command that enumerates PRs the agent does not already know about. The goal is to avoid pulling in unrelated PRs from the user's broader GitHub activity.
+
+   If nothing is resolvable from the above, ask the user which PR(s) they want formatted rather than guessing or listing.
+
+2. **Fetch PR details** for each resolved PR using `gh`:
    ```bash
-   # Single PR by number or URL
    gh pr view <number-or-url> --json url,title,reviewRequests
-
-   # List open PRs for current repo by current user
-   gh pr list --author @me --json url,title,reviewRequests
-
-   # List open PRs for a specific repo
-   gh pr list --repo owner/repo --json url,title,reviewRequests
    ```
+   If multiple PRs are being formatted, fetch them in parallel.
 
 3. **Format the output** according to the rules below.
 
