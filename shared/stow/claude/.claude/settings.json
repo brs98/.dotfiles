@@ -35,7 +35,8 @@
       "mcp__playwright__browser_click",
       "mcp__playwright__browser_evaluate",
       "mcp__pencil"
-    ]
+    ],
+    "defaultMode": "auto"
   },
   "model": "claude-opus-4-7",
   "hooks": {
@@ -113,5 +114,6 @@
   "skipDangerousModePermissionPrompt": true,
   "theme": "dark-ansi",
   "remoteControlAtStartup": true,
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true
 }

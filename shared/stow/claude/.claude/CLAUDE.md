@@ -1,5 +1,12 @@
 ## Workflow Orchestration
 
+### 0a. Worktrees - Not Branches
+
+- Always use worktrees via the worktrunk skill. Don't use branches. Worktrees enable parallelized development.
+
+### 0b. Never schedule unless explicitly asked
+- Never propose to schedule anything ever.
+
 ### 1. Plan Mode Default
 
 - Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
