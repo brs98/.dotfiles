@@ -140,17 +140,43 @@ make_scripts_executable
 # Stow all shared configs
 echo "  → Stowing shared configs..."
 if [ -d "shared/stow" ]; then
-    # claude needs --no-folding so skills.sh can add symlinks into ~/.claude/skills/
-    # alongside its own (e.g. from `npx skills add`)
     (cd shared/stow && for pkg in */; do
         pkg="${pkg%/}"
-        if [ "$pkg" = "claude" ]; then
-            stow -t ~ --no-folding "$pkg"
-        else
-            stow -t ~ "$pkg"
-        fi
+        stow -t ~ "$pkg"
     done)
 fi
+
+# Wire ~/.claude/skills to the skills.sh-managed ~/.agents/skills universal location,
+# so Claude Code shares one canonical skills directory with other agents.
+setup_skills_link() {
+    echo "  → Linking ~/.claude/skills -> ~/.agents/skills..."
+    mkdir -p ~/.agents/skills ~/.claude
+
+    if [ -e ~/.claude/skills ] && [ ! -L ~/.claude/skills ]; then
+        local backup="$HOME/.claude/skills.bak.$(date +%s)"
+        echo "    ⚠ ~/.claude/skills is a real directory; backing up to $backup"
+        mv ~/.claude/skills "$backup"
+    fi
+
+    ln -sfn ~/.agents/skills ~/.claude/skills
+    echo "    ✓ Linked ~/.claude/skills -> ~/.agents/skills"
+}
+
+# Install this repo's skills into ~/.agents/skills via the skills.sh CLI,
+# so they live in the same managed pool as anything from `npx skills add`.
+install_dotfile_skills() {
+    if ! command -v npx >/dev/null 2>&1; then
+        echo "    ⚠ npx not found; skipping. Run manually once installed:"
+        echo "        npx skills add $PWD --skill '*' -g -y"
+        return
+    fi
+    echo "  → Installing dotfile skills via npx skills..."
+    npx -y skills add "$PWD" --skill '*' -g -y || \
+        echo "    ⚠ npx skills add failed; resolve collisions manually with: npx skills add $PWD --skill '*' -g"
+}
+
+setup_skills_link
+install_dotfile_skills
 
 # Stow platform-specific configs
 if [[ "$OSTYPE" == "darwin"* ]]; then
