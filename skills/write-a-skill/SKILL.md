@@ -13,8 +13,8 @@ description: Create new agent skills with proper structure, progressive disclosu
    - Does it need executable scripts or just instructions?
    - Any reference materials to include?
 
-2. **Draft the skill** - create:
-   - SKILL.md with concise instructions
+2. **Draft the skill** - create files at `~/.dotfiles/skills/<skill-name>/`:
+   - `SKILL.md` with concise instructions (required)
    - Additional reference files if content exceeds 500 lines
    - Utility scripts if deterministic operations needed
 
@@ -22,6 +22,20 @@ description: Create new agent skills with proper structure, progressive disclosu
    - Does this cover your use cases?
    - Anything missing or unclear?
    - Should any section be more/less detailed?
+
+4. **Publish to dotfiles** - once approved:
+   ```bash
+   cd ~/.dotfiles
+   git add skills/<skill-name>
+   git commit -m "Add <skill-name> skill"
+   git push origin main
+   npx -y skills add brs98/.dotfiles --skill <skill-name> -g -y
+   ```
+   This commits the skill, pushes to `brs98/.dotfiles`, then registers it in
+   `~/.agents/.skill-lock.json` with the dotfiles repo as the source so future
+   `npx skills update` pulls from there. Order matters: push must complete
+   before the `skills add` step, because `npx skills` fetches from GitHub —
+   a local install (`npx skills add .`) skips the lockfile entry.
 
 ## Skill Structure
 
