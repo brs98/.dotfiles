@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { CustomEditor, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -86,6 +86,27 @@ function getInlineSkillAutocompleteItems(commands: PiCommand[], prefix: string) 
     .sort((a, b) => a.value.localeCompare(b.value));
 }
 
+type AutocompleteTriggerableEditor = CustomEditor & { tryTriggerAutocomplete(): void };
+
+class InlineSkillEditor extends CustomEditor {
+  override handleInput(data: string): void {
+    super.handleInput(data);
+    this.triggerInlineSkillAutocomplete();
+  }
+
+  private triggerInlineSkillAutocomplete(): void {
+    if (this.isShowingAutocomplete()) return;
+
+    const cursor = this.getCursor();
+    const line = this.getLines()[cursor.line] ?? "";
+    const beforeCursor = line.slice(0, cursor.col);
+    const prefix = getInlineSkillAutocompletePrefix(beforeCursor);
+    if (!prefix) return;
+
+    (this as AutocompleteTriggerableEditor).tryTriggerAutocomplete();
+  }
+}
+
 function formatLoadedSkills(skills: Array<{ name: string; path: string; content: string }>): string {
   const sections = skills.map(
     (skill) => `<skill name="${skill.name}" path="${skill.path}">\n${skill.content.trim()}\n</skill>`,
@@ -122,6 +143,8 @@ export default function inlineSkills(pi: ExtensionAPI) {
         return current.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? true;
       },
     }));
+
+    ctx.ui.setEditorComponent((tui, theme, keybindings) => new InlineSkillEditor(tui, theme, keybindings));
   });
 
   pi.on("input", async (event, ctx) => {
