@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 const INLINE_SKILL_PATTERN = /(^|\s)\/skill:([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?=$|[\s.,;:!?)}\]])/g;
 
+const TOKEN_SEPARATORS = new Set([" ", "\t", "\n", "(", "[", "{"]);
+
 type PiCommand = ReturnType<ExtensionAPI["getCommands"]>[number];
 
 function expandHome(path: string): string {
@@ -41,6 +43,49 @@ function findSkillCommand(commands: PiCommand[], name: string): PiCommand | unde
   );
 }
 
+function getSkillName(command: PiCommand): string {
+  return command.name.startsWith("skill:") ? command.name.slice("skill:".length) : command.name;
+}
+
+function getCurrentToken(text: string): { token: string; tokenStart: number } {
+  let tokenStart = text.length;
+
+  while (tokenStart > 0 && !TOKEN_SEPARATORS.has(text[tokenStart - 1] ?? "")) {
+    tokenStart -= 1;
+  }
+
+  return { token: text.slice(tokenStart), tokenStart };
+}
+
+function getInlineSkillAutocompletePrefix(textBeforeCursor: string): string | undefined {
+  const { token, tokenStart } = getCurrentToken(textBeforeCursor);
+
+  // Keep pi's built-in slash-command menu at the beginning of a prompt/line.
+  // This provider is only for inline skill references inside a larger prompt.
+  if (textBeforeCursor.slice(0, tokenStart).trim().length === 0) return undefined;
+
+  if (token === "/") return token;
+  if ("/skill:".startsWith(token)) return token;
+  if (token.startsWith("/skill:")) return token;
+
+  return undefined;
+}
+
+function getInlineSkillAutocompleteItems(commands: PiCommand[], prefix: string) {
+  return commands
+    .filter((command) => command.source === "skill")
+    .map((command) => {
+      const skillName = getSkillName(command);
+      return {
+        value: `/skill:${skillName}`,
+        label: `/skill:${skillName}`,
+        description: command.description,
+      };
+    })
+    .filter((item) => item.value.startsWith(prefix))
+    .sort((a, b) => a.value.localeCompare(b.value));
+}
+
 function formatLoadedSkills(skills: Array<{ name: string; path: string; content: string }>): string {
   const sections = skills.map(
     (skill) => `<skill name="${skill.name}" path="${skill.path}">\n${skill.content.trim()}\n</skill>`,
@@ -56,6 +101,29 @@ function formatLoadedSkills(skills: Array<{ name: string; path: string; content:
 }
 
 export default function inlineSkills(pi: ExtensionAPI) {
+  pi.on("session_start", (_event, ctx) => {
+    ctx.ui.addAutocompleteProvider((current) => ({
+      async getSuggestions(lines, cursorLine, cursorCol, options) {
+        const line = lines[cursorLine] ?? "";
+        const beforeCursor = line.slice(0, cursorCol);
+        const prefix = getInlineSkillAutocompletePrefix(beforeCursor);
+
+        if (!prefix) return current.getSuggestions(lines, cursorLine, cursorCol, options);
+
+        const items = getInlineSkillAutocompleteItems(pi.getCommands(), prefix);
+        if (items.length === 0) return current.getSuggestions(lines, cursorLine, cursorCol, options);
+
+        return { prefix, items };
+      },
+      applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
+        return current.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
+      },
+      shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
+        return current.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? true;
+      },
+    }));
+  });
+
   pi.on("input", async (event, ctx) => {
     const names = findInlineSkillNames(event.text);
     if (names.length === 0) return { action: "continue" as const };
