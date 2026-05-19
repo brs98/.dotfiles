@@ -17,12 +17,23 @@ Implement multiple tasks in parallel by spawning agent teams across isolated git
 
 ## Input
 
-Tasks can be provided as plain text descriptions, Linear issue IDs, output from `/linear-deps`, or any mix. Parse whatever the user gives you into discrete work items.
+Tasks can be provided as plain text descriptions or issue IDs from any supported tracker — or a mix. Parse whatever the user gives you into discrete work items.
+
+Supported trackers and ID shapes:
+
+| Tracker | ID shape | Fetch details with | Update status / link PR with |
+|---------|----------|--------------------|------------------------------|
+| Linear | `TEAM-123` (uppercase prefix + number) | Linear MCP tools | Linear MCP tools |
+| Pebbles | `pebbles-<slug>` (and project has a `.pebbles/` dir) | `peb show <id> --json` | `peb update <id> ...`, `peb comment <id> ...` |
+| GitHub | `#123` or `owner/repo#123` | `gh issue view <n> --json title,body,labels` | `gh issue edit`, `gh issue comment` |
+| None | plain text description | — | — |
+
+If the tracker is ambiguous (e.g. a bare number, or an ID that could match multiple shapes), ask the user before fetching.
 
 ## Phase 1: Validate & Prepare
 
-1. Parse the task list into discrete work items
-2. If Linear issue IDs are provided, fetch full details (title, description, acceptance criteria) using Linear MCP tools
+1. Parse the task list into discrete work items, tagging each with its tracker (or `none`)
+2. For each tracked item, fetch full details (title, description, acceptance criteria) using the tracker's tool from the table above. Parallelize fetches across trackers where possible.
 3. Update main:
    ```bash
    git fetch origin && git checkout main && git pull origin main
@@ -74,10 +85,10 @@ Spawn agents using the Agent tool. **Never use `isolation: "worktree"`** — wor
 - Different stack groups always run in parallel with each other
 
 Each agent receives a prompt built from the template in [REFERENCE.md](REFERENCE.md) containing:
-- The task description (and Linear issue context if applicable)
+- The task description (and tracker issue context if applicable)
 - The assigned worktree path and branch name
 - Instructions to explore, implement, pass push checks, commit, and open a PR
-- If a Linear issue was provided: instructions to update issue status and link the PR
+- If a tracker issue was provided: append the matching tracker addendum from [REFERENCE.md](REFERENCE.md) with instructions to update issue status and link the PR
 
 Instruct each agent: **"You MUST `git add` and `git commit` all changes before marking your task complete."**
 

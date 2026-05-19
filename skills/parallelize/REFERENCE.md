@@ -8,7 +8,7 @@ Use this template when constructing the prompt for each spawned agent. Replace p
 You are implementing a task in an isolated git worktree.
 
 ## Your Task
-<task description — plain text, Linear issue details, or both>
+<task description — plain text, tracker issue details, or both>
 
 ## Your Worktree
 Path: <worktree-path>
@@ -54,19 +54,42 @@ You MUST `git add` and `git commit` all changes before marking your task complet
 - Follow existing code patterns and conventions you find in the codebase
 ```
 
-### Linear Issue Addendum
+### Tracker Issue Addendum
 
-When a Linear issue is provided, append this to the agent prompt:
+When a tracker issue is provided, append the matching block below to the agent prompt. The shared header is the same — only the closing instruction differs per tracker.
+
+Shared header (always include):
 
 ```
-## Linear Issue
+## Tracked Issue
+Tracker: <linear | pebbles | github>
 ID: <issue-id>
 Title: <issue-title>
 Description: <issue-description>
 Acceptance Criteria: <acceptance-criteria>
+```
 
+**Linear** — append:
+
+```
 When starting work, update the Linear issue status to "In Progress" using the Linear MCP tools.
 After opening the PR, link it to the Linear issue.
+```
+
+**Pebbles** — append:
+
+```
+When starting work, run: peb update <issue-id> --status in_progress
+After opening the PR, run: peb comment <issue-id> "PR: <pr-url>"
+Use a `Closes: <issue-id>` git trailer in the final commit so pebbles auto-closes on merge.
+```
+
+**GitHub Issues** — append:
+
+```
+When starting work, run: gh issue edit <issue-number> --add-label in-progress
+In the PR body, include "Closes #<issue-number>" so the issue auto-closes on merge.
+After opening the PR, run: gh issue comment <issue-number> --body "PR: <pr-url>"
 ```
 
 ## Overlap Analysis Presentation Format
