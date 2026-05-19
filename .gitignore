@@ -3,3 +3,6 @@ shared/.claude/
 
 # Runtime symlink managed by omarchy theme-set hook / install.sh
 shared/stow/nvim/.config/nvim/lua/plugins/theme.lua
+
+# Starship palette is rewritten by ricekit — keep stow symlink but don't track contents
+shared/stow/starship/
