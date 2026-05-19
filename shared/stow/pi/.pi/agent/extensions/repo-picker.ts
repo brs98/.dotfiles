@@ -1,9 +1,10 @@
 /**
- * Repo Picker Extension — fuzzy filtering + insert at cursor
+ * Path Picker Extension — autocomplete dropdown + insert at cursor
  *
  * Features:
- *   • /repo command — opens fuzzy picker, replaces editor text with selected path
- *   • Ctrl+Shift+R — opens fuzzy picker, inserts selected path at cursor position
+ *   • /path command — fuzzy-search and insert a local git repo path
+ *   • Ctrl+Shift+R — inserts /path trigger at cursor, opens autocomplete dropdown
+ *   • Type "/path" anywhere in your prompt — autocomplete dropdown appears with repo paths
  *
  * The picker scans ~/* and common parent dirs (~/dev, ~/projects, ~/code, etc.)
  * one level deep for git repositories.
@@ -17,11 +18,13 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { CustomEditor, DynamicBorder } from "@earendil-works/pi-coding-agent";
-import { Container, type SelectItem, SelectList, Text, matchesKey, Key } from "@earendil-works/pi-tui";
+import { Container, Text, matchesKey, Key, truncateToWidth } from "@earendil-works/pi-tui";
+import type { AutocompleteItem } from "@earendil-works/pi-tui";
 
 // ── Config ───────────────────────────────────────────────────────────
 
-const PARENT_DIRS = [
+/** Directories to scan one level deep */
+const SHALLOW_DIRS = [
 	"dev",
 	"projects",
 	"code",
@@ -30,9 +33,17 @@ const PARENT_DIRS = [
 	"repos",
 	"github",
 	"gitlab",
-	"work",
 	"Documents",
 ];
+
+/** Directories to scan recursively (up to maxDepth levels) */
+const RECURSIVE_DIRS = [
+	{ path: "personal", maxDepth: 4 },
+	{ path: "work", maxDepth: 4 },
+];
+
+/** Specific repo paths to check directly */
+const SPECIFIC_PATHS = [".dotfiles"];
 
 const SCAN_HOME_IMMEDIATE = true;
 
@@ -42,10 +53,37 @@ function isGitRepo(dir: string): boolean {
 	return existsSync(join(dir, ".git"));
 }
 
+function findGitReposRecursive(dir: string, maxDepth: number, currentDepth = 0): string[] {
+	const repos: string[] = [];
+	if (currentDepth >= maxDepth) return repos;
+
+	try {
+		const entries = readdirSync(dir, { withFileTypes: true });
+		for (const entry of entries) {
+			if (!entry.isDirectory()) continue;
+			if (entry.name.startsWith(".")) continue;
+			// Skip common non-repo directories
+			if (["node_modules", "vendor", "dist", "build", "target", "out", "coverage"].includes(entry.name)) continue;
+
+			const fullPath = join(dir, entry.name);
+			if (isGitRepo(fullPath)) {
+				repos.push(fullPath);
+			} else {
+				repos.push(...findGitReposRecursive(fullPath, maxDepth, currentDepth + 1));
+			}
+		}
+	} catch {
+		/* ignore permission errors */
+	}
+
+	return repos;
+}
+
 function findGitRepos(): string[] {
 	const repos = new Set<string>();
 	const home = homedir();
 
+	// 1. Immediate subdirectories of home (e.g. ~/.dotfiles won't match because it starts with ".")
 	if (SCAN_HOME_IMMEDIATE) {
 		try {
 			const entries = readdirSync(home, { withFileTypes: true });
@@ -60,7 +98,16 @@ function findGitRepos(): string[] {
 		}
 	}
 
-	for (const parent of PARENT_DIRS) {
+	// 2. Specific one-off repos (including hidden ones like ~/.dotfiles)
+	for (const specific of SPECIFIC_PATHS) {
+		const fullPath = join(home, specific);
+		if (existsSync(fullPath) && isGitRepo(fullPath)) {
+			repos.add(fullPath);
+		}
+	}
+
+	// 3. Shallow scan: one level deep
+	for (const parent of SHALLOW_DIRS) {
 		const parentPath = join(home, parent);
 		if (!existsSync(parentPath)) continue;
 
@@ -77,7 +124,25 @@ function findGitRepos(): string[] {
 		}
 	}
 
+	// 4. Recursive scan: any depth up to maxDepth
+	for (const { path, maxDepth } of RECURSIVE_DIRS) {
+		const parentPath = join(home, path);
+		if (!existsSync(parentPath)) continue;
+		for (const repo of findGitReposRecursive(parentPath, maxDepth)) {
+			repos.add(repo);
+		}
+	}
+
 	return Array.from(repos).sort((a, b) => a.localeCompare(b));
+}
+
+let cachedRepos: string[] | null = null;
+
+function getRepos(): string[] {
+	if (!cachedRepos) {
+		cachedRepos = findGitRepos();
+	}
+	return cachedRepos;
 }
 
 function shortenHome(path: string): string {
@@ -85,164 +150,84 @@ function shortenHome(path: string): string {
 	return path.startsWith(home) ? path.replace(home, "~") : path;
 }
 
-// ── Fuzzy Picker Overlay ─────────────────────────────────────────────
+// ── Autocomplete ─────────────────────────────────────────────────────
 
-class RepoPickerOverlay {
-	private theme: Theme;
-	private done: (value: string | null) => void;
-	private searchQuery = "";
-	private selectList: SelectList;
-	private cachedWidth?: number;
-	private cachedLines?: string[];
+const TOKEN_SEPARATORS = new Set([" ", "\t", "\n", "(", "[", "{"]);
 
-	constructor(theme: Theme, items: SelectItem[], done: (value: string | null) => void) {
-		this.theme = theme;
-		this.done = done;
+function getCurrentToken(text: string): { token: string; tokenStart: number } {
+	let tokenStart = text.length;
+	while (tokenStart > 0 && !TOKEN_SEPARATORS.has(text[tokenStart - 1] ?? "")) {
+		tokenStart -= 1;
+	}
+	return { token: text.slice(tokenStart), tokenStart };
+}
 
-		this.selectList = new SelectList(
-			items,
-			Math.min(items.length, 12),
-			{
-				selectedPrefix: (t) => theme.fg("accent", t),
-				selectedText: (t) => theme.fg("accent", t),
-				description: (t) => theme.fg("muted", t),
-				scrollInfo: (t) => theme.fg("dim", t),
-				noMatch: (t) => theme.fg("warning", t),
-			},
-		);
+function getPathAutocompletePrefix(textBeforeCursor: string): string | undefined {
+	const { token } = getCurrentToken(textBeforeCursor);
 
-		this.selectList.onSelect = (item) => this.done(item.value);
-		this.selectList.onCancel = () => this.done(null);
+	if (
+		token.startsWith("/path") &&
+		(token.length === 5 || token[5] === " " || token[5] === "\t")
+	) {
+		return token;
 	}
 
-	handleInput(data: string): void {
-		// Cancel
-		if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
-			this.done(null);
-			return;
-		}
+	return undefined;
+}
 
-		// Navigation / selection — let SelectList handle it
-		if (
-			matchesKey(data, Key.up) ||
-			matchesKey(data, Key.down) ||
-			matchesKey(data, Key.enter)
-		) {
-			this.selectList.handleInput(data);
-			this.invalidate();
-			return;
-		}
+function getPathAutocompleteItems(repos: string[], prefix: string) {
+	const query = prefix.slice("/path".length).trim().toLowerCase();
 
-		// Backspace
-		if (matchesKey(data, Key.backspace)) {
-			if (this.searchQuery.length > 0) {
-				this.searchQuery = this.searchQuery.slice(0, -1);
-				this.selectList.setFilter(this.searchQuery);
-				this.invalidate();
-			}
-			return;
-		}
+	return repos
+		.map((path) => ({
+			value: path,
+			label: shortenHome(path),
+		}))
+		.filter(
+			(item) => !query || fuzzyMatch(query, item.label) || fuzzyMatch(query, item.value),
+		)
+		.slice(0, 15)
+		.map((item) => ({
+			value: item.value,
+			label: item.label,
+			description: item.value,
+		}));
+}
 
-		// Printable character (skip control chars and DEL)
-		if (data.length === 1 && data.charCodeAt(0) >= 32 && data.charCodeAt(0) !== 127) {
-			this.searchQuery += data;
-			this.selectList.setFilter(this.searchQuery);
-			this.invalidate();
-		}
+type AutocompleteTriggerableEditor = CustomEditor & { tryTriggerAutocomplete(): void };
+
+class PathAutocompleteEditor extends CustomEditor {
+	override handleInput(data: string): void {
+		super.handleInput(data);
+		this.triggerPathAutocomplete();
 	}
 
-	render(width: number): string[] {
-		if (this.cachedLines && this.cachedWidth === width) {
-			return this.cachedLines;
-		}
+	private triggerPathAutocomplete(): void {
+		if (this.isShowingAutocomplete()) return;
 
-		const container = new Container();
-		const th = this.theme;
+		const cursor = this.getCursor();
+		const line = this.getLines()[cursor.line] ?? "";
+		const beforeCursor = line.slice(0, cursor.col);
+		const prefix = getPathAutocompletePrefix(beforeCursor);
+		if (!prefix) return;
 
-		// Top border
-		container.addChild(new DynamicBorder((s: string) => th.fg("accent", s)));
-
-		// Title
-		container.addChild(
-			new Text(th.fg("accent", th.bold("Select Git Repo")), 1, 0),
-		);
-
-		// Separator
-		container.addChild(new DynamicBorder((s: string) => th.fg("borderMuted", s)));
-
-		// Search box
-		const searchDisplay = this.searchQuery || th.fg("dim", "type to filter…");
-		container.addChild(new Text(th.fg("text", `> ${searchDisplay}`), 1, 0));
-
-		// Separator
-		container.addChild(new DynamicBorder((s: string) => th.fg("borderMuted", s)));
-
-		// List (render at width minus padding)
-		const listLines = this.selectList.render(width - 2);
-		for (const line of listLines) {
-			container.addChild(new Text(line, 1, 0));
-		}
-
-		// Bottom border
-		container.addChild(new DynamicBorder((s: string) => th.fg("accent", s)));
-
-		// Help text
-		container.addChild(
-			new Text(
-				th.fg("dim", "↑↓ navigate • enter select • esc cancel"),
-				1,
-				0,
-			),
-		);
-
-		this.cachedWidth = width;
-		this.cachedLines = container.render(width);
-		return this.cachedLines;
-	}
-
-	invalidate(): void {
-		this.cachedWidth = undefined;
-		this.cachedLines = undefined;
-		this.selectList.invalidate();
+		(this as AutocompleteTriggerableEditor).tryTriggerAutocomplete();
 	}
 }
 
-// ── Shared Picker Logic ──────────────────────────────────────────────
+// ── Fuzzy Match ──────────────────────────────────────────────────────
 
-async function showRepoPicker(ctx: ExtensionContext): Promise<string | null> {
-	if (!ctx.hasUI) {
-		ctx.ui.notify("repo picker requires interactive mode", "error");
-		return null;
+/** Simple fuzzy match: every query char must appear in order in the text */
+function fuzzyMatch(query: string, text: string): boolean {
+	let qi = 0;
+	let ti = 0;
+	const q = query.toLowerCase();
+	const t = text.toLowerCase();
+	while (qi < q.length && ti < t.length) {
+		if (q[qi] === t[ti]) qi++;
+		ti++;
 	}
-
-	const repos = findGitRepos();
-	if (repos.length === 0) {
-		ctx.ui.notify(
-			"No git repos found. Checked: ~/*, ~/dev, ~/projects, ~/code, etc.",
-			"warning",
-		);
-		return null;
-	}
-
-	const items: SelectItem[] = repos.map((path) => ({
-		value: path,
-		label: shortenHome(path),
-	}));
-
-	return ctx.ui.custom<string | null>(
-		(tui, theme, _kb, done) => {
-			const overlay = new RepoPickerOverlay(theme, items, done);
-			return {
-				render: (w) => overlay.render(w),
-				invalidate: () => overlay.invalidate(),
-				handleInput: (data) => {
-					overlay.handleInput(data);
-					tui.requestRender();
-				},
-			};
-		},
-		{ overlay: true },
-	);
+	return qi === q.length;
 }
 
 // ── Extension Entrypoint ─────────────────────────────────────────────
@@ -251,54 +236,104 @@ export default function (pi: ExtensionAPI) {
 	/** Reference to the current session's editor (for insert-at-cursor) */
 	let currentEditor: CustomEditor | null = null;
 
-	/** Track whether picker is already open to prevent nested overlays */
-	let isPickerOpen = false;
-
-	// Install a thin CustomEditor wrapper so we can insert at cursor later
+	// Install autocomplete provider + custom editor for auto-triggering
 	pi.on("session_start", (_event, ctx) => {
+		cachedRepos = null;
+
+		ctx.ui.addAutocompleteProvider((current) => ({
+			async getSuggestions(lines, cursorLine, cursorCol, options) {
+				const line = lines[cursorLine] ?? "";
+				const beforeCursor = line.slice(0, cursorCol);
+				const prefix = getPathAutocompletePrefix(beforeCursor);
+
+				if (!prefix) return current.getSuggestions(lines, cursorLine, cursorCol, options);
+
+				const items = getPathAutocompleteItems(getRepos(), prefix);
+				if (items.length === 0)
+					return current.getSuggestions(lines, cursorLine, cursorCol, options);
+
+				return { prefix, items };
+			},
+			applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
+				// Only handle /path completions — delegate commands, @refs, etc. to default
+				if (!prefix.startsWith("/path")) {
+					return current.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
+				}
+
+				const line = lines[cursorLine] ?? "";
+				const prefixStart = cursorCol - prefix.length;
+				if (prefixStart >= 0 && line.slice(prefixStart, cursorCol) === prefix) {
+					const before = line.slice(0, prefixStart);
+					const after = line.slice(cursorCol);
+					const newLine = before + item.value + after;
+					const newLines = [...lines];
+					newLines[cursorLine] = newLine;
+					return {
+						lines: newLines,
+						cursorLine,
+						cursorCol: prefixStart + item.value.length,
+					};
+				}
+				return current.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
+			},
+			shouldTriggerFileCompletion(_lines, _cursorLine, _cursorCol) {
+				return false;
+			},
+		}));
+
 		ctx.ui.setEditorComponent((tui, theme, keybindings) => {
-			currentEditor = new CustomEditor(tui, theme, keybindings);
+			currentEditor = new PathAutocompleteEditor(tui, theme, keybindings);
 			return currentEditor;
 		});
 	});
 
-	// /repo — replace editor text
-	pi.registerCommand("repo", {
+	// ── /path command (standalone) ───────────────────────────────────
+	pi.registerCommand("path", {
 		description: "Fuzzy-search and insert a local git repo path",
-		handler: async (_args, ctx) => {
-			if (isPickerOpen) return;
-			isPickerOpen = true;
-			try {
-				const result = await showRepoPicker(ctx);
-				if (result) {
-					ctx.ui.setEditorText(result);
-					ctx.ui.notify(`Inserted: ${shortenHome(result)}`, "info");
+		getArgumentCompletions: (prefix): AutocompleteItem[] | null => {
+			const repos = getRepos();
+			const query = prefix.toLowerCase();
+			const items = repos.map((path) => ({
+				value: path,
+				label: shortenHome(path),
+			}));
+			const filtered = items.filter(
+				(item) => fuzzyMatch(query, item.label) || fuzzyMatch(query, item.value),
+			);
+			return filtered.length > 0 ? filtered.slice(0, 15) : null;
+		},
+		handler: async (args, ctx) => {
+			const repos = getRepos();
+			const query = (args ?? "").trim().toLowerCase();
+
+			// If args provided, try to find a matching repo directly
+			if (query) {
+				const match = repos.find(
+					(path) => fuzzyMatch(query, shortenHome(path)) || fuzzyMatch(query, path),
+				);
+				if (match) {
+					ctx.ui.setEditorText(match);
+					ctx.ui.notify(`Inserted: ${shortenHome(match)}`, "info");
+					return;
 				}
-			} finally {
-				isPickerOpen = false;
 			}
+
+			// No match — insert trigger so autocomplete dropdown appears
+			ctx.ui.setEditorText("/path ");
+			ctx.ui.notify("Type to filter repos, then select from dropdown", "info");
 		},
 	});
 
-	// Ctrl+Shift+R — insert at cursor
+	// ── Ctrl+Shift+R — insert trigger at cursor ──────────────────────
 	pi.registerShortcut("ctrl+shift+r", {
-		description: "Open git repo picker and insert at cursor",
+		description: "Insert /path trigger at cursor to open repo autocomplete",
 		handler: async (ctx) => {
-			if (isPickerOpen) return;
 			if (!currentEditor) {
 				ctx.ui.notify("Editor not ready", "error");
 				return;
 			}
-			isPickerOpen = true;
-			try {
-				const result = await showRepoPicker(ctx);
-				if (result) {
-					currentEditor.insertTextAtCursor(result);
-					ctx.ui.notify(`Inserted at cursor: ${shortenHome(result)}`, "info");
-				}
-			} finally {
-				isPickerOpen = false;
-			}
+			currentEditor.insertTextAtCursor("/path ");
+			ctx.ui.notify("Type to filter repos, then select from dropdown", "info");
 		},
 	});
 }
