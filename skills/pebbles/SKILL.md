@@ -1,11 +1,13 @@
 ---
 name: pebbles
-description: Use the `peb` CLI to track issues in any project's local `.pebbles/` workspace — create, list, show, update, comment, link deps, and close via git trailers. Use when the user mentions pebbles, peb, issue tracking, ticket capture, or any project contains a `.pebbles/` directory and they want to query or modify tickets.
+description: Use the `peb` CLI to track pebbles (issues) in any project's local `.pebbles/` workspace — create, list, show, update, comment, link deps, and close via git trailers. Use when the user mentions pebbles, a pebble, peb, issue tracking, ticket capture, or any project contains a `.pebbles/` directory and they want to query or modify tickets.
 ---
 
 # Pebbles
 
 Pebbles is a fast, local, SQLite-backed issue tracker. The CLI is `peb`. Issues live in a `.pebbles/` directory at the project root (analogous to `.git/`). `peb` walks parent directories to find it.
+
+A **pebble** is an issue — the user's preferred word for the unit. Treat "pebble" and "issue" as synonyms (e.g. "create a pebble" → `peb create`) and mirror the user's word choice when responding. The CLI flags and JSON schema still say "issue"; that's storage-level, not a contradiction.
 
 ## Detect the workspace first
 
