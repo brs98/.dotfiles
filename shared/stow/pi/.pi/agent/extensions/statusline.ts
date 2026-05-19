@@ -2,19 +2,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { basename } from "node:path";
 
-const RENDER_INTERVAL_MS = 30_000;
 const DIRTY_REFRESH_INTERVAL_MS = 10_000;
-
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) return `${hours}h${minutes}m`;
-  if (minutes > 0) return `${minutes}m`;
-  return `${seconds}s`;
-}
 
 function contextColor(percent: number | null | undefined): "success" | "warning" | "error" | "muted" {
   if (percent === null || percent === undefined) return "muted";
@@ -26,9 +14,12 @@ function contextColor(percent: number | null | undefined): "success" | "warning"
 function formatModel(model: unknown): string {
   if (!model || typeof model !== "object") return "no-model";
 
-  const candidate = model as { name?: unknown; id?: unknown };
-  if (typeof candidate.name === "string" && candidate.name.length > 0) return candidate.name;
-  if (typeof candidate.id === "string" && candidate.id.length > 0) return candidate.id;
+  if ("name" in model && typeof (model as Record<string, unknown>).name === "string" && (model as Record<string, unknown>).name) {
+    return (model as Record<string, unknown>).name as string;
+  }
+  if ("id" in model && typeof (model as Record<string, unknown>).id === "string" && (model as Record<string, unknown>).id) {
+    return (model as Record<string, unknown>).id as string;
+  }
   return "model";
 }
 
@@ -58,14 +49,11 @@ export default function statusline(pi: ExtensionAPI) {
     const dirtyTimer = setInterval(() => void refreshDirty(), DIRTY_REFRESH_INTERVAL_MS);
 
     ctx.ui.setFooter((tui, theme, footerData) => {
-      const sessionStart = Date.parse(ctx.sessionManager.getHeader().timestamp);
       const unsubscribeBranch = footerData.onBranchChange(() => tui.requestRender());
-      const renderTimer = setInterval(() => tui.requestRender(), RENDER_INTERVAL_MS);
 
       return {
         dispose() {
           disposed = true;
-          clearInterval(renderTimer);
           clearInterval(dirtyTimer);
           unsubscribeBranch();
         },
@@ -80,17 +68,30 @@ export default function statusline(pi: ExtensionAPI) {
           const branch = footerData.getGitBranch();
           const branchText = branch ? ` ${theme.fg("success", `(${branch}${dirty ? theme.fg("error", "*") : ""})`)}` : "";
 
-          const elapsed = Number.isFinite(sessionStart) ? Date.now() - sessionStart : 0;
-          const thinkingLevel = pi.getThinkingLevel();
-          const thinkingIcon = thinkingLevel === "off" ? "○" : thinkingLevel === "high" || thinkingLevel === "xhigh" ? "●" : "◑";
+          // Calculate accumulated cost from all session entries
+          let totalCost = 0;
+
+          for (const e of ctx.sessionManager.getBranch()) {
+            if (e.type === "message" && e.message.role === "assistant") {
+              totalCost += e.message.usage.cost.total;
+            }
+          }
+
+          // Build usage stats (accumulated cost only)
+          const usageParts: string[] = [];
+
+          const usingSubscription = ctx.model ? ctx.modelRegistry.isUsingOAuth(ctx.model) : false;
+          if (totalCost || usingSubscription) {
+            const costStr = `$${totalCost.toFixed(3)}${usingSubscription ? " (sub)" : ""}`;
+            usageParts.push(costStr);
+          }
 
           const line = joinStyled(
             [
               theme.fg("accent", formatModel(ctx.model)),
               contextText,
               `${theme.fg("mdCode", directory)}${branchText}`,
-              `${theme.fg("dim", "⏱ ")}${formatDuration(elapsed)}`,
-              theme.fg(thinkingLevel === "high" || thinkingLevel === "xhigh" ? "thinkingHigh" : "muted", `${thinkingIcon} ${thinkingLevel}`),
+              usageParts.length > 0 ? theme.fg("dim", usageParts.join(" ")) : "",
             ],
             separator,
           );
