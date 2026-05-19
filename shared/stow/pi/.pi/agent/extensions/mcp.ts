@@ -51,6 +51,8 @@ type McpDetails = {
   result?: unknown;
 };
 
+type McpClient = StdioMcpClient | HttpMcpClient;
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 const PROTOCOL_VERSION = "2024-11-05";
 
@@ -116,6 +118,82 @@ function formatMcpContent(result: unknown): string {
 function formatToolList(tools: McpTool[]): string {
   if (tools.length === 0) return "No tools returned by MCP server.";
   return tools.map((tool) => `- ${tool.name}${tool.description ? ` — ${tool.description}` : ""}`).join("\n");
+}
+
+function parseCommandArgs(input: string): string[] {
+  const args: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | undefined;
+  let escaping = false;
+
+  for (const char of input.trim()) {
+    if (escaping) {
+      current += char;
+      escaping = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaping = true;
+      continue;
+    }
+
+    if (quote) {
+      if (char === quote) quote = undefined;
+      else current += char;
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current.length > 0) {
+        args.push(current);
+        current = "";
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.length > 0) args.push(current);
+  return args;
+}
+
+function parseJsonObject(raw: string | undefined): Record<string, unknown> {
+  if (!raw?.trim()) return {};
+  const parsed = JSON.parse(raw) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("MCP call arguments must be a JSON object.");
+  }
+  return parsed as Record<string, unknown>;
+}
+
+function formatServerList(config: McpConfig, clients: Map<string, McpClient>, paths: string[]): string {
+  const servers = Object.entries(config.servers ?? {});
+  const body =
+    servers.length === 0
+      ? "No MCP servers configured. Add ~/.pi/agent/mcp.json or .pi/mcp.json."
+      : servers.map(([name, server]) => `- ${name} (${server.type})${clients.has(name) ? " running" : " lazy"}`).join("\n");
+
+  const pathText = paths.length > 0 ? `\n\nConfig:\n${paths.map((path) => `- ${path}`).join("\n")}` : "";
+  return `${body}${pathText}`;
+}
+
+function formatMcpHelp(): string {
+  return [
+    "MCP command usage:",
+    "",
+    "- /mcp or /mcp list — list configured MCP servers",
+    "- /mcp tools <server> — lazily start/connect and list server tools",
+    "- /mcp call <server> <tool> [json-args] — call a tool",
+    "- /mcp stop <server|all> — stop lazy client(s)",
+    "- /mcp restart <server> — stop and reconnect/list tools",
+  ].join("\n");
 }
 
 class StdioMcpClient {
@@ -351,7 +429,7 @@ export default function mcp(pi: ExtensionAPI) {
     return serverConfig;
   }
 
-  async function getClient(ctx: { cwd: string }, server: string): Promise<StdioMcpClient | HttpMcpClient> {
+  async function getClient(ctx: { cwd: string }, server: string): Promise<McpClient> {
     const existing = clients.get(server);
     if (existing) return existing;
     const config = await getServerConfig(ctx, server);
@@ -359,6 +437,107 @@ export default function mcp(pi: ExtensionAPI) {
     clients.set(server, client);
     return client;
   }
+
+  function shutdownClient(server: string): boolean {
+    const client = clients.get(server);
+    if (!client) return false;
+    if (client instanceof StdioMcpClient) client.shutdown();
+    else void client.shutdown();
+    clients.delete(server);
+    return true;
+  }
+
+  function showCommandResult(content: string, details?: unknown): void {
+    pi.sendMessage({ customType: "mcp-command", content, display: true, details });
+  }
+
+  pi.registerCommand("mcp", {
+    description: "Manage lazy MCP servers: list, tools, call, stop, restart",
+    getArgumentCompletions(prefix) {
+      const parts = parseCommandArgs(prefix);
+      const subcommands = ["list", "tools", "call", "stop", "restart", "help"];
+      const command = parts[0];
+
+      if (parts.length <= 1 && !prefix.endsWith(" ")) {
+        return subcommands
+          .filter((subcommand) => subcommand.startsWith(command ?? ""))
+          .map((subcommand) => ({ value: subcommand, label: subcommand }));
+      }
+
+      return null;
+    },
+    handler: async (args, ctx) => {
+      const argv = parseCommandArgs(args);
+      const command = argv[0] ?? "list";
+      const timeoutMs = DEFAULT_TIMEOUT_MS;
+
+      try {
+        if (command === "help" || command === "--help" || command === "-h") {
+          showCommandResult(formatMcpHelp());
+          return;
+        }
+
+        if (command === "list" || command === "status") {
+          const { config, paths } = await loadConfig(ctx.cwd);
+          showCommandResult(formatServerList(config, clients, paths));
+          return;
+        }
+
+        if (command === "tools") {
+          const server = argv[1];
+          if (!server) throw new Error("Usage: /mcp tools <server>");
+          const config = await getServerConfig(ctx, server);
+          const client = await getClient(ctx, server);
+          const tools = await client.listTools(timeoutMs);
+          showCommandResult(formatToolList(tools), { server, type: config.type, running: true, tools });
+          return;
+        }
+
+        if (command === "call") {
+          const server = argv[1];
+          const tool = argv[2];
+          if (!server || !tool) throw new Error("Usage: /mcp call <server> <tool> [json-args]");
+          const jsonStart = args.indexOf(tool) + tool.length;
+          const jsonArgs = parseJsonObject(args.slice(jsonStart).trim());
+          const config = await getServerConfig(ctx, server);
+          const client = await getClient(ctx, server);
+          const result = await client.callTool(tool, jsonArgs, timeoutMs);
+          showCommandResult(formatMcpContent(result), { server, type: config.type, running: true, tool, result });
+          return;
+        }
+
+        if (command === "stop") {
+          const server = argv[1];
+          if (!server) throw new Error("Usage: /mcp stop <server|all>");
+          if (server === "all") {
+            const count = clients.size;
+            for (const name of [...clients.keys()]) shutdownClient(name);
+            showCommandResult(`Stopped ${count} MCP client${count === 1 ? "" : "s"}.`);
+            return;
+          }
+          const stopped = shutdownClient(server);
+          showCommandResult(stopped ? `Stopped MCP server ${server}.` : `MCP server ${server} was not running.`);
+          return;
+        }
+
+        if (command === "restart") {
+          const server = argv[1];
+          if (!server) throw new Error("Usage: /mcp restart <server>");
+          shutdownClient(server);
+          const config = await getServerConfig(ctx, server);
+          const client = await getClient(ctx, server);
+          const tools = await client.listTools(timeoutMs);
+          showCommandResult(`Restarted ${server}.\n\n${formatToolList(tools)}`, { server, type: config.type, running: true, tools });
+          return;
+        }
+
+        throw new Error(`Unknown /mcp command "${command}".\n\n${formatMcpHelp()}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        showCommandResult(`MCP command failed: ${message}`);
+      }
+    },
+  });
 
   pi.registerTool({
     name: "mcp_list_servers",
