@@ -107,6 +107,12 @@
         "source": "github",
         "repo": "max-sixty/worktrunk"
       }
+    },
+    "cloudflare": {
+      "source": {
+        "source": "github",
+        "repo": "cloudflare/skills"
+      }
     }
   },
   "alwaysThinkingEnabled": true,
