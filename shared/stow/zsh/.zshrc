@@ -51,6 +51,29 @@ if command -v eza &> /dev/null; then
   alias lta='lt -a'
 fi
 
+# Pi
+export PI_SKIP_VERSION_CHECK=1
+
+pi() {
+  local stamp="${XDG_CACHE_HOME:-$HOME/.cache}/pi-last-update"
+  local now last
+  now=$(date +%s)
+  last=$(cat "$stamp" 2>/dev/null || echo 0)
+
+  if (( now - last > 86400 )); then
+    mkdir -p "$(dirname "$stamp")"
+    command pi update >/tmp/pi-update.log 2>&1 && printf '%s\n' "$now" > "$stamp"
+  fi
+
+  command pi "$@"
+}
+
+# Conveyor
+conveyor() {
+  bun --env-file=/Users/brandon/personal/conveyor/.env \
+    /Users/brandon/personal/conveyor/packages/cli/src/main.ts "$@"
+}
+
 # Fuzzy finder — prefer tv, fall back to fzf
 if command -v tv &> /dev/null; then
   eval "$(tv init zsh)"
