@@ -79,13 +79,13 @@ function getInlineSkillAutocompletePrefix(textBeforeCursor: string): string | un
 
   if (token === "/") return token;
   if ("/skill:".startsWith(token)) return token;
-  if (token.startsWith("/skill:")) return token;
+  if (token.startsWith("/")) return token;
 
   return undefined;
 }
 
 function getInlineSkillAutocompleteItems(commands: PiCommand[], prefix: string) {
-  const query = prefix.startsWith("/skill:") ? prefix.slice("/skill:".length) : "";
+  const query = prefix.startsWith("/skill:") ? prefix.slice("/skill:".length) : prefix.slice(1);
 
   return commands
     .filter((command) => command.source === "skill")
