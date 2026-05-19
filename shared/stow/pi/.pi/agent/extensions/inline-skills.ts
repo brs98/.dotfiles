@@ -104,7 +104,15 @@ function getInlineSkillAutocompleteItems(commands: PiCommand[], prefix: string) 
 type AutocompleteTriggerableEditor = CustomEditor & { tryTriggerAutocomplete(): void };
 
 class InlineSkillEditor extends CustomEditor {
+  private baseEditor?: CustomEditor;
+
+  constructor(tui: unknown, theme: unknown, keybindings: unknown, baseEditor?: CustomEditor) {
+    super(tui, theme, keybindings);
+    this.baseEditor = baseEditor;
+  }
+
   override handleInput(data: string): void {
+    this.baseEditor?.handleInput(data);
     super.handleInput(data);
     this.triggerInlineSkillAutocomplete();
   }
@@ -159,7 +167,11 @@ export default function inlineSkills(pi: ExtensionAPI) {
       },
     }));
 
-    ctx.ui.setEditorComponent((tui, theme, keybindings) => new InlineSkillEditor(tui, theme, keybindings));
+    const previousFactory = ctx.ui.getEditorComponent();
+    ctx.ui.setEditorComponent((tui, theme, keybindings) => {
+      const baseEditor = previousFactory?.(tui, theme, keybindings);
+      return new InlineSkillEditor(tui, theme, keybindings, baseEditor ?? undefined);
+    });
   });
 
   pi.on("input", async (event, ctx) => {

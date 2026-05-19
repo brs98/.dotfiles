@@ -3,8 +3,8 @@
  *
  * Features:
  *   • /path command — fuzzy-search and insert a local git repo path
- *   • Ctrl+Shift+R — inserts /path trigger at cursor, opens autocomplete dropdown
- *   • Type "/path" anywhere in your prompt — autocomplete dropdown appears with repo paths
+ *   • Ctrl+Shift+R — inserts /path: trigger at cursor, opens autocomplete dropdown
+ *   • Type "/path:" anywhere in your prompt — autocomplete dropdown appears with repo paths
  *
  * The picker scans ~/* and common parent dirs (~/dev, ~/projects, ~/code, etc.)
  * one level deep for git repositories.
@@ -13,7 +13,7 @@
  * Activate: /reload in pi, or restart pi
  */
 
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
@@ -50,7 +50,23 @@ const SCAN_HOME_IMMEDIATE = true;
 // ── Repo Discovery ───────────────────────────────────────────────────
 
 function isGitRepo(dir: string): boolean {
-	return existsSync(join(dir, ".git"));
+	const gitPath = join(dir, ".git");
+	if (!existsSync(gitPath)) {
+		return false;
+	}
+	try {
+		const stat = statSync(gitPath);
+		if (stat.isDirectory()) {
+			return true;
+		}
+		if (stat.isFile()) {
+			// Worktree: only surface /main and /master checkouts inside bare repos
+			return dir.endsWith("/main") || dir.endsWith("/master");
+		}
+		return false;
+	} catch {
+		return false;
+	}
 }
 
 function findGitReposRecursive(dir: string, maxDepth: number, currentDepth = 0): string[] {
@@ -166,8 +182,8 @@ function getPathAutocompletePrefix(textBeforeCursor: string): string | undefined
 	const { token } = getCurrentToken(textBeforeCursor);
 
 	if (
-		token.startsWith("/path") &&
-		(token.length === 5 || token[5] === " " || token[5] === "\t")
+		token.startsWith("/path:") &&
+		(token.length === 6 || token[6] !== " ")
 	) {
 		return token;
 	}
@@ -176,7 +192,7 @@ function getPathAutocompletePrefix(textBeforeCursor: string): string | undefined
 }
 
 function getPathAutocompleteItems(repos: string[], prefix: string) {
-	const query = prefix.slice("/path".length).trim().toLowerCase();
+	const query = prefix.slice("/path:".length).toLowerCase();
 
 	return repos
 		.map((path) => ({
@@ -197,7 +213,15 @@ function getPathAutocompleteItems(repos: string[], prefix: string) {
 type AutocompleteTriggerableEditor = CustomEditor & { tryTriggerAutocomplete(): void };
 
 class PathAutocompleteEditor extends CustomEditor {
+	private baseEditor?: CustomEditor;
+
+	constructor(tui: unknown, theme: Theme, keybindings: unknown, baseEditor?: CustomEditor) {
+		super(tui, theme, keybindings);
+		this.baseEditor = baseEditor;
+	}
+
 	override handleInput(data: string): void {
+		this.baseEditor?.handleInput(data);
 		super.handleInput(data);
 		this.triggerPathAutocomplete();
 	}
@@ -255,8 +279,8 @@ export default function (pi: ExtensionAPI) {
 				return { prefix, items };
 			},
 			applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
-				// Only handle /path completions — delegate commands, @refs, etc. to default
-				if (!prefix.startsWith("/path")) {
+				// Only handle /path: completions — delegate commands, @refs, etc. to default
+				if (!prefix.startsWith("/path:")) {
 					return current.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
 				}
 
@@ -281,8 +305,10 @@ export default function (pi: ExtensionAPI) {
 			},
 		}));
 
+		const previousFactory = ctx.ui.getEditorComponent();
 		ctx.ui.setEditorComponent((tui, theme, keybindings) => {
-			currentEditor = new PathAutocompleteEditor(tui, theme, keybindings);
+			const baseEditor = previousFactory?.(tui, theme, keybindings);
+			currentEditor = new PathAutocompleteEditor(tui, theme, keybindings, baseEditor ?? undefined);
 			return currentEditor;
 		});
 	});
@@ -319,7 +345,7 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			// No match — insert trigger so autocomplete dropdown appears
-			ctx.ui.setEditorText("/path ");
+			ctx.ui.setEditorText("/path:");
 			ctx.ui.notify("Type to filter repos, then select from dropdown", "info");
 		},
 	});
@@ -332,7 +358,7 @@ export default function (pi: ExtensionAPI) {
 				ctx.ui.notify("Editor not ready", "error");
 				return;
 			}
-			currentEditor.insertTextAtCursor("/path ");
+			currentEditor.insertTextAtCursor("/path:");
 			ctx.ui.notify("Type to filter repos, then select from dropdown", "info");
 		},
 	});
