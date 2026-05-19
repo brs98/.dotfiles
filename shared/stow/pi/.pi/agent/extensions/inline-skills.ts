@@ -3,7 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const INLINE_SKILL_PATTERN = /(^|\s)\/(skill:)?([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?=$|[\s.,;:!?)}\]])/g;
+const INLINE_SKILL_PATTERN = /(^|\s)\/skill:([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?=$|[\s.,;:!?)}\]])/g;
 
 const TOKEN_SEPARATORS = new Set([" ", "\t", "\n", "(", "[", "{"]);
 
@@ -22,28 +22,27 @@ async function readSkillFile(sourcePath: string): Promise<string> {
   return readFile(skillPath, "utf8");
 }
 
-function findInlineSkillNames(text: string, commands: PiCommand[]): { names: string[]; missingExplicitSkills: string[] } {
+function findInlineSkillNames(text: string, commands: PiCommand[]): { names: string[]; missingSkills: string[] } {
   const names = new Set<string>();
-  const missingExplicitSkills = new Set<string>();
+  const missingSkills = new Set<string>();
 
   for (const match of text.matchAll(INLINE_SKILL_PATTERN)) {
-    const explicitSkillPrefix = match[2] === "skill:";
-    const name = match[3];
+    const name = match[2];
     if (!name) continue;
 
     if (findSkillCommand(commands, name)) {
       names.add(name);
-    } else if (explicitSkillPrefix) {
-      missingExplicitSkills.add(name);
+    } else {
+      missingSkills.add(name);
     }
   }
 
-  return { names: [...names], missingExplicitSkills: [...missingExplicitSkills] };
+  return { names: [...names], missingSkills: [...missingSkills] };
 }
 
 function stripInlineSkillMarkers(text: string, commands: PiCommand[]): string {
   return text
-    .replaceAll(INLINE_SKILL_PATTERN, (match, leadingWhitespace: string, _skillPrefix: string | undefined, name: string) => {
+    .replaceAll(INLINE_SKILL_PATTERN, (match, leadingWhitespace: string, name: string) => {
       if (!findSkillCommand(commands, name)) return match;
       return leadingWhitespace;
     })
@@ -80,25 +79,25 @@ function getInlineSkillAutocompletePrefix(textBeforeCursor: string): string | un
 
   if (token === "/") return token;
   if ("/skill:".startsWith(token)) return token;
-  if (token.startsWith("/")) return token;
+  if (token.startsWith("/skill:")) return token;
 
   return undefined;
 }
 
 function getInlineSkillAutocompleteItems(commands: PiCommand[], prefix: string) {
-  const query = prefix.startsWith("/skill:") ? prefix.slice("/skill:".length) : prefix.slice(1);
+  const query = prefix.startsWith("/skill:") ? prefix.slice("/skill:".length) : "";
 
   return commands
     .filter((command) => command.source === "skill")
     .map((command) => {
       const skillName = getSkillName(command);
       return {
-        value: `/${skillName}`,
-        label: `/${skillName}`,
+        value: `/skill:${skillName}`,
+        label: `/skill:${skillName}`,
         description: command.description,
       };
     })
-    .filter((item) => item.value.slice(1).startsWith(query))
+    .filter((item) => item.value.slice("/skill:".length).startsWith(query))
     .sort((a, b) => a.value.localeCompare(b.value));
 }
 
@@ -165,10 +164,9 @@ export default function inlineSkills(pi: ExtensionAPI) {
 
   pi.on("input", async (event, ctx) => {
     const commands = pi.getCommands();
-    const { names, missingExplicitSkills } = findInlineSkillNames(event.text, commands);
-    if (names.length === 0 && missingExplicitSkills.length === 0) return { action: "continue" as const };
+    const { names, missingSkills } = findInlineSkillNames(event.text, commands);
+    if (names.length === 0 && missingSkills.length === 0) return { action: "continue" as const };
     const loadedSkills: Array<{ name: string; path: string; content: string }> = [];
-    const missingSkills: string[] = [];
 
     for (const name of names) {
       const command = findSkillCommand(commands, name);
@@ -189,12 +187,8 @@ export default function inlineSkills(pi: ExtensionAPI) {
       }
     }
 
-    const unknownExplicitSkills = [...new Set([...missingExplicitSkills, ...missingSkills])];
-    if (unknownExplicitSkills.length > 0) {
-      ctx.ui.notify(
-        `Unknown inline skill(s): ${unknownExplicitSkills.map((name) => `/skill:${name}`).join(", ")}`,
-        "warning",
-      );
+    if (missingSkills.length > 0) {
+      ctx.ui.notify(`Unknown inline skill(s): ${missingSkills.map((name) => `/skill:${name}`).join(", ")}`, "warning");
     }
 
     if (loadedSkills.length === 0) return { action: "continue" as const };
