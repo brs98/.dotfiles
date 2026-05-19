@@ -100,22 +100,66 @@ peb comment delete <comment-id>
 
 ## Git integration
 
-Close issues from commit messages via trailers:
+Pebbles has two complementary ingest paths for closing issues from git activity: **commit trailers** (scanned by hooks; best for direct-commit workflows) and **PR-merge declarations** (`peb closes add`; best for PR workflows where squash-merge can rewrite commit bodies). Both write to the same `closures` table so `peb closure show` is the one unified history view.
+
+### Commit trailers (direct-commit workflow)
 
 ```sh
-peb hook install         # writes managed post-commit + post-merge hooks
-peb hook status          # shows install state + last scanned SHA
-peb hook scan-commits    # walks <last_scanned>..HEAD applying trailers
+peb hook install                    # writes managed post-commit + post-merge hooks
+peb hook status                     # shows install state + last scanned SHA
+peb hook scan-commits               # walks <last_scanned>..HEAD applying trailers
+peb hook scan-commits --dry-run     # parse and report, write nothing
 peb hook uninstall
 ```
 
-Recognized trailers in commit messages:
+Recognized trailer keys (case-insensitive, accepted anywhere in the commit body — not just the terminal paragraph):
 
-- `Closes: pebbles-abc` — closes the issue
-- `Fixes: pebbles-abc` — same as Closes
-- `Refs: pebbles-abc` — links the commit without closing
+- **Closing trailers** — close the issue: `Closes`, `Close`, `Fixes`, `Fix`, `Resolves`, `Resolve`, `Closed`, `Fixed`
+- **Reference trailers** — link the commit without closing: `Refs`, `Ref`
+
+Example:
+
+```
+fix(auth): clear stale tokens on logout
+
+Closes: pebbles-abc
+Refs: pebbles-xyz
+```
 
 Suggest `peb hook install` only if the user is using pebbles seriously in a git repo — never install it automatically.
+
+### PR-merge declarations (PR workflow)
+
+When opening a PR, declare the close up-front via a discrete command rather than relying on commit-message hygiene. The declaration is queryable immediately (visible in `peb show` as "Will close on merge of:"), and finalizes when the PR merges.
+
+```sh
+peb closes add <id> --pr <number-or-url>     # declare pending close
+peb closes add <id> --pr 42                  # bare number (resolves repo via `gh repo view`)
+peb closes add <id> --pr https://github.com/owner/repo/pull/42
+peb closes remove <id> --pr <number-or-url>  # rescind a declaration
+peb closes list                              # all pending closures (--json for envelope)
+
+peb sync github                              # finalize pending closures whose PRs have merged
+peb sync github --dry-run                    # report what would finalize, write nothing
+```
+
+Prefer `peb closes add` over a `Closes:` trailer when:
+- The work will go through a PR (especially squash-merge — trailers can land in middle paragraphs and get missed, see `pebbles-h8v`).
+- You're an agent opening a PR via `gh pr create` and would rather make a structured tool call than craft a commit-message body.
+- You want the intended close to be visible to dashboards/planners *before* the PR merges.
+
+After a PR merges, run `peb sync github` to flip pending rows to finalized + close the issues. It's idempotent — safe to run on a schedule or after each merge.
+
+### Inspecting closure history
+
+```sh
+peb closure show <issue-id>          # closure events for an issue, newest-first
+peb closure show <commit-sha>        # reverse lookup: which issues this commit closed/referenced
+peb pr <number-or-url>               # preview: what would this PR close on merge?
+                                     # honors BOTH commit trailers and pending peb-closes declarations
+```
+
+`peb show <id>` also prints the most recent closure event inline with a hint to `peb closure show` for full history.
 
 ## Web dashboard & daemon
 
@@ -128,7 +172,7 @@ Suggest `peb hook install` only if the user is using pebbles seriously in a git 
 
 **Triage:** `peb list --status open --json`, then either close obvious not-planned items or add `triage` label and reassign priority.
 
-**Implementing an issue:** `peb update <id> --status in_progress` at start; on completion, either close manually with `peb update <id> --close` or land a commit with `Closes: <id>` if hooks are installed.
+**Implementing an issue:** `peb update <id> --status in_progress` at start. On opening a PR, run `peb closes add <id> --pr <number>` — this is preferred over a `Closes:` commit trailer because squash-merge can rewrite trailer placement and the declaration is queryable before merge. After the PR merges (or on a schedule), run `peb sync github` to finalize. For direct-commit-to-trunk workflows (no PR), a `Closes:` trailer is still valid and the hooks scan it. Manual `peb update <id> --close` is the fallback for non-code closures (rejected, won't-fix, duplicate-of).
 
 **Linking related work:** prefer `peb dep add` over freeform comments — the graph is queryable, prose is not.
 
