@@ -3,7 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const INLINE_SKILL_PATTERN = /(^|\s)\/skill:([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?=$|[\s.,;:!?)}\]])/g;
+const INLINE_SKILL_PATTERN = /(^|\s)\/(skill:)?([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?=$|[\s.,;:!?)}\]])/g;
 
 const TOKEN_SEPARATORS = new Set([" ", "\t", "\n", "(", "[", "{"]);
 
@@ -22,19 +22,33 @@ async function readSkillFile(sourcePath: string): Promise<string> {
   return readFile(skillPath, "utf8");
 }
 
-function findInlineSkillNames(text: string): string[] {
+function findInlineSkillNames(text: string, commands: PiCommand[]): { names: string[]; missingExplicitSkills: string[] } {
   const names = new Set<string>();
+  const missingExplicitSkills = new Set<string>();
 
   for (const match of text.matchAll(INLINE_SKILL_PATTERN)) {
-    const name = match[2];
-    if (name) names.add(name);
+    const explicitSkillPrefix = match[2] === "skill:";
+    const name = match[3];
+    if (!name) continue;
+
+    if (findSkillCommand(commands, name)) {
+      names.add(name);
+    } else if (explicitSkillPrefix) {
+      missingExplicitSkills.add(name);
+    }
   }
 
-  return [...names];
+  return { names: [...names], missingExplicitSkills: [...missingExplicitSkills] };
 }
 
-function stripInlineSkillMarkers(text: string): string {
-  return text.replaceAll(INLINE_SKILL_PATTERN, "$1").replace(/[ \t]+\n/g, "\n").trim();
+function stripInlineSkillMarkers(text: string, commands: PiCommand[]): string {
+  return text
+    .replaceAll(INLINE_SKILL_PATTERN, (match, leadingWhitespace: string, _skillPrefix: string | undefined, name: string) => {
+      if (!findSkillCommand(commands, name)) return match;
+      return leadingWhitespace;
+    })
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
 }
 
 function findSkillCommand(commands: PiCommand[], name: string): PiCommand | undefined {
@@ -66,23 +80,25 @@ function getInlineSkillAutocompletePrefix(textBeforeCursor: string): string | un
 
   if (token === "/") return token;
   if ("/skill:".startsWith(token)) return token;
-  if (token.startsWith("/skill:")) return token;
+  if (token.startsWith("/")) return token;
 
   return undefined;
 }
 
 function getInlineSkillAutocompleteItems(commands: PiCommand[], prefix: string) {
+  const query = prefix.startsWith("/skill:") ? prefix.slice("/skill:".length) : prefix.slice(1);
+
   return commands
     .filter((command) => command.source === "skill")
     .map((command) => {
       const skillName = getSkillName(command);
       return {
-        value: `/skill:${skillName}`,
-        label: `/skill:${skillName}`,
+        value: `/${skillName}`,
+        label: `/${skillName}`,
         description: command.description,
       };
     })
-    .filter((item) => item.value.startsWith(prefix))
+    .filter((item) => item.value.slice(1).startsWith(query))
     .sort((a, b) => a.value.localeCompare(b.value));
 }
 
@@ -148,10 +164,9 @@ export default function inlineSkills(pi: ExtensionAPI) {
   });
 
   pi.on("input", async (event, ctx) => {
-    const names = findInlineSkillNames(event.text);
-    if (names.length === 0) return { action: "continue" as const };
-
     const commands = pi.getCommands();
+    const { names, missingExplicitSkills } = findInlineSkillNames(event.text, commands);
+    if (names.length === 0 && missingExplicitSkills.length === 0) return { action: "continue" as const };
     const loadedSkills: Array<{ name: string; path: string; content: string }> = [];
     const missingSkills: string[] = [];
 
@@ -174,13 +189,17 @@ export default function inlineSkills(pi: ExtensionAPI) {
       }
     }
 
-    if (missingSkills.length > 0) {
-      ctx.ui.notify(`Unknown inline skill(s): ${missingSkills.map((name) => `/skill:${name}`).join(", ")}`, "warning");
+    const unknownExplicitSkills = [...new Set([...missingExplicitSkills, ...missingSkills])];
+    if (unknownExplicitSkills.length > 0) {
+      ctx.ui.notify(
+        `Unknown inline skill(s): ${unknownExplicitSkills.map((name) => `/skill:${name}`).join(", ")}`,
+        "warning",
+      );
     }
 
     if (loadedSkills.length === 0) return { action: "continue" as const };
 
-    const strippedPrompt = stripInlineSkillMarkers(event.text);
+    const strippedPrompt = stripInlineSkillMarkers(event.text, commands);
     const transformedText = `${formatLoadedSkills(loadedSkills)}\n\nUser request:\n${strippedPrompt}`;
 
     return {
