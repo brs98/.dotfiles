@@ -6,3 +6,6 @@ shared/stow/nvim/.config/nvim/lua/plugins/theme.lua
 
 # Starship palette is rewritten by ricekit — keep stow symlink but don't track contents
 shared/stow/starship/
+
+# pebbles workspace (managed by `peb init`)
+.pebbles/
