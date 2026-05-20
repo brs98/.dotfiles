@@ -841,11 +841,40 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine;
   }
 
-  function statusIcon(status: string): string {
-    if (["approved", "pr_opened", "implemented"].includes(status)) return "✓";
-    if (["failed", "changes_requested", "pr_failed"].includes(status)) return "✗";
-    if (["implementing", "reviewing", "opening_pr"].includes(status)) return "●";
-    return "○";
+  function swimlaneCell(status: string, lane: "plan" | "implement" | "review" | "loop" | "verdict"): string {
+    const planned = ["planned", "dispatched", "implementing", "implemented", "reviewing", "approved", "opening_pr", "pr_opened", "changes_requested", "failed", "pr_failed"];
+    const implemented = ["implemented", "reviewing", "approved", "opening_pr", "pr_opened", "changes_requested", "pr_failed"];
+    const reviewed = ["approved", "opening_pr", "pr_opened", "pr_failed"];
+
+    if (lane === "plan") return planned.includes(status) ? "✓" : "○";
+    if (lane === "implement") {
+      if (status === "implementing") return "●";
+      if (implemented.includes(status)) return "✓";
+      if (status === "failed") return "✗";
+      return "○";
+    }
+    if (lane === "review") {
+      if (status === "reviewing") return "●";
+      if (reviewed.includes(status)) return "✓";
+      if (status === "changes_requested") return "✗";
+      return "○";
+    }
+    if (lane === "loop") {
+      if (status === "changes_requested") return "↻ needed";
+      if (status === "failed" || status === "pr_failed") return "blocked";
+      return "—";
+    }
+    if (status === "approved") return "approved";
+    if (status === "opening_pr") return "opening";
+    if (status === "pr_opened") return "PR open";
+    if (status === "changes_requested") return "changes";
+    if (status === "failed" || status === "pr_failed") return "failed";
+    return "…";
+  }
+
+  function padCell(text: string, width: number): string {
+    const compact = compactText(text, width);
+    return compact.length >= width ? compact : `${compact}${" ".repeat(width - compact.length)}`;
   }
 
   function makeUiProgress(ctx: {
@@ -891,16 +920,19 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
 
       const selected = [...items.values()];
       if (selected.length > 0) {
-        lines.push("", "Selected:");
-        for (const item of selected.slice(0, 4)) {
-          const activeFor = item.roleStartedAt != null ? ` ${formatElapsed(Date.now() - item.roleStartedAt)}` : item.agentElapsedMs != null ? ` ${formatElapsed(item.agentElapsedMs)}` : ` ${formatElapsed(Date.now() - item.startedAt)}`;
-          lines.push(`${statusIcon(item.status)} ${item.id} ${item.status}${activeFor}`);
-          lines.push(`  ${compactText(item.title, 78)}`);
-          if (item.role || item.latest) lines.push(`  ${compactText([item.role, item.latest].filter(Boolean).join(": "), 78)}`);
-          lines.push(`  ${compactText(item.branch, 78)}`);
-          lines.push(`  ${compactText(item.worktree, 78)}`);
+        lines.push("", "Swimlane:");
+        lines.push(`Pebble        ${padCell("Plan", 6)} ${padCell("Implement", 10)} ${padCell("Review", 8)} ${padCell("Loop", 9)} ${padCell("Verdict", 9)}`);
+        lines.push("────────────  ────── ────────── ──────── ───────── ─────────");
+        for (const item of selected.slice(0, 6)) {
+          const activeFor = item.roleStartedAt != null ? formatElapsed(Date.now() - item.roleStartedAt) : item.agentElapsedMs != null ? formatElapsed(item.agentElapsedMs) : formatElapsed(Date.now() - item.startedAt);
+          lines.push(
+            `${padCell(item.id, 12)}  ${padCell(swimlaneCell(item.status, "plan"), 6)} ${padCell(swimlaneCell(item.status, "implement"), 10)} ${padCell(swimlaneCell(item.status, "review"), 8)} ${padCell(swimlaneCell(item.status, "loop"), 9)} ${padCell(swimlaneCell(item.status, "verdict"), 9)}`,
+          );
+          lines.push(`  ${compactText(item.status + " " + activeFor + " · " + item.title, 92)}`);
+          if (item.role || item.latest) lines.push(`  ${compactText([item.role, item.latest].filter(Boolean).join(": "), 92)}`);
+          lines.push(`  ${compactText(item.branch, 92)}`);
         }
-        if (selected.length > 4) lines.push(`  …${selected.length - 4} more selected`);
+        if (selected.length > 6) lines.push(`  …${selected.length - 6} more selected`);
       }
 
       const deferred = plan?.items.filter((item) => !plan?.selected.includes(item)) ?? [];
@@ -1015,7 +1047,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       try {
         const options = parseRunOptions(args, ctx.cwd);
         uiProgress.progress(`Starting /peb-run-ready for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
-        ctx.ui.notify("Pebble orchestrator started", "info");
+        if (ctx.hasUI) ctx.ui.notify("Pebble orchestrator started", "info");
         const { plan, results } = await runReady({
           ...options,
           createPrs: false,
@@ -1040,7 +1072,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       try {
         const options = parseRunOptions(args, ctx.cwd);
         uiProgress.progress(`Starting /peb-burn-down for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
-        ctx.ui.notify("Pebble orchestrator started", "info");
+        if (ctx.hasUI) ctx.ui.notify("Pebble orchestrator started", "info");
         const { plan, results } = await runReady({
           ...options,
           createPrs: true,

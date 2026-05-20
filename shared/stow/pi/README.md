@@ -36,7 +36,7 @@ Commands:
 
 `/peb-burn-down` does the same implementation/review cycle, then pushes approved branches, opens GitHub PRs with `gh pr create`, records `peb closes add <id> --pr <url>`, and moves `ready-for-agent` to `in-review` when those labels exist. Pebbles remain `in_progress` until `peb sync github` closes them after merge.
 
-While `/peb-run-ready` or `/peb-burn-down` is active in interactive Pi, the extension keeps a live `Pebble orchestrator` widget above the editor plus a footer status. The widget updates once per second and on subagent JSON events, showing stage, elapsed time, selected/deferred pebbles, branch/worktree, current implementer/reviewer status, and latest subagent activity.
+While `/peb-run-ready` or `/peb-burn-down` is active in interactive Pi, the extension keeps a live `Pebble orchestrator` swimlane widget above the editor plus a footer status. The widget updates once per second and on subagent JSON events, showing each selected pebble across Plan, Implement, Review, Loop, and Verdict columns, plus stage, elapsed time, selected/deferred pebbles, branch, current implementer/reviewer status, and latest subagent activity.
 
 Registered tools for agent use:
 
