@@ -1,4 +1,4 @@
-import { CustomEditor, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { CustomEditor, type ExtensionAPI, type KeybindingsManager } from "@earendil-works/pi-coding-agent";
 import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -105,16 +105,38 @@ type AutocompleteTriggerableEditor = CustomEditor & { tryTriggerAutocomplete(): 
 
 class InlineSkillEditor extends CustomEditor {
   private baseEditor?: CustomEditor;
+  private keybindings: KeybindingsManager;
+  private onSubmitAttempt: () => void;
 
-  constructor(tui: unknown, theme: unknown, keybindings: unknown, baseEditor?: CustomEditor) {
+  constructor(
+    tui: ConstructorParameters<typeof CustomEditor>[0],
+    theme: ConstructorParameters<typeof CustomEditor>[1],
+    keybindings: KeybindingsManager,
+    onSubmitAttempt: () => void,
+    baseEditor?: CustomEditor,
+  ) {
     super(tui, theme, keybindings);
+    this.keybindings = keybindings;
+    this.onSubmitAttempt = onSubmitAttempt;
     this.baseEditor = baseEditor;
   }
 
   override handleInput(data: string): void {
+    const isSubmitting = this.keybindings.matches(data, "tui.input.submit");
+    if (isSubmitting && this.getText().trim().length > 0) {
+      this.emitStartupBannerDismissal();
+    }
+
     this.baseEditor?.handleInput(data);
     super.handleInput(data);
     this.triggerInlineSkillAutocomplete();
+  }
+
+  private emitStartupBannerDismissal(): void {
+    // Slash commands are handled before pi's input/before_agent_start events.
+    // Emit a UI-level signal so the startup banner can still disappear when
+    // the first submitted prompt is a command such as /reload or /fork.
+    this.onSubmitAttempt();
   }
 
   private triggerInlineSkillAutocomplete(): void {
@@ -170,7 +192,13 @@ export default function inlineSkills(pi: ExtensionAPI) {
     const previousFactory = ctx.ui.getEditorComponent();
     ctx.ui.setEditorComponent((tui, theme, keybindings) => {
       const baseEditor = previousFactory?.(tui, theme, keybindings);
-      return new InlineSkillEditor(tui, theme, keybindings, baseEditor ?? undefined);
+      return new InlineSkillEditor(
+        tui,
+        theme,
+        keybindings,
+        () => pi.events.emit("devx:startup-banner:dismiss", { source: "editor-submit" }),
+        baseEditor ?? undefined,
+      );
     });
   });
 
