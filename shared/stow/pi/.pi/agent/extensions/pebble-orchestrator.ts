@@ -742,7 +742,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       `Dispatched ${dispatched.length} pebble${dispatched.length === 1 ? "" : "s"}. Running implementer and reviewer subagents now...`,
       { plan, dispatched },
     );
-    const results = await limitMap(dispatched, options.concurrency, async ({ item, worktreePath }) => runImplementation(plan, item, worktreePath, options.model, options.timeoutMs));
+    const results = await limitMap(dispatched, options.concurrency, async ({ item, worktreePath }) => {
+      options.onProgress?.(`Working on ${item.issue.id}: implementer/reviewer subagents are running in ${worktreePath}`, { plan, item, worktreePath });
+      return runImplementation(plan, item, worktreePath, options.model, options.timeoutMs);
+    });
     if (options.createPrs) {
       options.onProgress?.("Implementation/review finished. Opening PRs for approved branches...", { plan, results });
       for (const result of results) {
@@ -760,6 +763,52 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
 
   function show(content: string, details?: unknown): void {
     pi.sendMessage({ customType: "pebble-orchestrator", content, display: true, details });
+  }
+
+  function progressSummary(content: string): string {
+    const first = content
+      .split("\n")
+      .map((line) => line.trim())
+      .find(Boolean);
+    if (!first) return "Pebble orchestrator running...";
+    return first.length > 90 ? `${first.slice(0, 87)}...` : first;
+  }
+
+  function progressWidgetLines(content: string): string[] {
+    const lines = content
+      .split("\n")
+      .map((line) => line.trimEnd())
+      .filter(Boolean)
+      .slice(0, 12);
+    return ["Pebble orchestrator", "", ...(lines.length > 0 ? lines : ["Running..."])];
+  }
+
+  function makeUiProgress(ctx: {
+    hasUI?: boolean;
+    ui?: {
+      notify?: (message: string, level?: "info" | "warning" | "error") => void;
+      setStatus?: (key: string, value: string | undefined) => void;
+      setWidget?: (key: string, value: string[] | undefined, options?: { placement?: "aboveEditor" | "belowEditor" }) => void;
+    };
+  }): (content: string, details?: unknown) => void {
+    return (content, details) => {
+      show(content, details);
+      if (!ctx.hasUI) return;
+      ctx.ui?.setStatus?.("pebble-orchestrator", progressSummary(content));
+      ctx.ui?.setWidget?.("pebble-orchestrator", progressWidgetLines(content), { placement: "aboveEditor" });
+    };
+  }
+
+  function clearUiProgress(ctx: {
+    hasUI?: boolean;
+    ui?: {
+      setStatus?: (key: string, value: string | undefined) => void;
+      setWidget?: (key: string, value: string[] | undefined) => void;
+    };
+  }): void {
+    if (!ctx.hasUI) return;
+    ctx.ui?.setStatus?.("pebble-orchestrator", undefined);
+    ctx.ui?.setWidget?.("pebble-orchestrator", undefined);
   }
 
   function parseRunOptions(args: string, cwd: string): { repo?: string; cwd: string; concurrency: number; state?: string; model: string; timeoutMs: number } {
@@ -790,13 +839,17 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   pi.registerCommand("peb-run-ready", {
     description: "Dispatch ready pebbles to worktrees, implement, and review without opening PRs",
     handler: async (args, ctx) => {
+      const progress = makeUiProgress(ctx);
       try {
         const options = parseRunOptions(args, ctx.cwd);
-        show(`Starting /peb-run-ready for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
-        const { plan, results } = await runReady({ ...options, createPrs: false, onProgress: show });
+        progress(`Starting /peb-run-ready for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
+        ctx.ui.notify("Pebble orchestrator started", "info");
+        const { plan, results } = await runReady({ ...options, createPrs: false, onProgress: progress });
         show(`${formatPlan(plan)}\n\n${formatRunResults(results)}`, { plan, results });
       } catch (error) {
         show(`peb-run-ready failed: ${formatError(error)}`);
+      } finally {
+        clearUiProgress(ctx);
       }
     },
   });
@@ -804,13 +857,17 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   pi.registerCommand("peb-burn-down", {
     description: "Run a plan/implement/review/PR cycle for ready pebbles",
     handler: async (args, ctx) => {
+      const progress = makeUiProgress(ctx);
       try {
         const options = parseRunOptions(args, ctx.cwd);
-        show(`Starting /peb-burn-down for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
-        const { plan, results } = await runReady({ ...options, createPrs: true, onProgress: show });
+        progress(`Starting /peb-burn-down for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
+        ctx.ui.notify("Pebble orchestrator started", "info");
+        const { plan, results } = await runReady({ ...options, createPrs: true, onProgress: progress });
         show(`${formatPlan(plan)}\n\n${formatRunResults(results)}`, { plan, results });
       } catch (error) {
         show(`peb-burn-down failed: ${formatError(error)}`);
+      } finally {
+        clearUiProgress(ctx);
       }
     },
   });
