@@ -25,18 +25,18 @@ Commands:
 
 ```text
 /peb-plan [repo] [--concurrency 3] [--state ready-for-agent]
-/peb-run-ready [repo] [--concurrency 3] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
-/peb-burn-down [repo] [--concurrency 3] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
+/peb-run-ready [repo] [--concurrency 3] [--maxAttempts 3] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
+/peb-burn-down [repo] [--concurrency 3] [--maxAttempts 3] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
 /peb-sync [repo] [--dry-run]
 ```
 
-`/peb-plan` is read-only: it runs `peb where`, reads `peb config label-policy show --json`, lists open ready pebbles, filters existing PRs/branches, checks dependency metadata, and emits a parallel-safe batch. It prefers the `ready-for-agent` state label and `in-review` review label when the repo policy defines them.
+`/peb-plan` is read-only: it runs `peb where`, reads `peb config label-policy show --json`, lists open ready pebbles, filters existing PRs, reuses existing orchestrator branches/worktrees when present, checks dependency metadata, and emits a parallel-safe batch. It prefers the `ready-for-agent` state label and `in-review` review label when the repo policy defines them.
 
-`/peb-run-ready` creates one git worktree per selected pebble, marks each pebble `in_progress`, comments with run metadata, runs implementer subagents, then runs read-only reviewer subagents. It leaves approved branches ready for humans to push/open PRs.
+`/peb-run-ready` creates one git worktree per selected pebble, marks each pebble `in_progress`, comments with run metadata, then runs implementer/reviewer subagents. If review returns `CHANGES_REQUESTED`, the implementer receives the reviewer feedback and retries until `APPROVED` or `--maxAttempts` is reached. It leaves approved branches ready for humans to push/open PRs.
 
-`/peb-burn-down` does the same implementation/review cycle, then pushes approved branches, opens GitHub PRs with `gh pr create`, records `peb closes add <id> --pr <url>`, and moves `ready-for-agent` to `in-review` when those labels exist. Pebbles remain `in_progress` until `peb sync github` closes them after merge.
+`/peb-burn-down` does the same implementation/review feedback loop, then pushes approved branches, opens GitHub PRs with `gh pr create`, records `peb closes add <id> --pr <url>`, and moves `ready-for-agent` to `in-review` when those labels exist. Pebbles remain `in_progress` until `peb sync github` closes them after merge.
 
-While `/peb-run-ready` or `/peb-burn-down` is active in interactive Pi, the extension keeps a live `Pebble orchestrator` swimlane widget above the editor plus a footer status. The widget updates once per second and on subagent JSON events, showing each selected pebble across Plan, Implement, Review, Loop, and Verdict columns, plus stage, elapsed time, selected/deferred pebbles, branch, current implementer/reviewer status, and latest subagent activity.
+While `/peb-run-ready` or `/peb-burn-down` is active in interactive Pi, the extension keeps a live `Pebble orchestrator` swimlane widget above the editor plus a footer status. The widget updates once per second and on subagent JSON events, showing each selected pebble across Plan, Implement, Review, and Verdict columns, plus stage, elapsed time, selected/deferred pebbles, branch, current implementer/reviewer status, and latest subagent activity.
 
 Registered tools for agent use:
 
@@ -45,7 +45,7 @@ Registered tools for agent use:
 
 Expected tools: `peb`, `git`, `gh` for PR steps, and `pi`. The orchestrator never runs `peb init`, never closes pebbles on PR open, and is designed to resume from Pebbles comments plus existing branches/worktrees/PRs.
 
-Smoke check performed while adding this extension: `pi -e ./shared/stow/pi/.pi/agent/extensions/pebble-orchestrator.ts --mode json --no-session -p "/peb-plan /Users/brandon/.dotfiles"` loaded the extension and produced a real plan from the dotfiles Pebbles workspace.
+Smoke check performed while adding this extension: `pi --no-extensions -e ./shared/stow/pi/.pi/agent/extensions/pebble-orchestrator.ts --mode json --no-session -p "/peb-plan /Users/brandon/.dotfiles"` loaded the extension and produced a real plan from the dotfiles Pebbles workspace.
 
 ## MCP command
 

@@ -227,10 +227,10 @@ function deriveWorkflow(policy: LabelPolicy, requestedState?: string): Workflow 
 
 function deriveArea(issue: PebIssue): string {
   const labels = issue.labels ?? [];
-  const nonState = labels.find((label) => !["ready-for-agent", "ready-for-human", "in-review", "needs-triage", "needs-info", "wontfix"].includes(label));
+  const nonState = labels.find((label) => !["bug", "enhancement", "ready-for-agent", "ready-for-human", "in-review", "needs-triage", "needs-info", "wontfix"].includes(label));
   if (nonState) return nonState;
   const text = `${issue.title} ${issue.description ?? ""}`.toLowerCase();
-  for (const candidate of ["auth", "ui", "api", "docs", "test", "lsp", "mcp", "pi", "git", "pebble"]) {
+  for (const candidate of ["auth", "ui", "api", "docs", "documentation", "hook", "dep", "dependency", "lsp", "mcp", "pi", "git", "pebble", "test"]) {
     if (text.includes(candidate)) return candidate;
   }
   return "general";
@@ -504,6 +504,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return `agent/${issue.id}-${slugify(issue.title)}`;
   }
 
+  function branchMatchesIssue(branch: string, issueId: string): boolean {
+    return branch === issueId || branch.endsWith(`/${issueId}`) || branch.includes(`/${issueId}-`) || branch.includes(`/${issueId}_`);
+  }
+
   function worktreeFor(gitRoot: string, issue: PebIssue): string {
     return join(dirname(gitRoot), ".worktrees", `${basename(gitRoot)}-${issue.id}-${slugify(issue.title)}`);
   }
@@ -529,16 +533,16 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       const sandcastleBranch = `sandcastle/${issue.id}-${slugify(issue.title)}`;
       const blockingReasons: string[] = [];
       const existingPr = openPrs.find((pr) => pr.headRefName === branch || pr.headRefName === sandcastleBranch || pr.headRefName?.includes(issue.id));
-      const existingBranch = [branch, sandcastleBranch, ...branches.filter((candidate) => candidate.includes(issue.id))].find((candidate) => branchSet.has(candidate));
+      const existingBranch = [branch, sandcastleBranch, ...branches.filter((candidate) => branchMatchesIssue(candidate, issue.id))].find((candidate) => branchSet.has(candidate));
       if (existingPr) blockingReasons.push(`open PR ${existingPr.number ?? existingPr.url ?? existingPr.headRefName}`);
       else if (openPrBranches.has(branch) || openPrBranches.has(sandcastleBranch)) blockingReasons.push("open PR for orchestrator branch");
-      if (existingBranch && !existingPr) blockingReasons.push(`existing branch ${existingBranch}`);
       const openDeps = (issue.dependencies ?? []).filter(dependencyLooksOpen).map(getDependencyId).filter(Boolean);
       if (openDeps.length > 0) blockingReasons.push(`blocked by ${openDeps.join(", ")}`);
+      const actualBranch = existingBranch ?? branch;
 
       items.push({
         issue,
-        branch,
+        branch: actualBranch,
         worktreePath: worktreeFor(gitRoot, issue),
         area: deriveArea(issue),
         risk: deriveRisk(issue),
@@ -626,8 +630,8 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return dispatched;
   }
 
-  function implementerPrompt(plan: Plan, item: PlanItem, worktreePath: string, model: string): string {
-    return [
+  function implementerPrompt(plan: Plan, item: PlanItem, worktreePath: string, model: string, attempt: number, reviewerFeedback?: string): string {
+    const parts = [
       "You are a Pi implementer subagent working on exactly one Pebbles issue.",
       "Keep scope limited to this pebble. Do not work on unrelated issues. Do not spawn nested subagents.",
       "Use the worktree as the code workspace and the Pebbles repo as the issue workspace.",
@@ -637,18 +641,36 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       `Issue: ${item.issue.id} — ${item.issue.title}`,
       `Branch: ${item.branch}`,
       `Model: ${model}`,
+      `Attempt: ${attempt}`,
       "",
+    ];
+
+    if (reviewerFeedback?.trim()) {
+      parts.push(
+        "Reviewer feedback to address before the next review:",
+        reviewerFeedback.trim(),
+        "",
+        "Address every substantive issue and nit from the reviewer. Keep existing good changes intact.",
+        "If no code/doc changes are needed because the reviewer is mistaken, explain that clearly in your final response.",
+        "",
+      );
+    }
+
+    parts.push(
       "Required workflow:",
       `1. Run: cd ${JSON.stringify(plan.repo)} && peb show ${item.issue.id} --json`,
       "2. Inspect relevant files/tests and project instructions (AGENTS.md, README, package scripts).",
-      "3. Implement the smallest safe vertical slice for this pebble in the code worktree.",
+      "3. Implement the smallest safe vertical slice for this pebble, or address the reviewer feedback for this attempt.",
       "4. Add/update tests or smoke checks where appropriate.",
       "5. Run repo-specific checks you can reasonably run.",
-      `6. Commit changes on ${item.branch} with a conventional commit and a commit body trailer: Closes: ${item.issue.id}`,
-      "7. If you discover follow-up work, mention it in your final report; do not invent ad hoc TODOs in code.",
+      `6. Commit any changes on ${item.branch} with a conventional commit and a commit body trailer: Closes: ${item.issue.id}`,
+      "7. If no changes were necessary, do not create an empty commit; explain why in the final response.",
+      "8. If you discover follow-up work, mention it in your final report; do not invent ad hoc TODOs in code.",
       "",
-      "Final response: summarize changes, checks run, commit SHA, and any risks/follow-ups.",
-    ].join("\n");
+      "Final response: summarize changes, checks run, commit SHA if any, and any risks/follow-ups.",
+    );
+
+    return parts.join("\n");
   }
 
   function reviewerPrompt(plan: Plan, item: PlanItem, worktreePath: string): string {
@@ -667,10 +689,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       `2. Inspect: cd ${JSON.stringify(worktreePath)} && git diff ${plan.baseRef}...HEAD --stat && git diff ${plan.baseRef}...HEAD`,
       "3. Verify scope, tests/checks, safety, and whether the implementation satisfies the pebble.",
       "",
-      "Final response MUST start with exactly one of:",
-      "APPROVED — if safe to open a PR.",
+      "Final response MUST include exactly one verdict token:",
+      "APPROVED — if safe to open a PR with no remaining issues or nits.",
       "CHANGES_REQUESTED — if more implementation work is needed.",
-      "Then provide concise reasons.",
+      "Then provide concise reasons and actionable feedback for the implementer when requesting changes.",
     ].join("\n");
   }
 
@@ -679,60 +701,86 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return result.code === 0 && Number(result.stdout.trim()) > 0;
   }
 
+  function reviewVerdict(output: string): "approved" | "changes_requested" {
+    if (/\bCHANGES_REQUESTED\b/i.test(output)) return "changes_requested";
+    if (/\bAPPROVED\b/i.test(output)) return "approved";
+    return "changes_requested";
+  }
+
   async function runImplementation(
     plan: Plan,
     item: PlanItem,
     worktreePath: string,
     model: string,
     timeoutMs: number,
+    maxAttempts: number,
     callbacks?: {
       onItemStatus?: (item: PlanItem, status: string, details?: unknown) => void;
       onAgentEvent?: (event: AgentProgressEvent) => void;
     },
   ): Promise<RunResult> {
     const result: RunResult = { item, worktreePath, approved: false, errors: [] };
-    callbacks?.onItemStatus?.(item, "implementing", { worktreePath });
-    result.implementer = await runPiAgent({
-      issueId: item.issue.id,
-      role: "implementer",
-      cwd: worktreePath,
-      model,
-      tools: ["read", "bash", "edit", "write", "find", "grep", "lsp_diagnostics"],
-      task: implementerPrompt(plan, item, worktreePath, model),
-      timeoutMs,
-      onEvent: callbacks?.onAgentEvent,
-    });
-    if (result.implementer.exitCode !== 0) result.errors.push(`implementer exited ${result.implementer.exitCode}`);
-    if (!(await branchHasCommit(plan.gitRoot, plan.baseRef, item.branch))) result.errors.push("branch has no commits over base");
-    if (result.errors.length > 0) {
-      callbacks?.onItemStatus?.(item, "failed", { errors: result.errors });
-      await checked("peb", ["comment", "add", item.issue.id, `pebble-orchestrator implementation did not complete in ${plan.runId}: ${result.errors.join("; ")}`], plan.repo).catch(() => undefined);
-      return result;
+    let reviewerFeedback: string | undefined;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      result.errors = [];
+      callbacks?.onItemStatus?.(item, "implementing", { worktreePath, attempt, maxAttempts, feedback: reviewerFeedback });
+      result.implementer = await runPiAgent({
+        issueId: item.issue.id,
+        role: "implementer",
+        cwd: worktreePath,
+        model,
+        tools: ["read", "bash", "edit", "write", "find", "grep", "lsp_diagnostics"],
+        task: implementerPrompt(plan, item, worktreePath, model, attempt, reviewerFeedback),
+        timeoutMs,
+        onEvent: callbacks?.onAgentEvent,
+      });
+
+      if (result.implementer.exitCode !== 0) result.errors.push(`implementer exited ${result.implementer.exitCode}`);
+      if (!(await branchHasCommit(plan.gitRoot, plan.baseRef, item.branch))) result.errors.push("branch has no commits over base");
+      if (result.errors.length > 0) {
+        callbacks?.onItemStatus?.(item, "failed", { errors: result.errors, attempt, maxAttempts });
+        await checked("peb", ["comment", "add", item.issue.id, `pebble-orchestrator implementation did not complete in ${plan.runId}: ${result.errors.join("; ")}`], plan.repo).catch(() => undefined);
+        return result;
+      }
+
+      callbacks?.onItemStatus?.(item, "implemented", { worktreePath, attempt, maxAttempts });
+      callbacks?.onItemStatus?.(item, "reviewing", { worktreePath, attempt, maxAttempts });
+      result.reviewer = await runPiAgent({
+        issueId: item.issue.id,
+        role: "reviewer",
+        cwd: worktreePath,
+        model,
+        tools: ["read", "bash", "find", "grep", "lsp_diagnostics"],
+        task: reviewerPrompt(plan, item, worktreePath),
+        timeoutMs,
+        onEvent: callbacks?.onAgentEvent,
+      });
+
+      if (result.reviewer.exitCode !== 0) result.errors.push(`reviewer exited ${result.reviewer.exitCode}`);
+      const verdict = reviewVerdict(result.reviewer.finalOutput);
+      if (verdict === "approved" && result.errors.length === 0) {
+        result.approved = true;
+        callbacks?.onItemStatus?.(item, "approved", { attempt, maxAttempts });
+        return result;
+      }
+
+      result.approved = false;
+      result.errors.push("reviewer requested changes");
+      reviewerFeedback = result.reviewer.finalOutput;
+      callbacks?.onItemStatus?.(item, "changes_requested", { errors: result.errors, attempt, maxAttempts });
+
+      if (attempt < maxAttempts) {
+        callbacks?.onItemStatus?.(item, "implementing", { worktreePath, attempt: attempt + 1, maxAttempts, feedback: reviewerFeedback });
+        continue;
+      }
     }
 
-    callbacks?.onItemStatus?.(item, "implemented", { worktreePath });
-    callbacks?.onItemStatus?.(item, "reviewing", { worktreePath });
-    result.reviewer = await runPiAgent({
-      issueId: item.issue.id,
-      role: "reviewer",
-      cwd: worktreePath,
-      model,
-      tools: ["read", "bash", "find", "grep", "lsp_diagnostics"],
-      task: reviewerPrompt(plan, item, worktreePath),
-      timeoutMs,
-      onEvent: callbacks?.onAgentEvent,
-    });
-    if (result.reviewer.exitCode !== 0) result.errors.push(`reviewer exited ${result.reviewer.exitCode}`);
-    if (!result.reviewer.finalOutput.trim().startsWith("APPROVED")) result.errors.push("reviewer did not approve");
-    result.approved = result.errors.length === 0;
-    callbacks?.onItemStatus?.(item, result.approved ? "approved" : "changes_requested", { errors: result.errors });
-    if (!result.approved) {
-      await checked(
-        "peb",
-        ["comment", "add", item.issue.id, `pebble-orchestrator review did not approve in ${plan.runId}: ${result.errors.join("; ")}\n\n${result.reviewer.finalOutput.slice(0, 4000)}`],
-        plan.repo,
-      ).catch(() => undefined);
-    }
+    await checked(
+      "peb",
+      ["comment", "add", item.issue.id, `pebble-orchestrator review did not approve in ${plan.runId} after ${maxAttempts} attempt${maxAttempts === 1 ? "" : "s"}: ${result.errors.join("; ")}\n\n${(result.reviewer?.finalOutput ?? "").slice(0, 4000)}`],
+      plan.repo,
+    ).catch(() => undefined);
     return result;
   }
 
@@ -770,6 +818,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     state?: string;
     model: string;
     timeoutMs: number;
+    maxAttempts: number;
     createPrs: boolean;
     onProgress?: (message: string, details?: unknown) => void;
     onPlan?: (plan: Plan) => void;
@@ -793,7 +842,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     );
     const results = await limitMap(dispatched, options.concurrency, async ({ item, worktreePath }) => {
       options.onProgress?.(`Working on ${item.issue.id}: implementer/reviewer subagents are running in ${worktreePath}`, { plan, item, worktreePath });
-      return runImplementation(plan, item, worktreePath, options.model, options.timeoutMs, {
+      return runImplementation(plan, item, worktreePath, options.model, options.timeoutMs, options.maxAttempts, {
         onItemStatus: options.onItemStatus,
         onAgentEvent: options.onAgentEvent,
       });
@@ -841,7 +890,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine;
   }
 
-  function swimlaneCell(status: string, lane: "plan" | "implement" | "review" | "loop" | "verdict"): string {
+  function swimlaneCell(status: string, lane: "plan" | "implement" | "review" | "verdict"): string {
     const planned = ["planned", "dispatched", "implementing", "implemented", "reviewing", "approved", "opening_pr", "pr_opened", "changes_requested", "failed", "pr_failed"];
     const implemented = ["implemented", "reviewing", "approved", "opening_pr", "pr_opened", "changes_requested", "pr_failed"];
     const reviewed = ["approved", "opening_pr", "pr_opened", "pr_failed"];
@@ -858,11 +907,6 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       if (reviewed.includes(status)) return "✓";
       if (status === "changes_requested") return "✗";
       return "○";
-    }
-    if (lane === "loop") {
-      if (status === "changes_requested") return "↻ needed";
-      if (status === "failed" || status === "pr_failed") return "blocked";
-      return "—";
     }
     if (status === "approved") return "approved";
     if (status === "opening_pr") return "opening";
@@ -921,12 +965,12 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       const selected = [...items.values()];
       if (selected.length > 0) {
         lines.push("", "Swimlane:");
-        lines.push(`Pebble        ${padCell("Plan", 6)} ${padCell("Implement", 10)} ${padCell("Review", 8)} ${padCell("Loop", 9)} ${padCell("Verdict", 9)}`);
-        lines.push("────────────  ────── ────────── ──────── ───────── ─────────");
+        lines.push(`Pebble        ${padCell("Plan", 6)} ${padCell("Implement", 10)} ${padCell("Review", 8)} ${padCell("Verdict", 12)}`);
+        lines.push("────────────  ────── ────────── ──────── ────────────");
         for (const item of selected.slice(0, 6)) {
           const activeFor = item.roleStartedAt != null ? formatElapsed(Date.now() - item.roleStartedAt) : item.agentElapsedMs != null ? formatElapsed(item.agentElapsedMs) : formatElapsed(Date.now() - item.startedAt);
           lines.push(
-            `${padCell(item.id, 12)}  ${padCell(swimlaneCell(item.status, "plan"), 6)} ${padCell(swimlaneCell(item.status, "implement"), 10)} ${padCell(swimlaneCell(item.status, "review"), 8)} ${padCell(swimlaneCell(item.status, "loop"), 9)} ${padCell(swimlaneCell(item.status, "verdict"), 9)}`,
+            `${padCell(item.id, 12)}  ${padCell(swimlaneCell(item.status, "plan"), 6)} ${padCell(swimlaneCell(item.status, "implement"), 10)} ${padCell(swimlaneCell(item.status, "review"), 8)} ${padCell(swimlaneCell(item.status, "verdict"), 12)}`,
           );
           lines.push(`  ${compactText(item.status + " " + activeFor + " · " + item.title, 92)}`);
           if (item.role || item.latest) lines.push(`  ${compactText([item.role, item.latest].filter(Boolean).join(": "), 92)}`);
@@ -1015,7 +1059,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     };
   }
 
-  function parseRunOptions(args: string, cwd: string): { repo?: string; cwd: string; concurrency: number; state?: string; model: string; timeoutMs: number } {
+  function parseRunOptions(args: string, cwd: string): { repo?: string; cwd: string; concurrency: number; state?: string; model: string; timeoutMs: number; maxAttempts: number } {
     const parsed = parseArgs(args);
     return {
       repo: parsed.positionals[0],
@@ -1024,6 +1068,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       state: typeof parsed.flags.state === "string" ? parsed.flags.state : undefined,
       model: typeof parsed.flags.model === "string" ? parsed.flags.model : DEFAULT_MODEL,
       timeoutMs: asNumber(parsed.flags.timeoutMs ?? parsed.flags.timeout, DEFAULT_AGENT_TIMEOUT_MS),
+      maxAttempts: asNumber(parsed.flags.maxAttempts ?? parsed.flags.attempts, 3),
     };
   }
 
