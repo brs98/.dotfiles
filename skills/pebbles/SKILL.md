@@ -107,8 +107,9 @@ Pebbles has two complementary ingest paths for closing issues from git activity:
 ### Commit trailers (direct-commit workflow)
 
 ```sh
-peb hook install                    # writes managed post-commit + post-merge hooks
-peb hook status                     # shows install state + last scanned SHA
+peb hook install                    # writes managed post-commit + post-merge hooks (trailer scan)
+peb hook install --with-sync        # ALSO runs `peb sync github` from post-merge (see below)
+peb hook status                     # shows install state + last scanned SHA + with_sync flag
 peb hook scan-commits               # walks <last_scanned>..HEAD applying trailers
 peb hook scan-commits --dry-run     # parse and report, write nothing
 peb hook uninstall
@@ -151,6 +152,8 @@ Prefer `peb closes add` over a `Closes:` trailer when:
 - You want the intended close to be visible to dashboards/planners *before* the PR merges.
 
 After a PR merges, run `peb sync github` to flip pending rows to finalized + close the issues. It's idempotent — safe to run on a schedule or after each merge.
+
+If `peb hook install --with-sync` is set up in the repo, `peb sync github` runs automatically as part of the post-merge hook — i.e., on the user's next `git pull` after the PR merges, the pebble auto-closes with zero manual intervention. The hook silently no-ops when there are no pending closures (it short-circuits before invoking `gh`), so it's cheap to leave installed. The explicit `peb sync github` call stays available as the manual fallback for environments without the hook (no `gh`, offline workflows, never-pull workflows).
 
 ### Inspecting closure history
 
