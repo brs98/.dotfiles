@@ -719,11 +719,32 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     }
   }
 
-  async function runReady(options: { repo?: string; cwd: string; concurrency: number; state?: string; model: string; timeoutMs: number; createPrs: boolean }): Promise<{ plan: Plan; results: RunResult[] }> {
+  async function runReady(options: {
+    repo?: string;
+    cwd: string;
+    concurrency: number;
+    state?: string;
+    model: string;
+    timeoutMs: number;
+    createPrs: boolean;
+    onProgress?: (message: string, details?: unknown) => void;
+  }): Promise<{ plan: Plan; results: RunResult[] }> {
     const plan = await createPlan(options);
+    if (plan.selected.length === 0) {
+      options.onProgress?.(`${formatPlan(plan)}\n\nNo pebbles selected; nothing to dispatch.`, plan);
+      return { plan, results: [] };
+    }
+
+    options.onProgress?.(`${formatPlan(plan)}\n\nDispatching selected pebbles to worktrees...`, plan);
     const dispatched = await dispatch(plan, options.model);
+
+    options.onProgress?.(
+      `Dispatched ${dispatched.length} pebble${dispatched.length === 1 ? "" : "s"}. Running implementer and reviewer subagents now...`,
+      { plan, dispatched },
+    );
     const results = await limitMap(dispatched, options.concurrency, async ({ item, worktreePath }) => runImplementation(plan, item, worktreePath, options.model, options.timeoutMs));
     if (options.createPrs) {
+      options.onProgress?.("Implementation/review finished. Opening PRs for approved branches...", { plan, results });
       for (const result of results) {
         try {
           await openPr(plan, result);
@@ -771,7 +792,8 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       try {
         const options = parseRunOptions(args, ctx.cwd);
-        const { plan, results } = await runReady({ ...options, createPrs: false });
+        show(`Starting /peb-run-ready for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
+        const { plan, results } = await runReady({ ...options, createPrs: false, onProgress: show });
         show(`${formatPlan(plan)}\n\n${formatRunResults(results)}`, { plan, results });
       } catch (error) {
         show(`peb-run-ready failed: ${formatError(error)}`);
@@ -784,7 +806,8 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       try {
         const options = parseRunOptions(args, ctx.cwd);
-        const { plan, results } = await runReady({ ...options, createPrs: true });
+        show(`Starting /peb-burn-down for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
+        const { plan, results } = await runReady({ ...options, createPrs: true, onProgress: show });
         show(`${formatPlan(plan)}\n\n${formatRunResults(results)}`, { plan, results });
       } catch (error) {
         show(`peb-burn-down failed: ${formatError(error)}`);
