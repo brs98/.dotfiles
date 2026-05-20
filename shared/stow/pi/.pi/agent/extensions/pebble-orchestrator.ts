@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateTail, withFileMutationQueue } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
+import { Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { Type } from "typebox";
 
 type ExecResult = { stdout: string; stderr: string; code: number | null; killed?: boolean };
@@ -878,13 +878,6 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return first.length > 90 ? `${first.slice(0, 87)}...` : first;
   }
 
-  function formatElapsed(ms: number): string {
-    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return minutes > 0 ? `${minutes}m${String(seconds).padStart(2, "0")}s` : `${seconds}s`;
-  }
-
   function compactText(text: string, max = 84): string {
     const oneLine = text.replace(/\s+/g, " ").trim();
     return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine;
@@ -917,8 +910,39 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   }
 
   function padCell(text: string, width: number): string {
-    const compact = compactText(text, width);
-    return compact.length >= width ? compact : `${compact}${" ".repeat(width - compact.length)}`;
+    const compact = truncateToWidth(text, width, "…", true);
+    const padding = Math.max(0, width - visibleWidth(compact));
+    return `${compact}${" ".repeat(padding)}`;
+  }
+
+  function semanticSwimlaneCell(status: string, lane: "plan" | "implement" | "review" | "verdict", theme: { fg: (name: string, text: string) => string }): string {
+    const cell = swimlaneCell(status, lane);
+    if (lane === "plan") return theme.fg(cell === "✓" ? "success" : "muted", cell);
+    if (lane === "implement") {
+      if (cell === "●") return theme.fg("accent", cell);
+      if (cell === "✓") return theme.fg("success", cell);
+      if (cell === "✗") return theme.fg("error", cell);
+      return theme.fg("muted", cell);
+    }
+    if (lane === "review") {
+      if (cell === "●") return theme.fg("warning", cell);
+      if (cell === "✓") return theme.fg("success", cell);
+      if (cell === "✗") return theme.fg("warning", cell);
+      return theme.fg("muted", cell);
+    }
+    if (status === "approved" || status === "pr_opened") return theme.fg("success", cell);
+    if (status === "opening_pr") return theme.fg("accent", cell);
+    if (status === "changes_requested") return theme.fg("warning", cell);
+    if (status === "failed" || status === "pr_failed") return theme.fg("error", cell);
+    return theme.fg("muted", cell);
+  }
+
+  function isScrollUpInput(data: string): boolean {
+    return data === "\x1b[1;3A" || data === "\x1b[3A" || data === "\x1bk";
+  }
+
+  function isScrollDownInput(data: string): boolean {
+    return data === "\x1b[1;3B" || data === "\x1b[3B" || data === "\x1bj";
   }
 
   function makeUiProgress(ctx: {
@@ -926,7 +950,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     ui?: {
       notify?: (message: string, level?: "info" | "warning" | "error") => void;
       setStatus?: (key: string, value: string | undefined) => void;
-      setWidget?: (key: string, value: string[] | undefined, options?: { placement?: "aboveEditor" | "belowEditor" }) => void;
+      setWidget?: (key: string, value: ((tui: unknown, theme: unknown) => { render: (width: number) => string[]; invalidate: () => void; dispose?: () => void }) | undefined, options?: { placement?: "aboveEditor" | "belowEditor" }) => void;
     };
   }): {
     progress: (content: string, details?: unknown) => void;
@@ -954,41 +978,111 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     let plan: Plan | undefined;
     let stage = "Starting...";
     let disposed = false;
+    let requestWidgetRender: (() => void) | undefined;
 
-    const render = () => {
-      if (!ctx.hasUI || disposed) return;
-      const lines = ["Pebble orchestrator", `Stage: ${stage}`, `Elapsed: ${formatElapsed(Date.now() - startedAt)}`];
-      if (plan) {
-        lines.push(`Run: ${plan.runId}`, `Repo: ${plan.repo}`);
-      }
+    const buildLines = (theme: { fg: (name: string, text: string) => string; bold: (text: string) => string }): string[] => {
+      const lines = [theme.fg("muted", `Stage: ${compactText(stage, 90)}`)];
+      if (plan) lines.push(theme.fg("muted", `Repo: ${compactText(plan.repo, 90)}`));
 
       const selected = [...items.values()];
       if (selected.length > 0) {
-        lines.push("", "Swimlane:");
-        lines.push(`Pebble        ${padCell("Plan", 6)} ${padCell("Implement", 10)} ${padCell("Review", 8)} ${padCell("Verdict", 12)}`);
-        lines.push("────────────  ────── ────────── ──────── ────────────");
-        for (const item of selected.slice(0, 6)) {
-          const activeFor = item.roleStartedAt != null ? formatElapsed(Date.now() - item.roleStartedAt) : item.agentElapsedMs != null ? formatElapsed(item.agentElapsedMs) : formatElapsed(Date.now() - item.startedAt);
+        lines.push("");
+        lines.push(
+          `${theme.bold(padCell("Pebble", 12))}  ${theme.bold(padCell("Plan", 6))} ${theme.bold(padCell("Implement", 10))} ${theme.bold(padCell("Review", 8))} ${theme.bold(padCell("Verdict", 12))}`,
+        );
+        lines.push(theme.fg("muted", "────────────  ────── ────────── ──────── ────────────"));
+        for (const item of selected) {
           lines.push(
-            `${padCell(item.id, 12)}  ${padCell(swimlaneCell(item.status, "plan"), 6)} ${padCell(swimlaneCell(item.status, "implement"), 10)} ${padCell(swimlaneCell(item.status, "review"), 8)} ${padCell(swimlaneCell(item.status, "verdict"), 12)}`,
+            `${padCell(item.id, 12)}  ${padCell(semanticSwimlaneCell(item.status, "plan", theme), 6)} ${padCell(semanticSwimlaneCell(item.status, "implement", theme), 10)} ${padCell(semanticSwimlaneCell(item.status, "review", theme), 8)} ${padCell(semanticSwimlaneCell(item.status, "verdict", theme), 12)}`,
           );
-          lines.push(`  ${compactText(item.status + " " + activeFor + " · " + item.title, 92)}`);
+          lines.push(`  ${theme.fg("muted", compactText(item.status + " · " + item.title, 92))}`);
           if (item.role || item.latest) lines.push(`  ${compactText([item.role, item.latest].filter(Boolean).join(": "), 92)}`);
-          lines.push(`  ${compactText(item.branch, 92)}`);
+          lines.push(`  ${theme.fg("dim", compactText(item.branch, 92))}`);
         }
-        if (selected.length > 6) lines.push(`  …${selected.length - 6} more selected`);
       }
 
       const deferred = plan?.items.filter((item) => !plan?.selected.includes(item)) ?? [];
       if (deferred.length > 0) {
-        lines.push("", "Deferred:");
-        for (const item of deferred.slice(0, 3)) lines.push(`○ ${item.issue.id} ${compactText(item.blockingReasons.join("; ") || "not selected", 62)}`);
-        if (deferred.length > 3) lines.push(`  …${deferred.length - 3} more deferred`);
+        lines.push("", theme.fg("muted", "Deferred"));
+        for (const item of deferred) lines.push(`○ ${item.issue.id} ${theme.fg("dim", compactText(item.blockingReasons.join("; ") || "not selected", 74))}`);
       }
 
-      ctx.ui?.setStatus?.("pebble-orchestrator", `Pebbles: ${stage}`);
-      ctx.ui?.setWidget?.("pebble-orchestrator", lines.slice(0, 22), { placement: "aboveEditor" });
+      return lines;
     };
+
+    const render = () => {
+      if (!ctx.hasUI || disposed) return;
+      ctx.ui?.setStatus?.("pebble-orchestrator", `Pebbles: ${stage}`);
+      requestWidgetRender?.();
+    };
+
+    if (ctx.hasUI) {
+      ctx.ui?.setWidget?.(
+        "pebble-orchestrator",
+        (tuiUnknown, themeUnknown) => {
+          const tui = tuiUnknown as {
+            addInputListener?: (listener: (data: string) => { consume?: boolean } | undefined) => () => void;
+            requestRender?: () => void;
+          };
+          const theme = themeUnknown as { fg: (name: string, text: string) => string; bold: (text: string) => string };
+          let scroll = 0;
+          const maxBodyLines = 16;
+          const scrollBy = (delta: number): boolean => {
+            const maxScroll = Math.max(0, buildLines(theme).length - maxBodyLines);
+            if (maxScroll === 0) return false;
+            const nextScroll = Math.max(0, Math.min(maxScroll, scroll + delta));
+            if (nextScroll !== scroll) {
+              scroll = nextScroll;
+              tui.requestRender?.();
+            }
+            return true;
+          };
+          const unsubscribe = tui.addInputListener?.((data) => {
+            if (isScrollUpInput(data)) return scrollBy(-1) ? { consume: true } : undefined;
+            if (isScrollDownInput(data)) return scrollBy(1) ? { consume: true } : undefined;
+            return undefined;
+          });
+          requestWidgetRender = () => tui.requestRender?.();
+
+          return {
+            render(width: number): string[] {
+              const border = (text: string) => theme.fg("border", text);
+              const title = theme.fg("accent", theme.bold(" Pebble orchestrator "));
+              const innerWidth = Math.max(1, width - 2);
+              const visibleTitle = truncateToWidth(title, innerWidth, "", true);
+              const titleWidth = visibleWidth(visibleTitle);
+              const left = Math.max(0, Math.floor((innerWidth - titleWidth) / 2));
+              const right = Math.max(0, innerWidth - titleWidth - left);
+              const body = buildLines(theme);
+              const maxScroll = Math.max(0, body.length - maxBodyLines);
+              scroll = Math.min(scroll, maxScroll);
+              const visible = body.slice(scroll, scroll + maxBodyLines);
+              const padLine = (line: string) => {
+                if (innerWidth <= 2) {
+                  const truncated = truncateToWidth(line, innerWidth, "…", true);
+                  return `${truncated}${" ".repeat(Math.max(0, innerWidth - visibleWidth(truncated)))}`;
+                }
+                const contentWidth = innerWidth - 2;
+                const truncated = truncateToWidth(line, contentWidth, "…", true);
+                return ` ${truncated}${" ".repeat(Math.max(0, contentWidth - visibleWidth(truncated)))} `;
+              };
+              const lines = [border(`╭${"─".repeat(left)}`) + visibleTitle + border(`${"─".repeat(right)}╮`)];
+              for (const line of visible) lines.push(border("│") + padLine(line) + border("│"));
+              while (lines.length < maxBodyLines + 1) lines.push(border("│") + padLine("") + border("│"));
+              const hint = maxScroll > 0 ? theme.fg("dim", `alt+↑/↓ or alt+k/j scroll ${scroll + 1}/${maxScroll + 1}`) : theme.fg("dim", "all progress visible");
+              lines.push(border("│") + padLine(hint) + border("│"));
+              lines.push(border(`╰${"─".repeat(innerWidth)}╯`));
+              return lines;
+            },
+            invalidate() {},
+            dispose() {
+              unsubscribe?.();
+            },
+          };
+        },
+        { placement: "aboveEditor" },
+      );
+    }
 
     const interval = setInterval(render, 1000);
 
