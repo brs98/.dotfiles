@@ -53,9 +53,10 @@ type Plan = {
   selected: PlanItem[];
   openPrs: OpenPr[];
 };
+type AgentRole = "implementer" | "reviewer";
 type AgentRun = {
   issueId: string;
-  role: "implementer" | "reviewer";
+  role: AgentRole;
   cwd: string;
   model: string;
   exitCode: number | null;
@@ -64,6 +65,13 @@ type AgentRun = {
   stderr: string;
   truncated?: boolean;
   fullOutputPath?: string;
+};
+type AgentProgressEvent = {
+  issueId: string;
+  role: AgentRole;
+  phase: "started" | "tool_start" | "tool_update" | "tool_end" | "assistant" | "stderr" | "finished";
+  text: string;
+  elapsedMs: number;
 };
 type RunResult = {
   item: PlanItem;
@@ -335,12 +343,13 @@ function buildAgentArgs(task: string, model: string, tools: string[]): string[] 
 
 async function runPiAgent(params: {
   issueId: string;
-  role: "implementer" | "reviewer";
+  role: AgentRole;
   cwd: string;
   model: string;
   tools: string[];
   task: string;
   timeoutMs: number;
+  onEvent?: (event: AgentProgressEvent) => void;
 }): Promise<AgentRun> {
   const startedAt = Date.now();
   const run: AgentRun = {
@@ -354,6 +363,11 @@ async function runPiAgent(params: {
     stderr: "",
   };
   const invocation = getPiInvocation(buildAgentArgs(params.task, params.model, params.tools));
+  const emit = (phase: AgentProgressEvent["phase"], text: string) => {
+    params.onEvent?.({ issueId: params.issueId, role: params.role, phase, text, elapsedMs: Date.now() - startedAt });
+  };
+
+  emit("started", `${params.role} started`);
 
   await new Promise<void>((resolvePromise) => {
     const proc = spawn(invocation.command, invocation.args, { cwd: params.cwd, shell: false, stdio: ["ignore", "pipe", "pipe"] });
@@ -365,6 +379,7 @@ async function runPiAgent(params: {
       clearTimeout(timeoutTimer);
       run.exitCode = code;
       run.durationMs = Date.now() - startedAt;
+      emit("finished", `${params.role} finished with exit ${code === null ? "unknown" : code}`);
       resolvePromise();
     };
     const kill = (reason: string) => {
@@ -385,7 +400,14 @@ async function runPiAgent(params: {
         return;
       }
       if (!event || typeof event !== "object") return;
-      const candidate = event as { type?: unknown; message?: unknown };
+      const candidate = event as { type?: unknown; message?: unknown; toolName?: unknown };
+      const eventType = typeof candidate.type === "string" ? candidate.type : undefined;
+      const toolName = typeof candidate.toolName === "string" ? candidate.toolName : undefined;
+
+      if (eventType === "tool_execution_start" && toolName) emit("tool_start", `${params.role}: ${toolName} started`);
+      if (eventType === "tool_execution_update" && toolName) emit("tool_update", `${params.role}: ${toolName} running`);
+      if (eventType === "tool_execution_end" && toolName) emit("tool_end", `${params.role}: ${toolName} finished`);
+
       if (candidate.type !== "message_end" || !candidate.message || typeof candidate.message !== "object") return;
       const message = candidate.message as { role?: string; content?: Array<{ type?: string; text?: string }> };
       if (message.role !== "assistant") return;
@@ -393,7 +415,10 @@ async function runPiAgent(params: {
         .filter((part) => part.type === "text" && typeof part.text === "string")
         .map((part) => part.text)
         .join("\n");
-      if (text) run.finalOutput = text;
+      if (text) {
+        run.finalOutput = text;
+        emit("assistant", text.trim().split("\n").find(Boolean) ?? `${params.role} responded`);
+      }
     };
     proc.stdout.on("data", (data) => {
       stdoutBuffer += data.toString();
@@ -402,7 +427,9 @@ async function runPiAgent(params: {
       for (const line of lines) processLine(line);
     });
     proc.stderr.on("data", (data) => {
-      run.stderr += data.toString();
+      const text = data.toString();
+      run.stderr += text;
+      emit("stderr", text.trim().split("\n").find(Boolean) ?? `${params.role} stderr`);
     });
     proc.on("error", (error) => {
       run.stderr += run.stderr ? `\n${error.message}` : error.message;
@@ -652,8 +679,19 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return result.code === 0 && Number(result.stdout.trim()) > 0;
   }
 
-  async function runImplementation(plan: Plan, item: PlanItem, worktreePath: string, model: string, timeoutMs: number): Promise<RunResult> {
+  async function runImplementation(
+    plan: Plan,
+    item: PlanItem,
+    worktreePath: string,
+    model: string,
+    timeoutMs: number,
+    callbacks?: {
+      onItemStatus?: (item: PlanItem, status: string, details?: unknown) => void;
+      onAgentEvent?: (event: AgentProgressEvent) => void;
+    },
+  ): Promise<RunResult> {
     const result: RunResult = { item, worktreePath, approved: false, errors: [] };
+    callbacks?.onItemStatus?.(item, "implementing", { worktreePath });
     result.implementer = await runPiAgent({
       issueId: item.issue.id,
       role: "implementer",
@@ -662,14 +700,18 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       tools: ["read", "bash", "edit", "write", "find", "grep", "lsp_diagnostics"],
       task: implementerPrompt(plan, item, worktreePath, model),
       timeoutMs,
+      onEvent: callbacks?.onAgentEvent,
     });
     if (result.implementer.exitCode !== 0) result.errors.push(`implementer exited ${result.implementer.exitCode}`);
     if (!(await branchHasCommit(plan.gitRoot, plan.baseRef, item.branch))) result.errors.push("branch has no commits over base");
     if (result.errors.length > 0) {
+      callbacks?.onItemStatus?.(item, "failed", { errors: result.errors });
       await checked("peb", ["comment", "add", item.issue.id, `pebble-orchestrator implementation did not complete in ${plan.runId}: ${result.errors.join("; ")}`], plan.repo).catch(() => undefined);
       return result;
     }
 
+    callbacks?.onItemStatus?.(item, "implemented", { worktreePath });
+    callbacks?.onItemStatus?.(item, "reviewing", { worktreePath });
     result.reviewer = await runPiAgent({
       issueId: item.issue.id,
       role: "reviewer",
@@ -678,10 +720,12 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       tools: ["read", "bash", "find", "grep", "lsp_diagnostics"],
       task: reviewerPrompt(plan, item, worktreePath),
       timeoutMs,
+      onEvent: callbacks?.onAgentEvent,
     });
     if (result.reviewer.exitCode !== 0) result.errors.push(`reviewer exited ${result.reviewer.exitCode}`);
     if (!result.reviewer.finalOutput.trim().startsWith("APPROVED")) result.errors.push("reviewer did not approve");
     result.approved = result.errors.length === 0;
+    callbacks?.onItemStatus?.(item, result.approved ? "approved" : "changes_requested", { errors: result.errors });
     if (!result.approved) {
       await checked(
         "peb",
@@ -728,8 +772,12 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     timeoutMs: number;
     createPrs: boolean;
     onProgress?: (message: string, details?: unknown) => void;
+    onPlan?: (plan: Plan) => void;
+    onItemStatus?: (item: PlanItem, status: string, details?: unknown) => void;
+    onAgentEvent?: (event: AgentProgressEvent) => void;
   }): Promise<{ plan: Plan; results: RunResult[] }> {
     const plan = await createPlan(options);
+    options.onPlan?.(plan);
     if (plan.selected.length === 0) {
       options.onProgress?.(`${formatPlan(plan)}\n\nNo pebbles selected; nothing to dispatch.`, plan);
       return { plan, results: [] };
@@ -737,6 +785,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
 
     options.onProgress?.(`${formatPlan(plan)}\n\nDispatching selected pebbles to worktrees...`, plan);
     const dispatched = await dispatch(plan, options.model);
+    for (const { item, worktreePath } of dispatched) options.onItemStatus?.(item, "dispatched", { worktreePath });
 
     options.onProgress?.(
       `Dispatched ${dispatched.length} pebble${dispatched.length === 1 ? "" : "s"}. Running implementer and reviewer subagents now...`,
@@ -744,16 +793,22 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     );
     const results = await limitMap(dispatched, options.concurrency, async ({ item, worktreePath }) => {
       options.onProgress?.(`Working on ${item.issue.id}: implementer/reviewer subagents are running in ${worktreePath}`, { plan, item, worktreePath });
-      return runImplementation(plan, item, worktreePath, options.model, options.timeoutMs);
+      return runImplementation(plan, item, worktreePath, options.model, options.timeoutMs, {
+        onItemStatus: options.onItemStatus,
+        onAgentEvent: options.onAgentEvent,
+      });
     });
     if (options.createPrs) {
       options.onProgress?.("Implementation/review finished. Opening PRs for approved branches...", { plan, results });
       for (const result of results) {
         try {
+          if (result.approved) options.onItemStatus?.(result.item, "opening_pr", result);
           await openPr(plan, result);
+          if (result.pr) options.onItemStatus?.(result.item, "pr_opened", result);
         } catch (error) {
           result.errors.push(`PR creation failed: ${formatError(error)}`);
           result.approved = false;
+          options.onItemStatus?.(result.item, "pr_failed", { error: formatError(error) });
           await checked("peb", ["comment", "add", result.item.issue.id, `pebble-orchestrator PR step failed in ${plan.runId}: ${formatError(error)}`], plan.repo).catch(() => undefined);
         }
       }
@@ -774,13 +829,23 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return first.length > 90 ? `${first.slice(0, 87)}...` : first;
   }
 
-  function progressWidgetLines(content: string): string[] {
-    const lines = content
-      .split("\n")
-      .map((line) => line.trimEnd())
-      .filter(Boolean)
-      .slice(0, 12);
-    return ["Pebble orchestrator", "", ...(lines.length > 0 ? lines : ["Running..."])];
+  function formatElapsed(ms: number): string {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return minutes > 0 ? `${minutes}m${String(seconds).padStart(2, "0")}s` : `${seconds}s`;
+  }
+
+  function compactText(text: string, max = 84): string {
+    const oneLine = text.replace(/\s+/g, " ").trim();
+    return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine;
+  }
+
+  function statusIcon(status: string): string {
+    if (["approved", "pr_opened", "implemented"].includes(status)) return "✓";
+    if (["failed", "changes_requested", "pr_failed"].includes(status)) return "✗";
+    if (["implementing", "reviewing", "opening_pr"].includes(status)) return "●";
+    return "○";
   }
 
   function makeUiProgress(ctx: {
@@ -790,25 +855,132 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       setStatus?: (key: string, value: string | undefined) => void;
       setWidget?: (key: string, value: string[] | undefined, options?: { placement?: "aboveEditor" | "belowEditor" }) => void;
     };
-  }): (content: string, details?: unknown) => void {
-    return (content, details) => {
-      show(content, details);
-      if (!ctx.hasUI) return;
-      ctx.ui?.setStatus?.("pebble-orchestrator", progressSummary(content));
-      ctx.ui?.setWidget?.("pebble-orchestrator", progressWidgetLines(content), { placement: "aboveEditor" });
+  }): {
+    progress: (content: string, details?: unknown) => void;
+    onPlan: (plan: Plan) => void;
+    onItemStatus: (item: PlanItem, status: string, details?: unknown) => void;
+    onAgentEvent: (event: AgentProgressEvent) => void;
+    dispose: () => void;
+  } {
+    type WidgetItem = {
+      id: string;
+      title: string;
+      branch: string;
+      worktree: string;
+      status: string;
+      startedAt: number;
+      updatedAt: number;
+      latest?: string;
+      role?: AgentRole;
+      agentElapsedMs?: number;
+      roleStartedAt?: number;
     };
-  }
 
-  function clearUiProgress(ctx: {
-    hasUI?: boolean;
-    ui?: {
-      setStatus?: (key: string, value: string | undefined) => void;
-      setWidget?: (key: string, value: string[] | undefined) => void;
+    const startedAt = Date.now();
+    const items = new Map<string, WidgetItem>();
+    let plan: Plan | undefined;
+    let stage = "Starting...";
+    let disposed = false;
+
+    const render = () => {
+      if (!ctx.hasUI || disposed) return;
+      const lines = ["Pebble orchestrator", `Stage: ${stage}`, `Elapsed: ${formatElapsed(Date.now() - startedAt)}`];
+      if (plan) {
+        lines.push(`Run: ${plan.runId}`, `Repo: ${plan.repo}`);
+      }
+
+      const selected = [...items.values()];
+      if (selected.length > 0) {
+        lines.push("", "Selected:");
+        for (const item of selected.slice(0, 4)) {
+          const activeFor = item.roleStartedAt != null ? ` ${formatElapsed(Date.now() - item.roleStartedAt)}` : item.agentElapsedMs != null ? ` ${formatElapsed(item.agentElapsedMs)}` : ` ${formatElapsed(Date.now() - item.startedAt)}`;
+          lines.push(`${statusIcon(item.status)} ${item.id} ${item.status}${activeFor}`);
+          lines.push(`  ${compactText(item.title, 78)}`);
+          if (item.role || item.latest) lines.push(`  ${compactText([item.role, item.latest].filter(Boolean).join(": "), 78)}`);
+          lines.push(`  ${compactText(item.branch, 78)}`);
+          lines.push(`  ${compactText(item.worktree, 78)}`);
+        }
+        if (selected.length > 4) lines.push(`  …${selected.length - 4} more selected`);
+      }
+
+      const deferred = plan?.items.filter((item) => !plan?.selected.includes(item)) ?? [];
+      if (deferred.length > 0) {
+        lines.push("", "Deferred:");
+        for (const item of deferred.slice(0, 3)) lines.push(`○ ${item.issue.id} ${compactText(item.blockingReasons.join("; ") || "not selected", 62)}`);
+        if (deferred.length > 3) lines.push(`  …${deferred.length - 3} more deferred`);
+      }
+
+      ctx.ui?.setStatus?.("pebble-orchestrator", `Pebbles: ${stage}`);
+      ctx.ui?.setWidget?.("pebble-orchestrator", lines.slice(0, 22), { placement: "aboveEditor" });
     };
-  }): void {
-    if (!ctx.hasUI) return;
-    ctx.ui?.setStatus?.("pebble-orchestrator", undefined);
-    ctx.ui?.setWidget?.("pebble-orchestrator", undefined);
+
+    const interval = setInterval(render, 1000);
+
+    return {
+      progress(content, details) {
+        show(content, details);
+        stage = progressSummary(content);
+        render();
+      },
+      onPlan(nextPlan) {
+        plan = nextPlan;
+        items.clear();
+        for (const item of nextPlan.selected) {
+          items.set(item.issue.id, {
+            id: item.issue.id,
+            title: item.issue.title,
+            branch: item.branch,
+            worktree: item.worktreePath,
+            status: "planned",
+            startedAt,
+            updatedAt: Date.now(),
+          });
+        }
+        render();
+      },
+      onItemStatus(item, status, details) {
+        const existing = items.get(item.issue.id) ?? {
+          id: item.issue.id,
+          title: item.issue.title,
+          branch: item.branch,
+          worktree: item.worktreePath,
+          status: "planned",
+          startedAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        const record = details && typeof details === "object" ? (details as Record<string, unknown>) : {};
+        const errors = Array.isArray(record.errors) ? record.errors.join("; ") : undefined;
+        if (typeof record.worktreePath === "string") existing.worktree = record.worktreePath;
+        existing.status = status;
+        if (status === "implementing" || status === "reviewing") existing.roleStartedAt = Date.now();
+        existing.updatedAt = Date.now();
+        existing.latest = typeof record.error === "string" ? record.error : errors || existing.latest;
+        items.set(item.issue.id, existing);
+        stage = `${item.issue.id}: ${status}`;
+        render();
+      },
+      onAgentEvent(event) {
+        const item = items.get(event.issueId);
+        if (!item) return;
+        item.role = event.role;
+        if (!item.roleStartedAt || event.phase === "started") item.roleStartedAt = Date.now() - event.elapsedMs;
+        item.agentElapsedMs = event.elapsedMs;
+        item.latest = event.text;
+        item.updatedAt = Date.now();
+        if (!["approved", "changes_requested", "failed", "pr_opened", "pr_failed"].includes(item.status)) {
+          item.status = event.role === "implementer" ? "implementing" : "reviewing";
+        }
+        stage = `${event.issueId}: ${compactText(event.text, 52)}`;
+        render();
+      },
+      dispose() {
+        disposed = true;
+        clearInterval(interval);
+        if (!ctx.hasUI) return;
+        ctx.ui?.setStatus?.("pebble-orchestrator", undefined);
+        ctx.ui?.setWidget?.("pebble-orchestrator", undefined);
+      },
+    };
   }
 
   function parseRunOptions(args: string, cwd: string): { repo?: string; cwd: string; concurrency: number; state?: string; model: string; timeoutMs: number } {
@@ -839,17 +1011,24 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   pi.registerCommand("peb-run-ready", {
     description: "Dispatch ready pebbles to worktrees, implement, and review without opening PRs",
     handler: async (args, ctx) => {
-      const progress = makeUiProgress(ctx);
+      const uiProgress = makeUiProgress(ctx);
       try {
         const options = parseRunOptions(args, ctx.cwd);
-        progress(`Starting /peb-run-ready for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
+        uiProgress.progress(`Starting /peb-run-ready for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
         ctx.ui.notify("Pebble orchestrator started", "info");
-        const { plan, results } = await runReady({ ...options, createPrs: false, onProgress: progress });
+        const { plan, results } = await runReady({
+          ...options,
+          createPrs: false,
+          onProgress: uiProgress.progress,
+          onPlan: uiProgress.onPlan,
+          onItemStatus: uiProgress.onItemStatus,
+          onAgentEvent: uiProgress.onAgentEvent,
+        });
         show(`${formatPlan(plan)}\n\n${formatRunResults(results)}`, { plan, results });
       } catch (error) {
         show(`peb-run-ready failed: ${formatError(error)}`);
       } finally {
-        clearUiProgress(ctx);
+        uiProgress.dispose();
       }
     },
   });
@@ -857,17 +1036,24 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   pi.registerCommand("peb-burn-down", {
     description: "Run a plan/implement/review/PR cycle for ready pebbles",
     handler: async (args, ctx) => {
-      const progress = makeUiProgress(ctx);
+      const uiProgress = makeUiProgress(ctx);
       try {
         const options = parseRunOptions(args, ctx.cwd);
-        progress(`Starting /peb-burn-down for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
+        uiProgress.progress(`Starting /peb-burn-down for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
         ctx.ui.notify("Pebble orchestrator started", "info");
-        const { plan, results } = await runReady({ ...options, createPrs: true, onProgress: progress });
+        const { plan, results } = await runReady({
+          ...options,
+          createPrs: true,
+          onProgress: uiProgress.progress,
+          onPlan: uiProgress.onPlan,
+          onItemStatus: uiProgress.onItemStatus,
+          onAgentEvent: uiProgress.onAgentEvent,
+        });
         show(`${formatPlan(plan)}\n\n${formatRunResults(results)}`, { plan, results });
       } catch (error) {
         show(`peb-burn-down failed: ${formatError(error)}`);
       } finally {
-        clearUiProgress(ctx);
+        uiProgress.dispose();
       }
     },
   });
