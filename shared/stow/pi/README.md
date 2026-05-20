@@ -17,6 +17,33 @@ Stowing `shared/stow/pi` into `$HOME` creates:
 - `subagent.ts` — adds a `subagent` tool backed by isolated `pi --mode json --no-session` runs.
 - `lsp.ts` — adds `lsp_diagnostics` with per-language/per-root server isolation for worktrees and subagents.
 - `mcp.ts` — adds lazy MCP tools plus the `/mcp` command.
+- `pebble-orchestrator.ts` — plans and burns down Pebbles-backed work with git worktrees and Pi subagents.
+
+## Pebble orchestrator
+
+Commands:
+
+```text
+/peb-plan [repo] [--concurrency 3] [--state ready-for-agent]
+/peb-run-ready [repo] [--concurrency 3] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
+/peb-burn-down [repo] [--concurrency 3] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
+/peb-sync [repo] [--dry-run]
+```
+
+`/peb-plan` is read-only: it runs `peb where`, reads `peb config label-policy show --json`, lists open ready pebbles, filters existing PRs/branches, checks dependency metadata, and emits a parallel-safe batch. It prefers the `ready-for-agent` state label and `in-review` review label when the repo policy defines them.
+
+`/peb-run-ready` creates one git worktree per selected pebble, marks each pebble `in_progress`, comments with run metadata, runs implementer subagents, then runs read-only reviewer subagents. It leaves approved branches ready for humans to push/open PRs.
+
+`/peb-burn-down` does the same implementation/review cycle, then pushes approved branches, opens GitHub PRs with `gh pr create`, records `peb closes add <id> --pr <url>`, and moves `ready-for-agent` to `in-review` when those labels exist. Pebbles remain `in_progress` until `peb sync github` closes them after merge.
+
+Registered tools for agent use:
+
+- `peb_plan` — read-only execution planning.
+- `peb_sync_github` — explicit `peb sync github` / `--dry-run` support.
+
+Expected tools: `peb`, `git`, `gh` for PR steps, and `pi`. The orchestrator never runs `peb init`, never closes pebbles on PR open, and is designed to resume from Pebbles comments plus existing branches/worktrees/PRs.
+
+Smoke check performed while adding this extension: `pi -e ./shared/stow/pi/.pi/agent/extensions/pebble-orchestrator.ts --mode json --no-session -p "/peb-plan /Users/brandon/.dotfiles"` loaded the extension and produced a real plan from the dotfiles Pebbles workspace.
 
 ## MCP command
 
