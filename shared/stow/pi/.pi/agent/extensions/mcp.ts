@@ -28,6 +28,8 @@ type StdioServerConfig = {
   args?: string[];
   env?: Record<string, string>;
   cwd?: string;
+  /** MCP stdio framing. The official SDK and mcp-remote use newline-delimited JSON. */
+  framing?: "newline" | "content-length";
 };
 
 type HttpServerConfig = {
@@ -53,6 +55,8 @@ type McpDetails = {
 
 type McpClient = StdioMcpClient | HttpMcpClient;
 
+type ClientState = "starting" | "initializing" | "ready" | "stopping" | "stopped" | "failed";
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 const PROTOCOL_VERSION = "2024-11-05";
 
@@ -66,6 +70,10 @@ const CallToolParams = Type.Object({
   tool: Type.String({ description: "MCP tool name to call." }),
   arguments: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: "Arguments to pass to the MCP tool." })),
   timeoutMs: Type.Optional(Type.Number({ description: `Timeout in milliseconds. Default: ${DEFAULT_TIMEOUT_MS}.` })),
+});
+
+const ResetServerParams = Type.Object({
+  server: Type.String({ description: 'Configured MCP server name, or "all" to reset every server.' }),
 });
 
 function expandPath(path: string): string {
@@ -173,12 +181,18 @@ function parseJsonObject(raw: string | undefined): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-function formatServerList(config: McpConfig, clients: Map<string, McpClient>, paths: string[]): string {
+function clientStatusText(name: string, client: McpClient | undefined, failures: Map<string, string>): string {
+  if (client) return client.state === "ready" ? "running" : client.state;
+  const failure = failures.get(name);
+  return failure ? `failed: ${failure}` : "lazy";
+}
+
+function formatServerList(config: McpConfig, clients: Map<string, McpClient>, failures: Map<string, string>, paths: string[]): string {
   const servers = Object.entries(config.servers ?? {});
   const body =
     servers.length === 0
       ? "No MCP servers configured. Add ~/.pi/agent/mcp.json or .pi/mcp.json."
-      : servers.map(([name, server]) => `- ${name} (${server.type})${clients.has(name) ? " running" : " lazy"}`).join("\n");
+      : servers.map(([name, server]) => `- ${name} (${server.type}) ${clientStatusText(name, clients.get(name), failures)}`).join("\n");
 
   const pathText = paths.length > 0 ? `\n\nConfig:\n${paths.map((path) => `- ${path}`).join("\n")}` : "";
   return `${body}${pathText}`;
@@ -191,7 +205,8 @@ function formatMcpHelp(): string {
     "- /mcp or /mcp list — list configured MCP servers",
     "- /mcp tools <server> — lazily start/connect and list server tools",
     "- /mcp call <server> <tool> [json-args] — call a tool",
-    "- /mcp stop <server|all> — stop lazy client(s)",
+    "- /mcp stop <server|all> — stop lazy client(s) and clear cached failure state",
+    "- /mcp reset <server|all> — alias for stop; useful after failures",
     "- /mcp restart <server> — stop and reconnect/list tools",
   ].join("\n");
 }
@@ -206,25 +221,34 @@ class StdioMcpClient {
   >();
   private initialized = false;
   private stderr = "";
+  private closing = false;
+  state: ClientState = "starting";
+  lastError: string | undefined;
 
   constructor(
     readonly name: string,
     readonly config: StdioServerConfig,
     readonly cwd: string,
+    private readonly onClose: (message: string | undefined) => void,
   ) {
     this.proc = spawn(config.command, config.args ?? [], {
       cwd: config.cwd ? resolve(cwd, expandPath(config.cwd)) : cwd,
       env: { ...process.env, ...resolveRecord(config.env) },
       shell: false,
       stdio: ["pipe", "pipe", "pipe"],
+      detached: process.platform !== "win32",
     });
 
     this.proc.stdout.on("data", (chunk) => this.onData(chunk));
     this.proc.stderr.on("data", (chunk) => {
       this.stderr += chunk.toString();
     });
-    this.proc.on("error", (error) => this.rejectAll(error));
-    this.proc.on("close", (code) => this.rejectAll(new Error(`${config.command} exited with code ${code}. ${this.stderr}`)));
+    this.proc.on("error", (error) => this.fail(error));
+    this.proc.on("close", (code, signal) => {
+      if (this.closing) return this.finishClose(undefined);
+      const suffix = this.stderr.trim() ? ` ${this.stderr.trim().slice(-2_000)}` : "";
+      this.fail(new Error(`${config.command} exited with code ${code}${signal ? ` signal ${signal}` : ""}.${suffix}`));
+    });
   }
 
   async listTools(timeoutMs: number): Promise<McpTool[]> {
@@ -239,30 +263,50 @@ class StdioMcpClient {
   }
 
   shutdown(): void {
+    if (this.state === "stopped" || this.state === "failed") return;
+    this.closing = true;
+    this.state = "stopping";
     void this.request("shutdown", {}, 2_000)
       .catch(() => undefined)
       .finally(() => {
-        this.notify("exit", undefined);
-        if (!this.proc.killed) this.proc.kill("SIGTERM");
+        try {
+          this.notify("exit", undefined);
+        } catch {
+          // Ignore best-effort exit notification failures during shutdown.
+        }
+        this.killProcess();
+        this.finishClose(undefined);
       });
   }
 
   private async ensureInitialized(timeoutMs: number): Promise<void> {
     if (this.initialized) return;
-    await this.request(
-      "initialize",
-      {
-        protocolVersion: PROTOCOL_VERSION,
-        capabilities: {},
-        clientInfo: { name: "pi-mcp-extension", version: "0.1.0" },
-      },
-      timeoutMs,
-    );
-    this.notify("notifications/initialized", {});
-    this.initialized = true;
+    this.state = "initializing";
+    try {
+      await this.request(
+        "initialize",
+        {
+          protocolVersion: PROTOCOL_VERSION,
+          capabilities: {},
+          clientInfo: { name: "pi-mcp-extension", version: "0.1.0" },
+        },
+        timeoutMs,
+      );
+      this.notify("notifications/initialized", {});
+      this.initialized = true;
+      this.state = "ready";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.fail(new Error(message));
+      throw error;
+    }
   }
 
   private request(method: string, params: unknown, timeoutMs: number): Promise<unknown> {
+    if (this.state === "failed" || this.state === "stopped") {
+      return Promise.reject(new Error(`${this.name} is ${this.state}${this.lastError ? `: ${this.lastError}` : ""}`));
+    }
+
     const id = this.nextId++;
     this.send({ jsonrpc: "2.0", id, method, params });
     return new Promise((resolvePromise, rejectPromise) => {
@@ -280,28 +324,51 @@ class StdioMcpClient {
 
   private send(message: JsonRpcMessage): void {
     const body = JSON.stringify(message);
-    this.proc.stdin.write(`Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`);
+    if (this.config.framing === "content-length") {
+      this.proc.stdin.write(`Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n${body}`);
+      return;
+    }
+
+    // MCP stdio uses newline-delimited JSON. This is what @modelcontextprotocol/sdk
+    // and mcp-remote expect; LSP-style Content-Length framing makes mcp-remote
+    // treat the header as JSON and then never answer initialize.
+    this.proc.stdin.write(`${body}\n`);
   }
 
   private onData(chunk: Buffer): void {
     this.buffer = Buffer.concat([this.buffer, chunk]);
-    while (true) {
-      const headerEnd = this.buffer.indexOf("\r\n\r\n");
-      if (headerEnd === -1) return;
-      const header = this.buffer.slice(0, headerEnd).toString("utf8");
-      const match = header.match(/Content-Length: (\d+)/i);
-      if (!match) {
-        this.buffer = this.buffer.slice(headerEnd + 4);
+    while (this.buffer.length > 0) {
+      if (this.buffer.toString("utf8", 0, Math.min(this.buffer.length, 32)).startsWith("Content-Length:")) {
+        if (!this.parseContentLengthFrame()) return;
         continue;
       }
-      const contentLength = Number(match[1]);
-      const start = headerEnd + 4;
-      const end = start + contentLength;
-      if (this.buffer.length < end) return;
-      const body = this.buffer.slice(start, end).toString("utf8");
-      this.buffer = this.buffer.slice(end);
-      this.handleMessage(JSON.parse(body) as JsonRpcMessage);
+
+      const newline = this.buffer.indexOf("\n");
+      if (newline === -1) return;
+      const line = this.buffer.slice(0, newline).toString("utf8").trim();
+      this.buffer = this.buffer.slice(newline + 1);
+      if (!line) continue;
+      this.handleMessage(JSON.parse(line) as JsonRpcMessage);
     }
+  }
+
+  private parseContentLengthFrame(): boolean {
+    const headerEnd = this.buffer.indexOf("\r\n\r\n");
+    if (headerEnd === -1) return false;
+    const header = this.buffer.slice(0, headerEnd).toString("utf8");
+    const match = header.match(/Content-Length: (\d+)/i);
+    if (!match) {
+      this.buffer = this.buffer.slice(headerEnd + 4);
+      return true;
+    }
+    const contentLength = Number(match[1]);
+    const start = headerEnd + 4;
+    const end = start + contentLength;
+    if (this.buffer.length < end) return false;
+    const body = this.buffer.slice(start, end).toString("utf8");
+    this.buffer = this.buffer.slice(end);
+    this.handleMessage(JSON.parse(body) as JsonRpcMessage);
+    return true;
   }
 
   private handleMessage(message: JsonRpcMessage): void {
@@ -320,19 +387,59 @@ class StdioMcpClient {
     }
   }
 
+  private fail(error: Error): void {
+    if (this.state === "failed" || this.state === "stopped") return;
+    this.lastError = error.message;
+    this.state = "failed";
+    this.rejectAll(error);
+    this.killProcess();
+    this.finishClose(error.message);
+  }
+
   private rejectAll(error: Error): void {
-    for (const pending of this.pending.values()) pending.reject(error);
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
     this.pending.clear();
+  }
+
+  private killProcess(): void {
+    if (this.proc.killed) return;
+    if (process.platform !== "win32" && this.proc.pid) {
+      try {
+        process.kill(-this.proc.pid, "SIGTERM");
+        setTimeout(() => {
+          try {
+            process.kill(-this.proc.pid!, "SIGKILL");
+          } catch {
+            // Process group is already gone.
+          }
+        }, 1_000).unref();
+        return;
+      } catch {
+        // Fall back to killing the direct child below.
+      }
+    }
+    this.proc.kill("SIGTERM");
+  }
+
+  private finishClose(message: string | undefined): void {
+    if (!message && this.state !== "failed") this.state = "stopped";
+    this.onClose(message);
   }
 }
 
 class HttpMcpClient {
   private sessionId: string | undefined;
   private initialized = false;
+  state: ClientState = "starting";
+  lastError: string | undefined;
 
   constructor(
     readonly name: string,
     readonly config: HttpServerConfig,
+    private readonly onClose: (message: string | undefined) => void,
   ) {}
 
   async listTools(timeoutMs: number): Promise<McpTool[]> {
@@ -347,23 +454,36 @@ class HttpMcpClient {
   }
 
   async shutdown(): Promise<void> {
-    if (!this.initialized) return;
-    await this.notify("exit", undefined, 2_000).catch(() => undefined);
+    if (this.state === "stopped" || this.state === "failed") return;
+    this.state = "stopping";
+    if (this.initialized) await this.notify("exit", undefined, 2_000).catch(() => undefined);
+    this.state = "stopped";
+    this.onClose(undefined);
   }
 
   private async ensureInitialized(timeoutMs: number): Promise<void> {
     if (this.initialized) return;
-    await this.request(
-      "initialize",
-      {
-        protocolVersion: PROTOCOL_VERSION,
-        capabilities: {},
-        clientInfo: { name: "pi-mcp-extension", version: "0.1.0" },
-      },
-      timeoutMs,
-    );
-    await this.notify("notifications/initialized", {}, timeoutMs).catch(() => undefined);
-    this.initialized = true;
+    this.state = "initializing";
+    try {
+      await this.request(
+        "initialize",
+        {
+          protocolVersion: PROTOCOL_VERSION,
+          capabilities: {},
+          clientInfo: { name: "pi-mcp-extension", version: "0.1.0" },
+        },
+        timeoutMs,
+      );
+      await this.notify("notifications/initialized", {}, timeoutMs).catch(() => undefined);
+      this.initialized = true;
+      this.state = "ready";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.lastError = message;
+      this.state = "failed";
+      this.onClose(message);
+      throw error;
+    }
   }
 
   private async request(method: string, params: unknown, timeoutMs: number): Promise<unknown> {
@@ -421,6 +541,7 @@ function parseSseResponse(text: string): JsonRpcMessage {
 
 export default function mcp(pi: ExtensionAPI) {
   const clients = new Map<string, StdioMcpClient | HttpMcpClient>();
+  const failures = new Map<string, string>();
 
   async function getServerConfig(ctx: { cwd: string }, server: string): Promise<ServerConfig> {
     const { config } = await loadConfig(ctx.cwd);
@@ -431,15 +552,24 @@ export default function mcp(pi: ExtensionAPI) {
 
   async function getClient(ctx: { cwd: string }, server: string): Promise<McpClient> {
     const existing = clients.get(server);
-    if (existing) return existing;
+    if (existing && existing.state !== "failed" && existing.state !== "stopped") return existing;
+    clients.delete(server);
+    failures.delete(server);
+
     const config = await getServerConfig(ctx, server);
-    const client = config.type === "stdio" ? new StdioMcpClient(server, config, ctx.cwd) : new HttpMcpClient(server, config);
+    let client: McpClient;
+    const onClose = (message: string | undefined) => {
+      if (clients.get(server) === client) clients.delete(server);
+      if (message) failures.set(server, message);
+    };
+    client = config.type === "stdio" ? new StdioMcpClient(server, config, ctx.cwd, onClose) : new HttpMcpClient(server, config, onClose);
     clients.set(server, client);
     return client;
   }
 
   function shutdownClient(server: string): boolean {
     const client = clients.get(server);
+    failures.delete(server);
     if (!client) return false;
     if (client instanceof StdioMcpClient) client.shutdown();
     else void client.shutdown();
@@ -452,10 +582,10 @@ export default function mcp(pi: ExtensionAPI) {
   }
 
   pi.registerCommand("mcp", {
-    description: "Manage lazy MCP servers: list, tools, call, stop, restart",
+    description: "Manage lazy MCP servers: list, tools, call, stop, reset, restart",
     getArgumentCompletions(prefix) {
       const parts = parseCommandArgs(prefix);
-      const subcommands = ["list", "tools", "call", "stop", "restart", "help"];
+      const subcommands = ["list", "tools", "call", "stop", "reset", "restart", "help"];
       const command = parts[0];
 
       if (parts.length <= 1 && !prefix.endsWith(" ")) {
@@ -479,7 +609,7 @@ export default function mcp(pi: ExtensionAPI) {
 
         if (command === "list" || command === "status") {
           const { config, paths } = await loadConfig(ctx.cwd);
-          showCommandResult(formatServerList(config, clients, paths));
+          showCommandResult(formatServerList(config, clients, failures, paths));
           return;
         }
 
@@ -506,17 +636,19 @@ export default function mcp(pi: ExtensionAPI) {
           return;
         }
 
-        if (command === "stop") {
+        if (command === "stop" || command === "reset") {
           const server = argv[1];
-          if (!server) throw new Error("Usage: /mcp stop <server|all>");
+          if (!server) throw new Error(`Usage: /mcp ${command} <server|all>`);
           if (server === "all") {
             const count = clients.size;
+            const failureCount = failures.size;
             for (const name of [...clients.keys()]) shutdownClient(name);
-            showCommandResult(`Stopped ${count} MCP client${count === 1 ? "" : "s"}.`);
+            failures.clear();
+            showCommandResult(`Reset ${count} MCP client${count === 1 ? "" : "s"} and cleared ${failureCount} failure${failureCount === 1 ? "" : "s"}.`);
             return;
           }
           const stopped = shutdownClient(server);
-          showCommandResult(stopped ? `Stopped MCP server ${server}.` : `MCP server ${server} was not running.`);
+          showCommandResult(stopped ? `Reset MCP server ${server}.` : `MCP server ${server} was not running; cleared cached state.`);
           return;
         }
 
@@ -552,9 +684,24 @@ export default function mcp(pi: ExtensionAPI) {
         servers.length === 0
           ? "No MCP servers configured. Add ~/.pi/agent/mcp.json or .pi/mcp.json."
           : servers
-              .map(([name, server]) => `- ${name} (${server.type})${clients.has(name) ? " running" : " lazy"}`)
+              .map(([name, server]) => `- ${name} (${server.type}) ${clientStatusText(name, clients.get(name), failures)}`)
               .join("\n");
-      return { content: [{ type: "text", text }], details: { paths, servers: servers.map(([name, server]) => ({ name, type: server.type, running: clients.has(name) })) } };
+      return {
+        content: [{ type: "text", text }],
+        details: {
+          paths,
+          servers: servers.map(([name, server]) => {
+            const client = clients.get(name);
+            return {
+              name,
+              type: server.type,
+              running: client?.state === "ready",
+              state: client?.state ?? (failures.has(name) ? "failed" : "lazy"),
+              error: failures.get(name),
+            };
+          }),
+        },
+      };
     },
   });
 
@@ -576,6 +723,32 @@ export default function mcp(pi: ExtensionAPI) {
     },
     renderCall(args, theme) {
       return new Text(theme.fg("toolTitle", theme.bold("mcp_list_tools ")) + theme.fg("accent", args.server ?? "..."), 0, 0);
+    },
+  });
+
+  pi.registerTool({
+    name: "mcp_reset_server",
+    label: "MCP Reset",
+    description: "Reset one MCP server client, or all clients, clearing cached failure/running state without starting servers.",
+    promptSnippet: "Reset a stuck MCP server client and clear cached failure state.",
+    parameters: ResetServerParams,
+    async execute(_id, params) {
+      if (params.server === "all") {
+        const count = clients.size;
+        const failureCount = failures.size;
+        for (const name of [...clients.keys()]) shutdownClient(name);
+        failures.clear();
+        return {
+          content: [{ type: "text", text: `Reset ${count} MCP client${count === 1 ? "" : "s"} and cleared ${failureCount} failure${failureCount === 1 ? "" : "s"}.` }],
+          details: { server: params.server, reset: count, clearedFailures: failureCount },
+        };
+      }
+
+      const stopped = shutdownClient(params.server);
+      return {
+        content: [{ type: "text", text: stopped ? `Reset MCP server ${params.server}.` : `MCP server ${params.server} was not running; cleared cached state.` }],
+        details: { server: params.server, reset: stopped ? 1 : 0 },
+      };
     },
   });
 
