@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateTail, withFileMutationQueue } from "@mariozechner/pi-coding-agent";
-import { Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { matchesKey, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { Type } from "typebox";
 
 type ExecResult = { stdout: string; stderr: string; code: number | null; killed?: boolean };
@@ -959,14 +959,20 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return theme.fg("muted", cell);
   }
 
+  function isKittyReleaseEvent(data: string): boolean {
+    return /^\x1b\[\d+(?::\d*)?(?::\d+)?(?:;\d+)?(?::3)u$/.test(data);
+  }
+
   function isScrollUpInput(data: string): boolean {
-    // Raw ctrl+k is VT (0x0b). Capture it only in the active terminal input listener so normal editor ctrl+k works otherwise.
-    return data === "\x0b" || data === "\x1b[1;3A" || data === "\x1b[3A" || data === "\x1bk";
+    // matchesKey covers legacy VT (raw ctrl+k), Kitty CSI-u, and xterm modifyOtherKeys encodings.
+    if (isKittyReleaseEvent(data)) return false;
+    return matchesKey(data, "ctrl+k") || matchesKey(data, "ctrl+shift+k") || data === "\x1b[1;3A" || data === "\x1b[3A" || data === "\x1bk";
   }
 
   function isScrollDownInput(data: string): boolean {
-    // Raw ctrl+j is LF (0x0a). Capture it only while the progress card is active.
-    return data === "\x0a" || data === "\x1b[1;3B" || data === "\x1b[3B" || data === "\x1bj";
+    // matchesKey covers legacy LF (raw ctrl+j), Kitty CSI-u, and xterm modifyOtherKeys encodings.
+    if (isKittyReleaseEvent(data)) return false;
+    return matchesKey(data, "ctrl+j") || matchesKey(data, "ctrl+shift+j") || data === "\x1b[1;3B" || data === "\x1b[3B" || data === "\x1bj";
   }
 
   function makeUiProgress(ctx: {
