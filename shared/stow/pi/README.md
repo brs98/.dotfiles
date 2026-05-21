@@ -18,6 +18,7 @@ Stowing `shared/stow/pi` into `$HOME` creates:
 - `lsp.ts` — adds `lsp_diagnostics` with per-language/per-root server isolation for worktrees and subagents.
 - `mcp.ts` — adds lazy MCP tools plus the `/mcp` command.
 - `pebble-orchestrator.ts` — plans and burns down Pebbles-backed work with git worktrees and Pi subagents.
+- `imagegen.ts` — adds a `generate_image` tool that delegates to Codex CLI's hosted image generation, saving generated bitmap images to disk.
 
 ## Pebble orchestrator
 
@@ -41,6 +42,7 @@ While `/peb-run-ready` or `/peb-burn-down` is active in interactive Pi, the exte
 
 Registered tools for agent use:
 
+- `generate_image` — creates bitmap images by shelling out to `codex exec`, using Codex CLI's hosted image generation and subscription-backed auth, then verifies and saves the bitmap locally. Defaults to `/Users/brandon/Pictures/gpt-images/`. Requires `codex` to be installed and logged in.
 - `peb_plan` — read-only execution planning.
 - `peb_sync_github` — explicit `peb sync github` / `--dry-run` support.
 
