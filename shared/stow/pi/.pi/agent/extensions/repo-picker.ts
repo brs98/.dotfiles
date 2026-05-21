@@ -191,6 +191,17 @@ function getPathAutocompletePrefix(textBeforeCursor: string): string | undefined
 	return undefined;
 }
 
+function getInlineSlashAutocompletePrefix(textBeforeCursor: string): string | undefined {
+	const { token, tokenStart } = getCurrentToken(textBeforeCursor);
+
+	// Keep pi's built-in slash-command menu at the beginning of a prompt/line.
+	// This path is only for inline slash completions supplied by other provider
+	// wrappers, such as inline /skill:name completion.
+	if (textBeforeCursor.slice(0, tokenStart).trim().length === 0) return undefined;
+
+	return token.startsWith("/") ? token : undefined;
+}
+
 function getPathAutocompleteItems(repos: string[], prefix: string) {
 	const query = prefix.slice("/path:".length).toLowerCase();
 
@@ -232,8 +243,9 @@ class PathAutocompleteEditor extends CustomEditor {
 		const cursor = this.getCursor();
 		const line = this.getLines()[cursor.line] ?? "";
 		const beforeCursor = line.slice(0, cursor.col);
-		const prefix = getPathAutocompletePrefix(beforeCursor);
-		if (!prefix) return;
+		const pathPrefix = getPathAutocompletePrefix(beforeCursor);
+		const inlineSlashPrefix = getInlineSlashAutocompletePrefix(beforeCursor);
+		if (!pathPrefix && !inlineSlashPrefix) return;
 
 		(this as AutocompleteTriggerableEditor).tryTriggerAutocomplete();
 	}
