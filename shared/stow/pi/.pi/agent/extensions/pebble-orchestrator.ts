@@ -1056,8 +1056,9 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
             if (nextScroll !== scroll) {
               scroll = nextScroll;
               tui.requestRender?.();
+              return true;
             }
-            return true;
+            return false;
           };
           const unsubscribe = tui.addInputListener?.((data) => {
             if (isScrollUpInput(data)) return scrollBy(-1) ? { consume: true } : undefined;
@@ -1093,7 +1094,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
               const lines = [border(`╭${"─".repeat(left)}`) + visibleTitle + border(`${"─".repeat(right)}╮`)];
               for (const line of visible) lines.push(border("│") + padLine(line) + border("│"));
               while (lines.length < maxBodyLines + 1) lines.push(border("│") + padLine("") + border("│"));
-              const hint = maxScroll > 0 ? theme.fg("dim", `alt+↑/↓ or alt+k/j scroll ${scroll + 1}/${maxScroll + 1}`) : theme.fg("dim", "all progress visible");
+              const hint = maxScroll > 0 ? theme.fg("dim", `ctrl+shift+↑/↓ or /peb-scroll scroll ${scroll + 1}/${maxScroll + 1}`) : theme.fg("dim", "all progress visible");
               lines.push(border("│") + padLine(hint) + border("│"));
               lines.push(border(`╰${"─".repeat(innerWidth)}╯`));
               return lines;
@@ -1203,21 +1204,20 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     },
   });
 
-  pi.registerShortcut("ctrl+shift+j", {
-    description: "Scroll Pebbles orchestrator card down",
-    handler: async (ctx) => {
-      const scrolled = scrollActiveWidget(1);
-      if (!scrolled && ctx.hasUI) ctx.ui.notify("No active Pebbles card to scroll down.", "warning");
-    },
-  });
+  const registerScrollShortcut = (key: string, delta: number, direction: "up" | "down") => {
+    pi.registerShortcut(key, {
+      description: `Scroll Pebbles orchestrator card ${direction}`,
+      handler: async (ctx) => {
+        const scrolled = scrollActiveWidget(delta);
+        if (!scrolled && ctx.hasUI) ctx.ui.notify(`No active Pebbles card to scroll ${direction}.`, "warning");
+      },
+    });
+  };
 
-  pi.registerShortcut("ctrl+shift+k", {
-    description: "Scroll Pebbles orchestrator card up",
-    handler: async (ctx) => {
-      const scrolled = scrollActiveWidget(-1);
-      if (!scrolled && ctx.hasUI) ctx.ui.notify("No active Pebbles card to scroll up.", "warning");
-    },
-  });
+  registerScrollShortcut("ctrl+shift+down", 1, "down");
+  registerScrollShortcut("ctrl+shift+up", -1, "up");
+  registerScrollShortcut("ctrl+shift+j", 1, "down");
+  registerScrollShortcut("ctrl+shift+k", -1, "up");
 
   pi.registerCommand("peb-plan", {
     description: "Plan ready Pebbles work and show an unblocked parallel batch",
