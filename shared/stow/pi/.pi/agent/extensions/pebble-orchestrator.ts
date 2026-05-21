@@ -960,7 +960,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   }
 
   function isScrollUpInput(data: string): boolean {
-    // Raw ctrl+k is VT (0x0b). Capture it only in the active widget listener so normal editor ctrl+k works otherwise.
+    // Raw ctrl+k is VT (0x0b). Capture it only in the active terminal input listener so normal editor ctrl+k works otherwise.
     return data === "\x0b" || data === "\x1b[1;3A" || data === "\x1b[3A" || data === "\x1bk";
   }
 
@@ -973,6 +973,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     hasUI?: boolean;
     ui?: {
       notify?: (message: string, level?: "info" | "warning" | "error") => void;
+      onTerminalInput?: (handler: (data: string) => { consume?: boolean; data?: string } | undefined) => () => void;
       setStatus?: (key: string, value: string | undefined) => void;
       setWidget?: (key: string, value: ((tui: unknown, theme: unknown) => { render: (width: number) => string[]; invalidate: () => void; dispose?: () => void }) | undefined, options?: { placement?: "aboveEditor" | "belowEditor" }) => void;
     };
@@ -1003,6 +1004,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     let stage = "Starting...";
     let disposed = false;
     let requestWidgetRender: (() => void) | undefined;
+    let unsubscribeTerminalInput: (() => void) | undefined;
 
     const buildLines = (theme: { fg: (name: string, text: string) => string; bold: (text: string) => string }): string[] => {
       const lines = [theme.fg("muted", `Stage: ${compactText(stage, 90)}`)];
@@ -1041,11 +1043,22 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     };
 
     if (ctx.hasUI) {
+      unsubscribeTerminalInput = ctx.ui?.onTerminalInput?.((data) => {
+        if (isScrollUpInput(data)) {
+          scrollActiveWidget(-1);
+          return { consume: true };
+        }
+        if (isScrollDownInput(data)) {
+          scrollActiveWidget(1);
+          return { consume: true };
+        }
+        return undefined;
+      });
+
       ctx.ui?.setWidget?.(
         "pebble-orchestrator",
         (tuiUnknown, themeUnknown) => {
           const tui = tuiUnknown as {
-            addInputListener?: (listener: (data: string) => { consume?: boolean } | undefined) => () => void;
             requestRender?: () => void;
           };
           const theme = themeUnknown as { fg: (name: string, text: string) => string; bold: (text: string) => string };
@@ -1062,11 +1075,6 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
             }
             return false;
           };
-          const unsubscribe = tui.addInputListener?.((data) => {
-            if (isScrollUpInput(data)) return scrollBy(-1) ? { consume: true } : undefined;
-            if (isScrollDownInput(data)) return scrollBy(1) ? { consume: true } : undefined;
-            return undefined;
-          });
           const controller = { scrollBy };
           activeScrollController = controller;
           requestWidgetRender = () => tui.requestRender?.();
@@ -1104,7 +1112,6 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
             invalidate() {},
             dispose() {
               if (activeScrollController === controller) activeScrollController = undefined;
-              unsubscribe?.();
             },
           };
         },
@@ -1175,6 +1182,8 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
         disposed = true;
         clearInterval(interval);
         activeScrollController = undefined;
+        unsubscribeTerminalInput?.();
+        unsubscribeTerminalInput = undefined;
         if (!ctx.hasUI) return;
         ctx.ui?.setStatus?.("pebble-orchestrator", undefined);
         ctx.ui?.setWidget?.("pebble-orchestrator", undefined);
