@@ -84,8 +84,20 @@ function getInlineSkillAutocompletePrefix(textBeforeCursor: string): string | un
   return undefined;
 }
 
+function getInlineSkillAutocompleteQuery(prefix: string): string {
+  if (prefix === "/") return "";
+  if (prefix.startsWith("/skill:")) return prefix.slice("/skill:".length);
+
+  // While the user is typing the explicit marker (`/s`, `/sk`, `/skill`),
+  // show all skills so autocomplete can complete the marker to `/skill:name`.
+  if ("/skill:".startsWith(prefix)) return "";
+
+  // Shorthand inline completion: `/td` can complete to `/skill:tdd`.
+  return prefix.slice(1);
+}
+
 function getInlineSkillAutocompleteItems(commands: PiCommand[], prefix: string) {
-  const query = prefix.startsWith("/skill:") ? prefix.slice("/skill:".length) : prefix.slice(1);
+  const query = getInlineSkillAutocompleteQuery(prefix);
 
   return commands
     .filter((command) => command.source === "skill")
