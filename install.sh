@@ -142,7 +142,14 @@ echo "  → Stowing shared configs..."
 if [ -d "shared/stow" ]; then
     (cd shared/stow && for pkg in */; do
         pkg="${pkg%/}"
-        stow -t ~ "$pkg"
+        if [ "$pkg" = "pi" ]; then
+            # Keep Pi's validation monorepo metadata in the repo only. Stow's
+            # default tree-folding would symlink ~/.pi to the package directory
+            # and expose files ignored by shared/stow/pi/.stow-local-ignore.
+            stow --no-folding -t ~ "$pkg"
+        else
+            stow -t ~ "$pkg"
+        fi
     done)
 fi
 

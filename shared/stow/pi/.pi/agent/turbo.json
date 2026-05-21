@@ -1,0 +1,14 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "tasks": {
+    "validate": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/AGENTS.md",
+        "$TURBO_ROOT$/mcp.json",
+        "$TURBO_ROOT$/extensions/*.ts"
+      ],
+      "outputs": []
+    }
+  }
+}
