@@ -86,7 +86,9 @@ export default function statusline(pi: ExtensionAPI) {
             usageParts.push(costStr);
           }
 
-          const extensionStatuses = footerData.getExtensionStatuses?.() ?? [];
+          const extensionStatuses = Array.from(footerData.getExtensionStatuses?.() ?? new Map<string, string>())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([, text]) => text);
 
           const line = joinStyled(
             [

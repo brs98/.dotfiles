@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { getAgentDir, isToolCallEventType } from "@mariozechner/pi-coding-agent";
+import { getAgentDir } from "@mariozechner/pi-coding-agent";
 import type { AutocompleteItem } from "@mariozechner/pi-tui";
 
 interface WorkspaceConfig {
@@ -61,20 +61,21 @@ function normalizeConfig(raw: unknown): WorkspaceConfig {
 
 function loadWorkspaceConfig(cwd: string): WorkspaceConfig {
   const paths = [join(getAgentDir(), "workspaces.json"), join(cwd, ".pi", "workspaces.json")];
-  const merged: WorkspaceConfig = { aliases: {} };
+  const aliases: Record<string, string> = {};
+  let defaultWorkspace: string | undefined;
 
   for (const path of paths) {
     if (!existsSync(path)) continue;
     try {
       const config = normalizeConfig(loadJson(path));
-      Object.assign(merged.aliases, config.aliases ?? {}, config.workspaces ?? {});
-      if (config.default) merged.default = config.default;
+      Object.assign(aliases, config.aliases ?? {}, config.workspaces ?? {});
+      if (config.default) defaultWorkspace = config.default;
     } catch (error) {
       console.error(`Failed to load workspace config from ${path}: ${error}`);
     }
   }
 
-  return merged;
+  return { aliases, default: defaultWorkspace };
 }
 
 function workspacesFromConfig(config: WorkspaceConfig): Workspace[] {
@@ -202,24 +203,45 @@ async function selectWorkspace(ctx: ExtensionContext): Promise<WorkspaceState | 
   return workspaces.find((workspace) => describeWorkspace(workspace) === choice);
 }
 
+function resolveOptionalPathInput(input: Record<string, unknown>, workspace: Workspace) {
+  if (typeof input.path === "string") {
+    if (isRelativeFilesystemPath(input.path)) {
+      input.path = resolveAgainstWorkspace(input.path, workspace);
+    }
+  } else {
+    input.path = workspace.path;
+  }
+}
+
+function resolveRequiredPathInput(input: Record<string, unknown>, workspace: Workspace) {
+  if (typeof input.path === "string" && isRelativeFilesystemPath(input.path)) {
+    input.path = resolveAgainstWorkspace(input.path, workspace);
+  }
+}
+
 function mutateToolInputForWorkspace(event: { toolName: string; input: unknown }, workspace: Workspace) {
-  if (isToolCallEventType("bash", event)) {
-    event.input.command = `cd ${shellQuote(workspace.path)} && ${event.input.command}`;
+  if (event.toolName === "bash" && event.input && typeof event.input === "object") {
+    const input = event.input as Record<string, unknown>;
+    if (typeof input.command === "string") {
+      input.command = `cd ${shellQuote(workspace.path)} && ${input.command}`;
+    }
     return;
   }
 
   if (!event.input || typeof event.input !== "object") return;
   const input = event.input as Record<string, unknown>;
 
-  if (["read", "write", "edit"].includes(event.toolName) && typeof input.path === "string" && isRelativeFilesystemPath(input.path)) {
-    input.path = resolveAgainstWorkspace(input.path, workspace);
+  if (["read", "write", "edit"].includes(event.toolName)) {
+    resolveRequiredPathInput(input, workspace);
+  }
+
+  if (["ls", "grep", "find"].includes(event.toolName)) {
+    resolveOptionalPathInput(input, workspace);
   }
 
   // Quality-of-life for common cwd-aware extension tools without making them required.
   if (event.toolName === "lsp_diagnostics") {
-    if (typeof input.path === "string" && isRelativeFilesystemPath(input.path)) {
-      input.path = resolveAgainstWorkspace(input.path, workspace);
-    }
+    resolveRequiredPathInput(input, workspace);
     if (typeof input.cwd !== "string") input.cwd = workspace.path;
   }
 
@@ -238,9 +260,9 @@ export default function workspaceSwitcher(pi: ExtensionAPI) {
     const restored = latestPersistedWorkspace(ctx);
     if (restored !== undefined) {
       activeWorkspace = restored && isExistingDirectory(restored.path) ? restored : null;
-    } else if (workspaceConfig.default) {
-      activeWorkspace = findWorkspace(workspaceConfig.default) ?? null;
     } else {
+      // Require an explicit /repo selection before rewriting tool calls. This avoids
+      // a project-local .pi/workspaces.json silently redirecting writes or bash.
       activeWorkspace = null;
     }
 
@@ -313,7 +335,7 @@ export default function workspaceSwitcher(pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event, ctx) => {
     if (!activeWorkspace) return;
     return {
-      systemPrompt: `${event.systemPrompt}\n\nWorkspace switcher is active. Treat ${activeWorkspace.alias} (${activeWorkspace.path}) as the active workspace for relative paths. The workspace-switcher extension rewrites relative read/write/edit paths and bash commands to execute from that directory. Pi's launch cwd remains ${ctx.cwd}.`,
+      systemPrompt: `${event.systemPrompt}\n\nWorkspace switcher is active. Treat ${activeWorkspace.alias} (${activeWorkspace.path}) as the active workspace for relative paths. The workspace-switcher extension rewrites relative read/write/edit/ls/grep/find paths and bash commands to execute from that directory. Pi's launch cwd remains ${ctx.cwd}.`,
     };
   });
 
