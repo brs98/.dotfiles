@@ -159,10 +159,12 @@ function parseArgs(input: string): { positionals: string[]; flags: Record<string
   return { positionals, flags };
 }
 
-function asNumber(value: string | boolean | undefined, fallback: number): number {
+function asNumber(value: string | boolean | undefined, fallback: number, max?: number): number {
   if (typeof value !== "string") return fallback;
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  const rounded = Math.floor(parsed);
+  return max == null ? rounded : Math.min(rounded, max);
 }
 
 function slugify(input: string): string {
@@ -297,6 +299,10 @@ function formatRunResults(results: RunResult[]): string {
     if (result.errors.length > 0) lines.push(`  errors: ${result.errors.join("; ")}`);
   }
   return lines.join("\n");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
 async function limitMap<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
@@ -819,6 +825,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     model: string;
     timeoutMs: number;
     maxAttempts: number;
+    uiDelayMs: number;
     createPrs: boolean;
     onProgress?: (message: string, details?: unknown) => void;
     onPlan?: (plan: Plan) => void;
@@ -841,6 +848,11 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       { plan, dispatched },
     );
     const results = await limitMap(dispatched, options.concurrency, async ({ item, worktreePath }) => {
+      if (options.uiDelayMs > 0) {
+        options.onItemStatus?.(item, "waiting", { worktreePath, delayMs: options.uiDelayMs });
+        options.onProgress?.(`UI test delay for ${item.issue.id}: waiting ${options.uiDelayMs}ms before implementer starts.`, { plan, item, worktreePath });
+        await sleep(options.uiDelayMs);
+      }
       options.onProgress?.(`Working on ${item.issue.id}: implementer/reviewer subagents are running in ${worktreePath}`, { plan, item, worktreePath });
       return runImplementation(plan, item, worktreePath, options.model, options.timeoutMs, options.maxAttempts, {
         onItemStatus: options.onItemStatus,
@@ -884,12 +896,13 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   }
 
   function swimlaneCell(status: string, lane: "plan" | "implement" | "review" | "verdict"): string {
-    const planned = ["planned", "dispatched", "implementing", "implemented", "reviewing", "approved", "opening_pr", "pr_opened", "changes_requested", "failed", "pr_failed"];
+    const planned = ["planned", "dispatched", "waiting", "implementing", "implemented", "reviewing", "approved", "opening_pr", "pr_opened", "changes_requested", "failed", "pr_failed"];
     const implemented = ["implemented", "reviewing", "approved", "opening_pr", "pr_opened", "changes_requested", "pr_failed"];
     const reviewed = ["approved", "opening_pr", "pr_opened", "pr_failed"];
 
     if (lane === "plan") return planned.includes(status) ? "✓" : "○";
     if (lane === "implement") {
+      if (status === "waiting") return "…";
       if (status === "implementing") return "●";
       if (implemented.includes(status)) return "✓";
       if (status === "failed") return "✗";
@@ -902,6 +915,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       return "○";
     }
     if (status === "approved") return "approved";
+    if (status === "waiting") return "waiting";
     if (status === "opening_pr") return "opening";
     if (status === "pr_opened") return "PR open";
     if (status === "changes_requested") return "changes";
@@ -919,6 +933,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     const cell = swimlaneCell(status, lane);
     if (lane === "plan") return theme.fg(cell === "✓" ? "success" : "muted", cell);
     if (lane === "implement") {
+      if (cell === "…") return theme.fg("muted", cell);
       if (cell === "●") return theme.fg("accent", cell);
       if (cell === "✓") return theme.fg("success", cell);
       if (cell === "✗") return theme.fg("error", cell);
@@ -931,6 +946,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       return theme.fg("muted", cell);
     }
     if (status === "approved" || status === "pr_opened") return theme.fg("success", cell);
+    if (status === "waiting") return theme.fg("muted", cell);
     if (status === "opening_pr") return theme.fg("accent", cell);
     if (status === "changes_requested") return theme.fg("warning", cell);
     if (status === "failed" || status === "pr_failed") return theme.fg("error", cell);
@@ -1153,7 +1169,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     };
   }
 
-  function parseRunOptions(args: string, cwd: string): { repo?: string; cwd: string; concurrency: number; state?: string; model: string; timeoutMs: number; maxAttempts: number } {
+  function parseRunOptions(args: string, cwd: string): { repo?: string; cwd: string; concurrency: number; state?: string; model: string; timeoutMs: number; maxAttempts: number; uiDelayMs: number } {
     const parsed = parseArgs(args);
     return {
       repo: parsed.positionals[0],
@@ -1163,6 +1179,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       model: typeof parsed.flags.model === "string" ? parsed.flags.model : DEFAULT_MODEL,
       timeoutMs: asNumber(parsed.flags.timeoutMs ?? parsed.flags.timeout, DEFAULT_AGENT_TIMEOUT_MS),
       maxAttempts: asNumber(parsed.flags.maxAttempts ?? parsed.flags.attempts, 3),
+      uiDelayMs: asNumber(parsed.flags.uiDelayMs ?? parsed.flags.delayMs, 0, 10 * 60 * 1000),
     };
   }
 

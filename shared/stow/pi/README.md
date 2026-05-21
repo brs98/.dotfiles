@@ -25,14 +25,14 @@ Commands:
 
 ```text
 /peb-plan [repo] [--concurrency 3] [--state ready-for-agent]
-/peb-run-ready [repo] [--concurrency 3] [--maxAttempts 3] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
-/peb-burn-down [repo] [--concurrency 3] [--maxAttempts 3] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
+/peb-run-ready [repo] [--concurrency 3] [--maxAttempts 3] [--uiDelayMs 0] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
+/peb-burn-down [repo] [--concurrency 3] [--maxAttempts 3] [--uiDelayMs 0] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
 /peb-sync [repo] [--dry-run]
 ```
 
 `/peb-plan` is read-only: it runs `peb where`, reads `peb config label-policy show --json`, lists open ready pebbles, filters existing PRs, reuses existing orchestrator branches/worktrees when present, checks dependency metadata, and emits a parallel-safe batch. It prefers the `ready-for-agent` state label and `in-review` review label when the repo policy defines them.
 
-`/peb-run-ready` creates one git worktree per selected pebble, marks each pebble `in_progress`, comments with run metadata, then runs implementer/reviewer subagents. If review returns `CHANGES_REQUESTED`, the implementer receives the reviewer feedback and retries until `APPROVED` or `--maxAttempts` is reached. It leaves approved branches ready for humans to push/open PRs.
+`/peb-run-ready` creates one git worktree per selected pebble, marks each pebble `in_progress`, comments with run metadata, then runs implementer/reviewer subagents. If review returns `CHANGES_REQUESTED`, the implementer receives the reviewer feedback and retries until `APPROVED` or `--maxAttempts` is reached. It leaves approved branches ready for humans to push/open PRs. For UI testing, `--uiDelayMs <ms>` (alias: `--delayMs`) pauses each selected pebble before implementer work so the live card is inspectable.
 
 `/peb-burn-down` does the same implementation/review feedback loop, then pushes approved branches, opens GitHub PRs with `gh pr create`, records `peb closes add <id> --pr <url>`, and moves `ready-for-agent` to `in-review` when those labels exist. Pebbles remain `in_progress` until `peb sync github` closes them after merge.
 
