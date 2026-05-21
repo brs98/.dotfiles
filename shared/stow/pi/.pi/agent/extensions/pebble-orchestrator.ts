@@ -1094,7 +1094,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
               const lines = [border(`╭${"─".repeat(left)}`) + visibleTitle + border(`${"─".repeat(right)}╮`)];
               for (const line of visible) lines.push(border("│") + padLine(line) + border("│"));
               while (lines.length < maxBodyLines + 1) lines.push(border("│") + padLine("") + border("│"));
-              const hint = maxScroll > 0 ? theme.fg("dim", `ctrl+shift+↑/↓ or /peb-scroll scroll ${scroll + 1}/${maxScroll + 1}`) : theme.fg("dim", "all progress visible");
+              const hint = maxScroll > 0 ? theme.fg("dim", `ctrl+shift+j down; /peb-scroll up/down ${scroll + 1}/${maxScroll + 1}`) : theme.fg("dim", "all progress visible");
               lines.push(border("│") + padLine(hint) + border("│"));
               lines.push(border(`╰${"─".repeat(innerWidth)}╯`));
               return lines;
@@ -1214,8 +1214,6 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     });
   };
 
-  registerScrollShortcut("ctrl+shift+down", 1, "down");
-  registerScrollShortcut("ctrl+shift+up", -1, "up");
   registerScrollShortcut("ctrl+shift+j", 1, "down");
   registerScrollShortcut("ctrl+shift+k", -1, "up");
 

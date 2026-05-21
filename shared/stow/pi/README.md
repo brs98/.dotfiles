@@ -37,7 +37,7 @@ Commands:
 
 `/peb-burn-down` does the same implementation/review feedback loop, then pushes approved branches, opens GitHub PRs with `gh pr create`, records `peb closes add <id> --pr <url>`, and moves `ready-for-agent` to `in-review` when those labels exist. Pebbles remain `in_progress` until `peb sync github` closes them after merge.
 
-While `/peb-run-ready` or `/peb-burn-down` is active in interactive Pi, the extension keeps a live bordered `Pebble orchestrator` swimlane card above the editor plus a footer status. The card updates once per second and on subagent JSON events, showing each selected pebble across color-coded Plan, Implement, Review, and Verdict columns, plus selected/deferred pebbles, branch, current implementer/reviewer status, and latest subagent activity. If the card overflows, scroll it with `ctrl+shift+↓` / `ctrl+shift+↑` first; `ctrl+shift+j` / `ctrl+shift+k`, `/peb-scroll down` / `/peb-scroll up`, and raw terminal `alt+↑` / `alt+↓` or `alt+k` / `alt+j` remain fallbacks.
+While `/peb-run-ready` or `/peb-burn-down` is active in interactive Pi, the extension keeps a live bordered `Pebble orchestrator` swimlane card above the editor plus a footer status. The card updates once per second and on subagent JSON events, showing each selected pebble across color-coded Plan, Implement, Review, and Verdict columns, plus selected/deferred pebbles, branch, current implementer/reviewer status, and latest subagent activity. If the card overflows, scroll down with `ctrl+shift+j`; scroll up/down reliably with `/peb-scroll up` / `/peb-scroll down`. `ctrl+shift+k` and raw terminal `alt+↑` / `alt+↓` or `alt+k` / `alt+j` remain best-effort fallbacks because terminals may capture some sequences.
 
 Registered tools for agent use:
 
