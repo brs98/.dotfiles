@@ -27,6 +27,7 @@ Commands:
 /peb-plan [repo] [--concurrency 3] [--state ready-for-agent]
 /peb-run-ready [repo] [--concurrency 3] [--maxAttempts 3] [--uiDelayMs 0] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
 /peb-burn-down [repo] [--concurrency 3] [--maxAttempts 3] [--uiDelayMs 0] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
+/peb-scroll <up|down|page-up|page-down>
 /peb-sync [repo] [--dry-run]
 ```
 
@@ -36,7 +37,7 @@ Commands:
 
 `/peb-burn-down` does the same implementation/review feedback loop, then pushes approved branches, opens GitHub PRs with `gh pr create`, records `peb closes add <id> --pr <url>`, and moves `ready-for-agent` to `in-review` when those labels exist. Pebbles remain `in_progress` until `peb sync github` closes them after merge.
 
-While `/peb-run-ready` or `/peb-burn-down` is active in interactive Pi, the extension keeps a live bordered `Pebble orchestrator` swimlane card above the editor plus a footer status. The card updates once per second and on subagent JSON events, showing each selected pebble across color-coded Plan, Implement, Review, and Verdict columns, plus selected/deferred pebbles, branch, current implementer/reviewer status, and latest subagent activity. If the card overflows, scroll it with `alt+↑` / `alt+↓` or `alt+k` / `alt+j`.
+While `/peb-run-ready` or `/peb-burn-down` is active in interactive Pi, the extension keeps a live bordered `Pebble orchestrator` swimlane card above the editor plus a footer status. The card updates once per second and on subagent JSON events, showing each selected pebble across color-coded Plan, Implement, Review, and Verdict columns, plus selected/deferred pebbles, branch, current implementer/reviewer status, and latest subagent activity. If the card overflows, scroll it with `ctrl+shift+j` / `ctrl+shift+k`, `/peb-scroll down` / `/peb-scroll up`, or the raw terminal fallbacks `alt+↑` / `alt+↓` and `alt+k` / `alt+j`.
 
 Registered tools for agent use:
 
