@@ -960,11 +960,13 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   }
 
   function isScrollUpInput(data: string): boolean {
-    return data === "\x1b[1;3A" || data === "\x1b[3A" || data === "\x1bk";
+    // Raw ctrl+k is VT (0x0b). Capture it only in the active widget listener so normal editor ctrl+k works otherwise.
+    return data === "\x0b" || data === "\x1b[1;3A" || data === "\x1b[3A" || data === "\x1bk";
   }
 
   function isScrollDownInput(data: string): boolean {
-    return data === "\x1b[1;3B" || data === "\x1b[3B" || data === "\x1bj";
+    // Raw ctrl+j is LF (0x0a). Capture it only while the progress card is active.
+    return data === "\x0a" || data === "\x1b[1;3B" || data === "\x1b[3B" || data === "\x1bj";
   }
 
   function makeUiProgress(ctx: {
@@ -1094,7 +1096,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
               const lines = [border(`╭${"─".repeat(left)}`) + visibleTitle + border(`${"─".repeat(right)}╮`)];
               for (const line of visible) lines.push(border("│") + padLine(line) + border("│"));
               while (lines.length < maxBodyLines + 1) lines.push(border("│") + padLine("") + border("│"));
-              const hint = maxScroll > 0 ? theme.fg("dim", `ctrl+shift+j down; /peb-scroll up/down ${scroll + 1}/${maxScroll + 1}`) : theme.fg("dim", "all progress visible");
+              const hint = maxScroll > 0 ? theme.fg("dim", `ctrl+j/k scroll; /peb-scroll up/down ${scroll + 1}/${maxScroll + 1}`) : theme.fg("dim", "all progress visible");
               lines.push(border("│") + padLine(hint) + border("│"));
               lines.push(border(`╰${"─".repeat(innerWidth)}╯`));
               return lines;
