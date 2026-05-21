@@ -2,6 +2,7 @@
 shared/.claude/
 
 # Node/Turbo dependencies and caches for the isolated Pi config monorepo
+.turbo/
 shared/stow/pi/.pi/agent/node_modules/
 shared/stow/pi/.pi/agent/.turbo/
 shared/stow/pi/.pi/agent/packages/*/.turbo/
