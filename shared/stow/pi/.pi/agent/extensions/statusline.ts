@@ -86,11 +86,14 @@ export default function statusline(pi: ExtensionAPI) {
             usageParts.push(costStr);
           }
 
+          const extensionStatuses = footerData.getExtensionStatuses?.() ?? [];
+
           const line = joinStyled(
             [
               theme.fg("accent", formatModel(ctx.model)),
               contextText,
               `${theme.fg("mdCode", directory)}${branchText}`,
+              ...extensionStatuses,
               usageParts.length > 0 ? theme.fg("dim", usageParts.join(" ")) : "",
             ],
             separator,
