@@ -39,6 +39,7 @@ export default function statusline(pi: ExtensionAPI) {
     let dirty = false;
     let disposed = false;
     let requestRender: (() => void) | undefined;
+    let dirtyTimer: ReturnType<typeof setInterval> | undefined;
 
     const refreshDirty = async () => {
       const result = await pi.exec("git", ["status", "--porcelain"], { cwd: ctx.cwd, timeout: 5_000 });
@@ -50,18 +51,18 @@ export default function statusline(pi: ExtensionAPI) {
       }
     };
 
-    void refreshDirty();
-    const dirtyTimer = setInterval(() => void refreshDirty(), DIRTY_REFRESH_INTERVAL_MS);
-
     ctx.ui.setFooter((tui, theme, footerData) => {
       requestRender = () => tui.requestRender();
+      dirtyTimer ??= setInterval(() => void refreshDirty(), DIRTY_REFRESH_INTERVAL_MS);
+      void refreshDirty();
       const unsubscribeBranch = footerData.onBranchChange(() => tui.requestRender());
 
       return {
         dispose() {
           disposed = true;
           requestRender = undefined;
-          clearInterval(dirtyTimer);
+          if (dirtyTimer) clearInterval(dirtyTimer);
+          dirtyTimer = undefined;
           unsubscribeBranch();
         },
         invalidate() {},
