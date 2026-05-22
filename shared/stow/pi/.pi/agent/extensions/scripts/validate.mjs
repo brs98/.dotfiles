@@ -41,4 +41,6 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`validated ${extensionFiles.length} pi extension${extensionFiles.length === 1 ? "" : "s"}`);
+console.log(
+  `validated ${extensionFiles.length} pi extension${extensionFiles.length === 1 ? "" : "s"}`,
+);

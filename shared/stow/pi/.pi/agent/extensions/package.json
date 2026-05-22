@@ -3,9 +3,33 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "validate": "node scripts/validate.mjs"
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint . --tsconfig tsconfig.json --deny-warnings",
+    "test": "jest --passWithNoTests",
+    "typecheck": "tsgo --noEmit -p tsconfig.json",
+    "validate": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && node scripts/validate.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.25.5"
+    "@earendil-works/pi-ai": "0.75.4",
+    "@earendil-works/pi-coding-agent": "0.75.4",
+    "@earendil-works/pi-tui": "0.75.4",
+    "@swc/core": "^1.15.33",
+    "@swc/jest": "^0.2.39",
+    "@total-typescript/shoehorn": "^0.1.2",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.9.1",
+    "@typescript/native-preview": "7.0.0-dev.20260522.1",
+    "esbuild": "^0.28.0",
+    "jest": "^30.4.2",
+    "oxfmt": "^0.51.0",
+    "oxlint": "^1.66.0",
+    "typebox": "^1.1.38"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
   }
 }

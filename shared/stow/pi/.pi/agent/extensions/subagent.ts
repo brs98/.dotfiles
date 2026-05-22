@@ -3,15 +3,15 @@ import { existsSync } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
   truncateTail,
   withFileMutationQueue,
-} from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 type MessageContent = { type: "text"; text: string } | { type: string; [key: string]: unknown };
@@ -57,7 +57,8 @@ const KILL_GRACE_MS = 5_000;
 
 const SubagentParams = Type.Object({
   task: Type.String({
-    description: "Focused task for the subagent to complete. Include all context the subagent needs.",
+    description:
+      "Focused task for the subagent to complete. Include all context the subagent needs.",
   }),
   role: Type.Optional(
     Type.String({
@@ -67,17 +68,20 @@ const SubagentParams = Type.Object({
   ),
   cwd: Type.Optional(
     Type.String({
-      description: "Working directory for the subagent. Relative paths resolve against the current pi cwd.",
+      description:
+        "Working directory for the subagent. Relative paths resolve against the current pi cwd.",
     }),
   ),
   model: Type.Optional(
     Type.String({
-      description: "Optional pi model pattern/id for the subagent, e.g. 'sonnet:high' or 'openai/gpt-5.5'.",
+      description:
+        "Optional pi model pattern/id for the subagent, e.g. 'sonnet:high' or 'openai/gpt-5.5'.",
     }),
   ),
   tools: Type.Optional(
     Type.Array(Type.String(), {
-      description: "Optional allowlist of tool names for the subagent, e.g. ['read','grep','find','ls'].",
+      description:
+        "Optional allowlist of tool names for the subagent, e.g. ['read','grep','find','ls'].",
     }),
   ),
   timeoutMs: Type.Optional(
@@ -104,7 +108,10 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
 
 function getText(message: AssistantMessage): string {
   return (message.content ?? [])
-    .filter((part): part is { type: "text"; text: string } => part.type === "text" && typeof part.text === "string")
+    .filter(
+      (part): part is { type: "text"; text: string } =>
+        part.type === "text" && typeof part.text === "string",
+    )
     .map((part) => part.text)
     .join("\n");
 }
@@ -230,7 +237,10 @@ async function runSubagent(params: {
       }, KILL_GRACE_MS);
     };
 
-    const timeoutTimer = setTimeout(() => kill(`Subagent timed out after ${params.timeoutMs}ms.`), params.timeoutMs);
+    const timeoutTimer = setTimeout(
+      () => kill(`Subagent timed out after ${params.timeoutMs}ms.`),
+      params.timeoutMs,
+    );
 
     const processLine = (line: string) => {
       if (!line.trim()) return;
@@ -244,7 +254,12 @@ async function runSubagent(params: {
 
       if (!event || typeof event !== "object") return;
       const candidate = event as { type?: unknown; message?: unknown };
-      if (candidate.type !== "message_end" || !candidate.message || typeof candidate.message !== "object") return;
+      if (
+        candidate.type !== "message_end" ||
+        !candidate.message ||
+        typeof candidate.message !== "object"
+      )
+        return;
 
       const message = candidate.message as AssistantMessage;
       if (message.role !== "assistant") return;
@@ -292,7 +307,8 @@ async function runSubagent(params: {
 
 function formatUsage(details: SubagentDetails): string {
   const parts: string[] = [];
-  if (details.usage.turns) parts.push(`${details.usage.turns} turn${details.usage.turns === 1 ? "" : "s"}`);
+  if (details.usage.turns)
+    parts.push(`${details.usage.turns} turn${details.usage.turns === 1 ? "" : "s"}`);
   if (details.usage.input) parts.push(`↑${details.usage.input}`);
   if (details.usage.output) parts.push(`↓${details.usage.output}`);
   if (details.usage.cacheRead) parts.push(`R${details.usage.cacheRead}`);
@@ -307,7 +323,8 @@ export default function subagent(pi: ExtensionAPI) {
     label: "Subagent",
     description:
       "Delegate a focused task to a separate pi process with an isolated context window. Useful for research, exploration, review, and parallelizable analysis. Output is truncated to safe limits if necessary.",
-    promptSnippet: "Delegate focused research, exploration, review, or analysis to an isolated pi process.",
+    promptSnippet:
+      "Delegate focused research, exploration, review, or analysis to an isolated pi process.",
     promptGuidelines: [
       "Use subagent for focused research or analysis tasks that would otherwise clutter the main context.",
       "Give subagent all relevant context in the task because it runs in an isolated session.",
@@ -346,7 +363,9 @@ export default function subagent(pi: ExtensionAPI) {
 
       const output = await maybeTruncateOutput(details);
       const isError = details.exitCode !== 0;
-      const text = isError ? `Subagent failed with exit code ${details.exitCode}.\n\n${output}` : output;
+      const text = isError
+        ? `Subagent failed with exit code ${details.exitCode}.\n\n${output}`
+        : output;
 
       return {
         content: [{ type: "text", text }],
@@ -357,7 +376,9 @@ export default function subagent(pi: ExtensionAPI) {
     renderCall(args, theme) {
       const task = typeof args.task === "string" ? args.task : "...";
       const preview = task.length > 80 ? `${task.slice(0, 80)}...` : task;
-      let text = theme.fg("toolTitle", theme.bold("subagent ")) + theme.fg("accent", args.model ?? "default model");
+      let text =
+        theme.fg("toolTitle", theme.bold("subagent ")) +
+        theme.fg("accent", args.model ?? "default model");
       if (args.cwd) text += theme.fg("muted", ` in ${args.cwd}`);
       text += `\n  ${theme.fg("dim", preview)}`;
       return new Text(text, 0, 0);
@@ -384,11 +405,13 @@ export default function subagent(pi: ExtensionAPI) {
         text += `\n\n${theme.fg("muted", "cwd: ")}${theme.fg("dim", details.cwd)}`;
         text += `\n${theme.fg("muted", "task: ")}${theme.fg("dim", details.task)}`;
         if (details.stderr.trim()) text += `\n\n${theme.fg("error", details.stderr.trim())}`;
-        if (details.finalOutput.trim()) text += `\n\n${theme.fg("toolOutput", details.finalOutput.trim())}`;
+        if (details.finalOutput.trim())
+          text += `\n\n${theme.fg("toolOutput", details.finalOutput.trim())}`;
       } else if (details.finalOutput.trim()) {
         const preview = details.finalOutput.trim().split("\n").slice(0, 8).join("\n");
         text += `\n${theme.fg("toolOutput", preview)}`;
-        if (details.finalOutput.trim().split("\n").length > 8) text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
+        if (details.finalOutput.trim().split("\n").length > 8)
+          text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
       }
 
       return new Text(text, 0, 0);

@@ -2,14 +2,26 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateTail, withFileMutationQueue } from "@mariozechner/pi-coding-agent";
-import { matchesKey, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import {
+  DEFAULT_MAX_BYTES,
+  DEFAULT_MAX_LINES,
+  formatSize,
+  truncateTail,
+  withFileMutationQueue,
+} from "@earendil-works/pi-coding-agent";
+import { matchesKey, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 type ExecResult = { stdout: string; stderr: string; code: number | null; killed?: boolean };
 type PebEnvelope<T> = { data: T; schema_version?: number };
-type LabelPolicy = { policy?: { groups?: Array<{ name?: string; labels?: string[]; cardinality?: string }>; strict?: boolean; version?: number } };
+type LabelPolicy = {
+  policy?: {
+    groups?: Array<{ name?: string; labels?: string[]; cardinality?: string }>;
+    strict?: boolean;
+    version?: number;
+  };
+};
 type PebIssue = {
   id: string;
   title: string;
@@ -69,7 +81,14 @@ type AgentRun = {
 type AgentProgressEvent = {
   issueId: string;
   role: AgentRole;
-  phase: "started" | "tool_start" | "tool_update" | "tool_end" | "assistant" | "stderr" | "finished";
+  phase:
+    | "started"
+    | "tool_start"
+    | "tool_update"
+    | "tool_end"
+    | "assistant"
+    | "stderr"
+    | "finished";
   text: string;
   elapsedMs: number;
 };
@@ -90,17 +109,35 @@ const KILL_GRACE_MS = 5_000;
 const COMMAND_TIMEOUT_MS = 120_000;
 
 const PebPlanParams = Type.Object({
-  repo: Type.Optional(Type.String({ description: "Pebbles workspace or path inside it. Defaults to current cwd." })),
-  concurrency: Type.Optional(Type.Number({ description: `Maximum parallel ready pebbles to select. Default: ${DEFAULT_CONCURRENCY}.` })),
-  state: Type.Optional(Type.String({ description: "Pickup label. Defaults to ready-for-agent when present, otherwise all open issues." })),
+  repo: Type.Optional(
+    Type.String({ description: "Pebbles workspace or path inside it. Defaults to current cwd." }),
+  ),
+  concurrency: Type.Optional(
+    Type.Number({
+      description: `Maximum parallel ready pebbles to select. Default: ${DEFAULT_CONCURRENCY}.`,
+    }),
+  ),
+  state: Type.Optional(
+    Type.String({
+      description:
+        "Pickup label. Defaults to ready-for-agent when present, otherwise all open issues.",
+    }),
+  ),
 });
 
 const PebSyncParams = Type.Object({
-  repo: Type.Optional(Type.String({ description: "Pebbles workspace or path inside it. Defaults to current cwd." })),
-  dryRun: Type.Optional(Type.Boolean({ description: "Report what would sync without mutating Pebbles." })),
+  repo: Type.Optional(
+    Type.String({ description: "Pebbles workspace or path inside it. Defaults to current cwd." }),
+  ),
+  dryRun: Type.Optional(
+    Type.Boolean({ description: "Report what would sync without mutating Pebbles." }),
+  ),
 });
 
-function parseArgs(input: string): { positionals: string[]; flags: Record<string, string | boolean> } {
+function parseArgs(input: string): {
+  positionals: string[];
+  flags: Record<string, string | boolean>;
+} {
   const tokens: string[] = [];
   let current = "";
   let quote: "'" | '"' | undefined;
@@ -192,11 +229,22 @@ function isClosed(issue: PebIssue): boolean {
 function getDependencyId(dep: unknown): string | undefined {
   if (!dep || typeof dep !== "object") return undefined;
   const record = dep as Record<string, unknown>;
-  for (const key of ["parent_id", "depends_on_id", "dependency_id", "target_id", "id", "issue_id"]) {
+  for (const key of [
+    "parent_id",
+    "depends_on_id",
+    "dependency_id",
+    "target_id",
+    "id",
+    "issue_id",
+  ]) {
     if (typeof record[key] === "string") return record[key] as string;
   }
   const issue = record.issue;
-  if (issue && typeof issue === "object" && typeof (issue as Record<string, unknown>).id === "string") {
+  if (
+    issue &&
+    typeof issue === "object" &&
+    typeof (issue as Record<string, unknown>).id === "string"
+  ) {
     return (issue as Record<string, string>).id;
   }
   return undefined;
@@ -217,10 +265,16 @@ function dependencyLooksOpen(dep: unknown): boolean {
 function deriveWorkflow(policy: LabelPolicy, requestedState?: string): Workflow {
   const groups = policy.policy?.groups ?? [];
   const labels = groups.flatMap((group) => group.labels ?? []);
-  const stateGroup = groups.find((group) => group.name === "state" || group.labels?.includes("ready-for-agent") || group.labels?.includes("in-review"));
+  const stateGroup = groups.find(
+    (group) =>
+      group.name === "state" ||
+      group.labels?.includes("ready-for-agent") ||
+      group.labels?.includes("in-review"),
+  );
   const stateLabels = stateGroup?.labels ?? labels;
   return {
-    readyLabel: requestedState || (stateLabels.includes("ready-for-agent") ? "ready-for-agent" : undefined),
+    readyLabel:
+      requestedState || (stateLabels.includes("ready-for-agent") ? "ready-for-agent" : undefined),
     reviewLabel: stateLabels.includes("in-review") ? "in-review" : undefined,
     stateLabels,
     strictLabels: policy.policy?.strict ?? false,
@@ -229,10 +283,37 @@ function deriveWorkflow(policy: LabelPolicy, requestedState?: string): Workflow 
 
 function deriveArea(issue: PebIssue): string {
   const labels = issue.labels ?? [];
-  const nonState = labels.find((label) => !["bug", "enhancement", "ready-for-agent", "ready-for-human", "in-review", "needs-triage", "needs-info", "wontfix"].includes(label));
+  const nonState = labels.find(
+    (label) =>
+      ![
+        "bug",
+        "enhancement",
+        "ready-for-agent",
+        "ready-for-human",
+        "in-review",
+        "needs-triage",
+        "needs-info",
+        "wontfix",
+      ].includes(label),
+  );
   if (nonState) return nonState;
   const text = `${issue.title} ${issue.description ?? ""}`.toLowerCase();
-  for (const candidate of ["auth", "ui", "api", "docs", "documentation", "hook", "dep", "dependency", "lsp", "mcp", "pi", "git", "pebble", "test"]) {
+  for (const candidate of [
+    "auth",
+    "ui",
+    "api",
+    "docs",
+    "documentation",
+    "hook",
+    "dep",
+    "dependency",
+    "lsp",
+    "mcp",
+    "pi",
+    "git",
+    "pebble",
+    "test",
+  ]) {
     if (text.includes(candidate)) return candidate;
   }
   return "general";
@@ -240,8 +321,14 @@ function deriveArea(issue: PebIssue): string {
 
 function deriveRisk(issue: PebIssue): "low" | "medium" | "high" {
   const text = `${issue.title}\n${issue.description ?? ""}`;
-  if ((issue.priority ?? 2) <= 0 || text.length > 4000 || /migration|delete|security|auth|payment|database/i.test(text)) return "high";
-  if ((issue.priority ?? 2) <= 1 || text.length > 1500 || /refactor|workflow|orchestr/i.test(text)) return "medium";
+  if (
+    (issue.priority ?? 2) <= 0 ||
+    text.length > 4000 ||
+    /migration|delete|security|auth|payment|database/i.test(text)
+  )
+    return "high";
+  if ((issue.priority ?? 2) <= 1 || text.length > 1500 || /refactor|workflow|orchestr/i.test(text))
+    return "medium";
   return "low";
 }
 
@@ -276,7 +363,8 @@ function formatPlan(plan: Plan): string {
   if (deferred.length > 0) {
     lines.push("", "Deferred / skipped:");
     for (const item of deferred) {
-      const reason = item.blockingReasons.length > 0 ? item.blockingReasons.join("; ") : "not in selected batch";
+      const reason =
+        item.blockingReasons.length > 0 ? item.blockingReasons.join("; ") : "not in selected batch";
       lines.push(`- ${item.issue.id} — ${item.issue.title} (${reason})`);
     }
   }
@@ -293,8 +381,14 @@ function formatRunResults(results: RunResult[]): string {
     lines.push(`${icon} ${id} — ${result.item.issue.title}`);
     lines.push(`  branch: ${result.item.branch}`);
     lines.push(`  worktree: ${result.worktreePath}`);
-    if (result.implementer) lines.push(`  implementer: exit ${result.implementer.exitCode}, ${(result.implementer.durationMs / 1000).toFixed(1)}s`);
-    if (result.reviewer) lines.push(`  reviewer: exit ${result.reviewer.exitCode}, ${(result.reviewer.durationMs / 1000).toFixed(1)}s${result.approved ? ", APPROVED" : ""}`);
+    if (result.implementer)
+      lines.push(
+        `  implementer: exit ${result.implementer.exitCode}, ${(result.implementer.durationMs / 1000).toFixed(1)}s`,
+      );
+    if (result.reviewer)
+      lines.push(
+        `  reviewer: exit ${result.reviewer.exitCode}, ${(result.reviewer.durationMs / 1000).toFixed(1)}s${result.approved ? ", APPROVED" : ""}`,
+      );
     if (result.pr?.url) lines.push(`  PR: ${result.pr.url}`);
     if (result.errors.length > 0) lines.push(`  errors: ${result.errors.join("; ")}`);
   }
@@ -305,23 +399,36 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
-async function limitMap<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length);
+async function limitMap<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = Array.from<R | undefined>({ length: items.length });
   let next = 0;
-  const workers = Array.from({ length: Math.max(1, Math.min(concurrency, items.length)) }, async () => {
-    while (next < items.length) {
-      const index = next;
-      next += 1;
-      results[index] = await fn(items[index] as T);
-    }
-  });
+  const workers = Array.from(
+    { length: Math.max(1, Math.min(concurrency, items.length)) },
+    async () => {
+      while (next < items.length) {
+        const index = next;
+        next += 1;
+        results[index] = await fn(items[index] as T);
+      }
+    },
+  );
   await Promise.all(workers);
-  return results;
+  return results.map((result) => {
+    if (result === undefined) throw new Error("limitMap worker did not produce a result");
+    return result;
+  });
 }
 
 async function maybeTruncateRun(run: AgentRun): Promise<string> {
   const combined = run.finalOutput || run.stderr || "(no output)";
-  const truncation = truncateTail(combined, { maxLines: DEFAULT_MAX_LINES, maxBytes: DEFAULT_MAX_BYTES });
+  const truncation = truncateTail(combined, {
+    maxLines: DEFAULT_MAX_LINES,
+    maxBytes: DEFAULT_MAX_BYTES,
+  });
   if (!truncation.truncated) return truncation.content;
   const path = join(run.cwd, `.pi-${run.role}-${run.issueId}-output.txt`);
   await withFileMutationQueue(path, async () => writeFile(path, combined, "utf8"));
@@ -344,7 +451,17 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
 }
 
 function buildAgentArgs(task: string, model: string, tools: string[]): string[] {
-  return ["--mode", "json", "--no-session", "--model", model, "--tools", tools.join(","), "-p", task];
+  return [
+    "--mode",
+    "json",
+    "--no-session",
+    "--model",
+    model,
+    "--tools",
+    tools.join(","),
+    "-p",
+    task,
+  ];
 }
 
 async function runPiAgent(params: {
@@ -370,13 +487,23 @@ async function runPiAgent(params: {
   };
   const invocation = getPiInvocation(buildAgentArgs(params.task, params.model, params.tools));
   const emit = (phase: AgentProgressEvent["phase"], text: string) => {
-    params.onEvent?.({ issueId: params.issueId, role: params.role, phase, text, elapsedMs: Date.now() - startedAt });
+    params.onEvent?.({
+      issueId: params.issueId,
+      role: params.role,
+      phase,
+      text,
+      elapsedMs: Date.now() - startedAt,
+    });
   };
 
   emit("started", `${params.role} started`);
 
   await new Promise<void>((resolvePromise) => {
-    const proc = spawn(invocation.command, invocation.args, { cwd: params.cwd, shell: false, stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(invocation.command, invocation.args, {
+      cwd: params.cwd,
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     let stdoutBuffer = "";
     let settled = false;
     const finish = (code: number | null) => {
@@ -396,7 +523,10 @@ async function runPiAgent(params: {
         if (!settled) proc.kill("SIGKILL");
       }, KILL_GRACE_MS);
     };
-    const timeoutTimer = setTimeout(() => kill(`${params.role} timed out after ${params.timeoutMs}ms.`), params.timeoutMs);
+    const timeoutTimer = setTimeout(
+      () => kill(`${params.role} timed out after ${params.timeoutMs}ms.`),
+      params.timeoutMs,
+    );
     const processLine = (line: string) => {
       if (!line.trim()) return;
       let event: unknown;
@@ -410,12 +540,23 @@ async function runPiAgent(params: {
       const eventType = typeof candidate.type === "string" ? candidate.type : undefined;
       const toolName = typeof candidate.toolName === "string" ? candidate.toolName : undefined;
 
-      if (eventType === "tool_execution_start" && toolName) emit("tool_start", `${params.role}: ${toolName} started`);
-      if (eventType === "tool_execution_update" && toolName) emit("tool_update", `${params.role}: ${toolName} running`);
-      if (eventType === "tool_execution_end" && toolName) emit("tool_end", `${params.role}: ${toolName} finished`);
+      if (eventType === "tool_execution_start" && toolName)
+        emit("tool_start", `${params.role}: ${toolName} started`);
+      if (eventType === "tool_execution_update" && toolName)
+        emit("tool_update", `${params.role}: ${toolName} running`);
+      if (eventType === "tool_execution_end" && toolName)
+        emit("tool_end", `${params.role}: ${toolName} finished`);
 
-      if (candidate.type !== "message_end" || !candidate.message || typeof candidate.message !== "object") return;
-      const message = candidate.message as { role?: string; content?: Array<{ type?: string; text?: string }> };
+      if (
+        candidate.type !== "message_end" ||
+        !candidate.message ||
+        typeof candidate.message !== "object"
+      )
+        return;
+      const message = candidate.message as {
+        role?: string;
+        content?: Array<{ type?: string; text?: string }>;
+      };
       if (message.role !== "assistant") return;
       const text = (message.content ?? [])
         .filter((part) => part.type === "text" && typeof part.text === "string")
@@ -457,12 +598,22 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return activeScrollController?.scrollBy(delta) ?? false;
   }
 
-  async function exec(command: string, args: string[], cwd: string, timeout = COMMAND_TIMEOUT_MS): Promise<ExecResult> {
+  async function exec(
+    command: string,
+    args: string[],
+    cwd: string,
+    timeout = COMMAND_TIMEOUT_MS,
+  ): Promise<ExecResult> {
     const result = (await pi.exec(command, args, { cwd, timeout })) as ExecResult;
     return result;
   }
 
-  async function checked(command: string, args: string[], cwd: string, timeout = COMMAND_TIMEOUT_MS): Promise<ExecResult> {
+  async function checked(
+    command: string,
+    args: string[],
+    cwd: string,
+    timeout = COMMAND_TIMEOUT_MS,
+  ): Promise<ExecResult> {
     const result = await exec(command, args, cwd, timeout);
     if (result.code !== 0) {
       const rendered = [result.stderr, result.stdout].filter(Boolean).join("\n").trim();
@@ -471,7 +622,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return result;
   }
 
-  async function detect(repoArg: string | undefined, cwd: string): Promise<{ repo: string; gitRoot: string }> {
+  async function detect(
+    repoArg: string | undefined,
+    cwd: string,
+  ): Promise<{ repo: string; gitRoot: string }> {
     const start = repoArg ? resolve(cwd, repoArg) : cwd;
     const where = await checked("peb", ["where"], start);
     const repo = where.stdout.trim();
@@ -488,7 +642,12 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
 
   async function listOpenPrs(repo: string): Promise<OpenPr[]> {
     try {
-      const result = await exec("gh", ["pr", "list", "--state", "open", "--json", "number,headRefName,url"], repo, 30_000);
+      const result = await exec(
+        "gh",
+        ["pr", "list", "--state", "open", "--json", "number,headRefName,url"],
+        repo,
+        30_000,
+      );
       if (result.code !== 0) return [];
       return JSON.parse(result.stdout) as OpenPr[];
     } catch {
@@ -497,8 +656,15 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   }
 
   async function listBranches(gitRoot: string): Promise<string[]> {
-    const result = await checked("git", ["for-each-ref", "--format=%(refname:short)", "refs/heads"], gitRoot);
-    return result.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
+    const result = await checked(
+      "git",
+      ["for-each-ref", "--format=%(refname:short)", "refs/heads"],
+      gitRoot,
+    );
+    return result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
   }
 
   async function currentBaseRef(gitRoot: string): Promise<string> {
@@ -517,22 +683,44 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   }
 
   function branchMatchesIssue(branch: string, issueId: string): boolean {
-    return branch === issueId || branch.endsWith(`/${issueId}`) || branch.includes(`/${issueId}-`) || branch.includes(`/${issueId}_`);
+    return (
+      branch === issueId ||
+      branch.endsWith(`/${issueId}`) ||
+      branch.includes(`/${issueId}-`) ||
+      branch.includes(`/${issueId}_`)
+    );
   }
 
   function worktreeFor(gitRoot: string, issue: PebIssue): string {
-    return join(dirname(gitRoot), ".worktrees", `${basename(gitRoot)}-${issue.id}-${slugify(issue.title)}`);
+    return join(
+      dirname(gitRoot),
+      ".worktrees",
+      `${basename(gitRoot)}-${issue.id}-${slugify(issue.title)}`,
+    );
   }
 
-  async function createPlan(options: { repo?: string; cwd: string; concurrency?: number; state?: string }): Promise<Plan> {
+  async function createPlan(options: {
+    repo?: string;
+    cwd: string;
+    concurrency?: number;
+    state?: string;
+  }): Promise<Plan> {
     const { repo, gitRoot } = await detect(options.repo, options.cwd);
     const policy = await loadPolicy(repo);
     const workflow = deriveWorkflow(policy, options.state);
     const args = ["list", "--status", "open", "--json"];
     if (workflow.readyLabel) args.splice(1, 0, "--label", workflow.readyLabel);
     const issues = jsonData<PebIssue[]>((await checked("peb", args, repo)).stdout);
-    const [openPrs, branches, baseRef] = await Promise.all([listOpenPrs(gitRoot), listBranches(gitRoot), currentBaseRef(gitRoot)]);
-    const openPrBranches = new Set(openPrs.map((pr) => pr.headRefName).filter((value): value is string => typeof value === "string"));
+    const [openPrs, branches, baseRef] = await Promise.all([
+      listOpenPrs(gitRoot),
+      listBranches(gitRoot),
+      currentBaseRef(gitRoot),
+    ]);
+    const openPrBranches = new Set(
+      openPrs
+        .map((pr) => pr.headRefName)
+        .filter((value): value is string => typeof value === "string"),
+    );
     const branchSet = new Set(branches);
     const runId = `peb-${new Date().toISOString().replace(/[:.]/g, "-")}`;
 
@@ -544,11 +732,27 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       const branch = branchFor(issue);
       const sandcastleBranch = `sandcastle/${issue.id}-${slugify(issue.title)}`;
       const blockingReasons: string[] = [];
-      const existingPr = openPrs.find((pr) => pr.headRefName === branch || pr.headRefName === sandcastleBranch || pr.headRefName?.includes(issue.id));
-      const existingBranch = [branch, sandcastleBranch, ...branches.filter((candidate) => branchMatchesIssue(candidate, issue.id))].find((candidate) => branchSet.has(candidate));
-      if (existingPr) blockingReasons.push(`open PR ${existingPr.number ?? existingPr.url ?? existingPr.headRefName}`);
-      else if (openPrBranches.has(branch) || openPrBranches.has(sandcastleBranch)) blockingReasons.push("open PR for orchestrator branch");
-      const openDeps = (issue.dependencies ?? []).filter(dependencyLooksOpen).map(getDependencyId).filter(Boolean);
+      const existingPr = openPrs.find(
+        (pr) =>
+          pr.headRefName === branch ||
+          pr.headRefName === sandcastleBranch ||
+          pr.headRefName?.includes(issue.id),
+      );
+      const existingBranch = [
+        branch,
+        sandcastleBranch,
+        ...branches.filter((candidate) => branchMatchesIssue(candidate, issue.id)),
+      ].find((candidate) => branchSet.has(candidate));
+      if (existingPr)
+        blockingReasons.push(
+          `open PR ${existingPr.number ?? existingPr.url ?? existingPr.headRefName}`,
+        );
+      else if (openPrBranches.has(branch) || openPrBranches.has(sandcastleBranch))
+        blockingReasons.push("open PR for orchestrator branch");
+      const openDeps = (issue.dependencies ?? [])
+        .filter(dependencyLooksOpen)
+        .map(getDependencyId)
+        .filter(Boolean);
       if (openDeps.length > 0) blockingReasons.push(`blocked by ${openDeps.join(", ")}`);
       const actualBranch = existingBranch ?? branch;
 
@@ -579,7 +783,17 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       selected.push(item);
     }
 
-    return { repo, gitRoot, runId, workflow, concurrency: options.concurrency ?? DEFAULT_CONCURRENCY, baseRef, items, selected, openPrs };
+    return {
+      repo,
+      gitRoot,
+      runId,
+      workflow,
+      concurrency: options.concurrency ?? DEFAULT_CONCURRENCY,
+      baseRef,
+      items,
+      selected,
+      openPrs,
+    };
   }
 
   async function existingWorktrees(gitRoot: string): Promise<Map<string, string>> {
@@ -588,7 +802,8 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     let currentPath: string | undefined;
     for (const line of output.split("\n")) {
       if (line.startsWith("worktree ")) currentPath = line.slice("worktree ".length);
-      if (line.startsWith("branch refs/heads/") && currentPath) map.set(line.slice("branch refs/heads/".length), currentPath);
+      if (line.startsWith("branch refs/heads/") && currentPath)
+        map.set(line.slice("branch refs/heads/".length), currentPath);
     }
     return map;
   }
@@ -600,27 +815,52 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
 
   async function ensureWorktree(plan: Plan, item: PlanItem): Promise<string> {
     const worktrees = await existingWorktrees(plan.gitRoot);
-    const existing = worktrees.get(item.branch) ?? (item.existingBranch ? worktrees.get(item.existingBranch) : undefined);
+    const existing =
+      worktrees.get(item.branch) ??
+      (item.existingBranch ? worktrees.get(item.existingBranch) : undefined);
     if (existing) return existing;
     await mkdir(dirname(item.worktreePath), { recursive: true });
     if (await branchExists(plan.gitRoot, item.branch)) {
-      await checked("git", ["worktree", "add", item.worktreePath, item.branch], plan.gitRoot, 120_000);
+      await checked(
+        "git",
+        ["worktree", "add", item.worktreePath, item.branch],
+        plan.gitRoot,
+        120_000,
+      );
     } else {
-      await checked("git", ["worktree", "add", "-b", item.branch, item.worktreePath, plan.baseRef], plan.gitRoot, 120_000);
+      await checked(
+        "git",
+        ["worktree", "add", "-b", item.branch, item.worktreePath, plan.baseRef],
+        plan.gitRoot,
+        120_000,
+      );
     }
     return item.worktreePath;
   }
 
-  async function commentOnce(repo: string, issue: PebIssue, marker: string, body: string): Promise<void> {
+  async function commentOnce(
+    repo: string,
+    issue: PebIssue,
+    marker: string,
+    body: string,
+  ): Promise<void> {
     const latest = await showIssue(repo, issue.id);
     const exists = (latest.comments ?? []).some((comment) => comment.body?.includes(marker));
     if (exists) return;
     await checked("peb", ["comment", "add", issue.id, body], repo);
   }
 
-  async function dispatch(plan: Plan, model: string): Promise<Array<{ item: PlanItem; worktreePath: string }>> {
+  async function dispatch(
+    plan: Plan,
+    model: string,
+  ): Promise<Array<{ item: PlanItem; worktreePath: string }>> {
     const dispatched: Array<{ item: PlanItem; worktreePath: string }> = [];
-    pi.appendEntry("pebble-orchestrator-run", { runId: plan.runId, repo: plan.repo, model, selected: plan.selected.map((item) => item.issue.id) });
+    pi.appendEntry("pebble-orchestrator-run", {
+      runId: plan.runId,
+      repo: plan.repo,
+      model,
+      selected: plan.selected.map((item) => item.issue.id),
+    });
     for (const item of plan.selected) {
       const worktreePath = await ensureWorktree(plan, item);
       await checked("peb", ["update", item.issue.id, "--status", "in_progress"], plan.repo);
@@ -642,7 +882,14 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return dispatched;
   }
 
-  function implementerPrompt(plan: Plan, item: PlanItem, worktreePath: string, model: string, attempt: number, reviewerFeedback?: string): string {
+  function implementerPrompt(
+    plan: Plan,
+    item: PlanItem,
+    worktreePath: string,
+    model: string,
+    attempt: number,
+    reviewerFeedback?: string,
+  ): string {
     const parts = [
       "You are a Pi implementer subagent working on exactly one Pebbles issue.",
       "Keep scope limited to this pebble. Do not work on unrelated issues. Do not spawn nested subagents.",
@@ -708,7 +955,11 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     ].join("\n");
   }
 
-  async function branchHasCommit(gitRoot: string, baseRef: string, branch: string): Promise<boolean> {
+  async function branchHasCommit(
+    gitRoot: string,
+    baseRef: string,
+    branch: string,
+  ): Promise<boolean> {
     const result = await exec("git", ["rev-list", "--count", `${baseRef}..${branch}`], gitRoot);
     return result.code === 0 && Number(result.stdout.trim()) > 0;
   }
@@ -736,7 +987,12 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       result.errors = [];
-      callbacks?.onItemStatus?.(item, "implementing", { worktreePath, attempt, maxAttempts, feedback: reviewerFeedback });
+      callbacks?.onItemStatus?.(item, "implementing", {
+        worktreePath,
+        attempt,
+        maxAttempts,
+        feedback: reviewerFeedback,
+      });
       result.implementer = await runPiAgent({
         issueId: item.issue.id,
         role: "implementer",
@@ -748,11 +1004,22 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
         onEvent: callbacks?.onAgentEvent,
       });
 
-      if (result.implementer.exitCode !== 0) result.errors.push(`implementer exited ${result.implementer.exitCode}`);
-      if (!(await branchHasCommit(plan.gitRoot, plan.baseRef, item.branch))) result.errors.push("branch has no commits over base");
+      if (result.implementer.exitCode !== 0)
+        result.errors.push(`implementer exited ${result.implementer.exitCode}`);
+      if (!(await branchHasCommit(plan.gitRoot, plan.baseRef, item.branch)))
+        result.errors.push("branch has no commits over base");
       if (result.errors.length > 0) {
         callbacks?.onItemStatus?.(item, "failed", { errors: result.errors, attempt, maxAttempts });
-        await checked("peb", ["comment", "add", item.issue.id, `pebble-orchestrator implementation did not complete in ${plan.runId}: ${result.errors.join("; ")}`], plan.repo).catch(() => undefined);
+        await checked(
+          "peb",
+          [
+            "comment",
+            "add",
+            item.issue.id,
+            `pebble-orchestrator implementation did not complete in ${plan.runId}: ${result.errors.join("; ")}`,
+          ],
+          plan.repo,
+        ).catch(() => undefined);
         return result;
       }
 
@@ -769,7 +1036,8 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
         onEvent: callbacks?.onAgentEvent,
       });
 
-      if (result.reviewer.exitCode !== 0) result.errors.push(`reviewer exited ${result.reviewer.exitCode}`);
+      if (result.reviewer.exitCode !== 0)
+        result.errors.push(`reviewer exited ${result.reviewer.exitCode}`);
       const verdict = reviewVerdict(result.reviewer.finalOutput);
       if (verdict === "approved" && result.errors.length === 0) {
         result.approved = true;
@@ -780,17 +1048,31 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       result.approved = false;
       result.errors.push("reviewer requested changes");
       reviewerFeedback = result.reviewer.finalOutput;
-      callbacks?.onItemStatus?.(item, "changes_requested", { errors: result.errors, attempt, maxAttempts });
+      callbacks?.onItemStatus?.(item, "changes_requested", {
+        errors: result.errors,
+        attempt,
+        maxAttempts,
+      });
 
       if (attempt < maxAttempts) {
-        callbacks?.onItemStatus?.(item, "implementing", { worktreePath, attempt: attempt + 1, maxAttempts, feedback: reviewerFeedback });
+        callbacks?.onItemStatus?.(item, "implementing", {
+          worktreePath,
+          attempt: attempt + 1,
+          maxAttempts,
+          feedback: reviewerFeedback,
+        });
         continue;
       }
     }
 
     await checked(
       "peb",
-      ["comment", "add", item.issue.id, `pebble-orchestrator review did not approve in ${plan.runId} after ${maxAttempts} attempt${maxAttempts === 1 ? "" : "s"}: ${result.errors.join("; ")}\n\n${(result.reviewer?.finalOutput ?? "").slice(0, 4000)}`],
+      [
+        "comment",
+        "add",
+        item.issue.id,
+        `pebble-orchestrator review did not approve in ${plan.runId} after ${maxAttempts} attempt${maxAttempts === 1 ? "" : "s"}: ${result.errors.join("; ")}\n\n${(result.reviewer?.finalOutput ?? "").slice(0, 4000)}`,
+      ],
       plan.repo,
     ).catch(() => undefined);
     return result;
@@ -811,15 +1093,49 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       await checked("git", ["push", "-u", "origin", branch], result.worktreePath, 120_000);
       const title = `${result.item.issue.id}: ${result.item.issue.title}`;
       const body = [`Closes: ${result.item.issue.id}`, "", `Pebbles run: ${plan.runId}`].join("\n");
-      const created = await checked("gh", ["pr", "create", "--base", plan.baseRef, "--head", branch, "--title", title, "--body", body], result.worktreePath, 120_000);
-      const createdUrl = created.stdout.trim().split("\n").find((line) => /^https?:\/\//.test(line.trim()))?.trim();
-      result.pr = (await findOpenPrForBranch(plan.gitRoot, branch)) ?? (createdUrl ? { headRefName: branch, url: createdUrl } : undefined);
+      const created = await checked(
+        "gh",
+        [
+          "pr",
+          "create",
+          "--base",
+          plan.baseRef,
+          "--head",
+          branch,
+          "--title",
+          title,
+          "--body",
+          body,
+        ],
+        result.worktreePath,
+        120_000,
+      );
+      const createdUrl = created.stdout
+        .trim()
+        .split("\n")
+        .find((line) => /^https?:\/\//.test(line.trim()))
+        ?.trim();
+      result.pr =
+        (await findOpenPrForBranch(plan.gitRoot, branch)) ??
+        (createdUrl ? { headRefName: branch, url: createdUrl } : undefined);
     }
     const prRef = result.pr?.url ?? (result.pr?.number ? String(result.pr.number) : undefined);
-    if (!prRef) throw new Error(`Could not determine PR reference for ${branch}; leaving labels unchanged.`);
+    if (!prRef)
+      throw new Error(`Could not determine PR reference for ${branch}; leaving labels unchanged.`);
     await checked("peb", ["closes", "add", result.item.issue.id, "--pr", prRef], plan.repo);
     if (plan.workflow.readyLabel && plan.workflow.reviewLabel) {
-      await checked("peb", ["update", result.item.issue.id, "--remove-label", plan.workflow.readyLabel, "--add-label", plan.workflow.reviewLabel], plan.repo);
+      await checked(
+        "peb",
+        [
+          "update",
+          result.item.issue.id,
+          "--remove-label",
+          plan.workflow.readyLabel,
+          "--add-label",
+          plan.workflow.reviewLabel,
+        ],
+        plan.repo,
+      );
     }
   }
 
@@ -841,32 +1157,60 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     const plan = await createPlan(options);
     options.onPlan?.(plan);
     if (plan.selected.length === 0) {
-      options.onProgress?.(`${formatPlan(plan)}\n\nNo pebbles selected; nothing to dispatch.`, plan);
+      options.onProgress?.(
+        `${formatPlan(plan)}\n\nNo pebbles selected; nothing to dispatch.`,
+        plan,
+      );
       return { plan, results: [] };
     }
 
-    options.onProgress?.(`${formatPlan(plan)}\n\nDispatching selected pebbles to worktrees...`, plan);
+    options.onProgress?.(
+      `${formatPlan(plan)}\n\nDispatching selected pebbles to worktrees...`,
+      plan,
+    );
     const dispatched = await dispatch(plan, options.model);
-    for (const { item, worktreePath } of dispatched) options.onItemStatus?.(item, "dispatched", { worktreePath });
+    for (const { item, worktreePath } of dispatched)
+      options.onItemStatus?.(item, "dispatched", { worktreePath });
 
     options.onProgress?.(
       `Dispatched ${dispatched.length} pebble${dispatched.length === 1 ? "" : "s"}. Running implementer and reviewer subagents now...`,
       { plan, dispatched },
     );
-    const results = await limitMap(dispatched, options.concurrency, async ({ item, worktreePath }) => {
-      if (options.uiDelayMs > 0) {
-        options.onItemStatus?.(item, "waiting", { worktreePath, delayMs: options.uiDelayMs });
-        options.onProgress?.(`UI test delay for ${item.issue.id}: waiting ${options.uiDelayMs}ms before implementer starts.`, { plan, item, worktreePath });
-        await sleep(options.uiDelayMs);
-      }
-      options.onProgress?.(`Working on ${item.issue.id}: implementer/reviewer subagents are running in ${worktreePath}`, { plan, item, worktreePath });
-      return runImplementation(plan, item, worktreePath, options.model, options.timeoutMs, options.maxAttempts, {
-        onItemStatus: options.onItemStatus,
-        onAgentEvent: options.onAgentEvent,
-      });
-    });
+    const results = await limitMap(
+      dispatched,
+      options.concurrency,
+      async ({ item, worktreePath }) => {
+        if (options.uiDelayMs > 0) {
+          options.onItemStatus?.(item, "waiting", { worktreePath, delayMs: options.uiDelayMs });
+          options.onProgress?.(
+            `UI test delay for ${item.issue.id}: waiting ${options.uiDelayMs}ms before implementer starts.`,
+            { plan, item, worktreePath },
+          );
+          await sleep(options.uiDelayMs);
+        }
+        options.onProgress?.(
+          `Working on ${item.issue.id}: implementer/reviewer subagents are running in ${worktreePath}`,
+          { plan, item, worktreePath },
+        );
+        return runImplementation(
+          plan,
+          item,
+          worktreePath,
+          options.model,
+          options.timeoutMs,
+          options.maxAttempts,
+          {
+            onItemStatus: options.onItemStatus,
+            onAgentEvent: options.onAgentEvent,
+          },
+        );
+      },
+    );
     if (options.createPrs) {
-      options.onProgress?.("Implementation/review finished. Opening PRs for approved branches...", { plan, results });
+      options.onProgress?.("Implementation/review finished. Opening PRs for approved branches...", {
+        plan,
+        results,
+      });
       for (const result of results) {
         try {
           if (result.approved) options.onItemStatus?.(result.item, "opening_pr", result);
@@ -876,7 +1220,16 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
           result.errors.push(`PR creation failed: ${formatError(error)}`);
           result.approved = false;
           options.onItemStatus?.(result.item, "pr_failed", { error: formatError(error) });
-          await checked("peb", ["comment", "add", result.item.issue.id, `pebble-orchestrator PR step failed in ${plan.runId}: ${formatError(error)}`], plan.repo).catch(() => undefined);
+          await checked(
+            "peb",
+            [
+              "comment",
+              "add",
+              result.item.issue.id,
+              `pebble-orchestrator PR step failed in ${plan.runId}: ${formatError(error)}`,
+            ],
+            plan.repo,
+          ).catch(() => undefined);
         }
       }
     }
@@ -902,8 +1255,29 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   }
 
   function swimlaneCell(status: string, lane: "plan" | "implement" | "review" | "verdict"): string {
-    const planned = ["planned", "dispatched", "waiting", "implementing", "implemented", "reviewing", "approved", "opening_pr", "pr_opened", "changes_requested", "failed", "pr_failed"];
-    const implemented = ["implemented", "reviewing", "approved", "opening_pr", "pr_opened", "changes_requested", "pr_failed"];
+    const planned = [
+      "planned",
+      "dispatched",
+      "waiting",
+      "implementing",
+      "implemented",
+      "reviewing",
+      "approved",
+      "opening_pr",
+      "pr_opened",
+      "changes_requested",
+      "failed",
+      "pr_failed",
+    ];
+    const implemented = [
+      "implemented",
+      "reviewing",
+      "approved",
+      "opening_pr",
+      "pr_opened",
+      "changes_requested",
+      "pr_failed",
+    ];
     const reviewed = ["approved", "opening_pr", "pr_opened", "pr_failed"];
 
     if (lane === "plan") return planned.includes(status) ? "✓" : "○";
@@ -935,7 +1309,11 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return `${compact}${" ".repeat(padding)}`;
   }
 
-  function semanticSwimlaneCell(status: string, lane: "plan" | "implement" | "review" | "verdict", theme: { fg: (name: string, text: string) => string }): string {
+  function semanticSwimlaneCell(
+    status: string,
+    lane: "plan" | "implement" | "review" | "verdict",
+    theme: { fg: (name: string, text: string) => string },
+  ): string {
     const cell = swimlaneCell(status, lane);
     if (lane === "plan") return theme.fg(cell === "✓" ? "success" : "muted", cell);
     if (lane === "implement") {
@@ -960,28 +1338,56 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   }
 
   function isKittyReleaseEvent(data: string): boolean {
-    return /^\x1b\[\d+(?::\d*)?(?::\d+)?(?:;\d+)?(?::3)u$/.test(data);
+    // oxlint-disable-next-line no-control-regex -- matches the ESC byte in Kitty keyboard protocol release events.
+    return /^\u001B\[\d+(?::\d*)?(?::\d+)?(?:;\d+)?(?::3)u$/.test(data);
   }
 
   function isScrollUpInput(data: string): boolean {
     // matchesKey covers legacy VT (raw ctrl+k), Kitty CSI-u, and xterm modifyOtherKeys encodings.
     if (isKittyReleaseEvent(data)) return false;
-    return matchesKey(data, "ctrl+k") || matchesKey(data, "ctrl+shift+k") || data === "\x1b[1;3A" || data === "\x1b[3A" || data === "\x1bk";
+    return (
+      matchesKey(data, "ctrl+k") ||
+      matchesKey(data, "ctrl+shift+k") ||
+      data === "\x1b[1;3A" ||
+      data === "\x1b[3A" ||
+      data === "\x1bk"
+    );
   }
 
   function isScrollDownInput(data: string): boolean {
     // matchesKey covers legacy LF (raw ctrl+j), Kitty CSI-u, and xterm modifyOtherKeys encodings.
     if (isKittyReleaseEvent(data)) return false;
-    return matchesKey(data, "ctrl+j") || matchesKey(data, "ctrl+shift+j") || data === "\x1b[1;3B" || data === "\x1b[3B" || data === "\x1bj";
+    return (
+      matchesKey(data, "ctrl+j") ||
+      matchesKey(data, "ctrl+shift+j") ||
+      data === "\x1b[1;3B" ||
+      data === "\x1b[3B" ||
+      data === "\x1bj"
+    );
   }
 
   function makeUiProgress(ctx: {
     hasUI?: boolean;
     ui?: {
       notify?: (message: string, level?: "info" | "warning" | "error") => void;
-      onTerminalInput?: (handler: (data: string) => { consume?: boolean; data?: string } | undefined) => () => void;
+      onTerminalInput?: (
+        handler: (data: string) => { consume?: boolean; data?: string } | undefined,
+      ) => () => void;
       setStatus?: (key: string, value: string | undefined) => void;
-      setWidget?: (key: string, value: ((tui: unknown, theme: unknown) => { render: (width: number) => string[]; invalidate: () => void; dispose?: () => void }) | undefined, options?: { placement?: "aboveEditor" | "belowEditor" }) => void;
+      setWidget?: (
+        key: string,
+        value:
+          | ((
+              tui: unknown,
+              theme: unknown,
+            ) => {
+              render: (width: number) => string[];
+              invalidate: () => void;
+              dispose?: () => void;
+            })
+          | undefined,
+        options?: { placement?: "aboveEditor" | "belowEditor" },
+      ) => void;
     };
   }): {
     progress: (content: string, details?: unknown) => void;
@@ -1012,7 +1418,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     let requestWidgetRender: (() => void) | undefined;
     let unsubscribeTerminalInput: (() => void) | undefined;
 
-    const buildLines = (theme: { fg: (name: string, text: string) => string; bold: (text: string) => string }): string[] => {
+    const buildLines = (theme: {
+      fg: (name: string, text: string) => string;
+      bold: (text: string) => string;
+    }): string[] => {
       const lines = [theme.fg("muted", `Stage: ${compactText(stage, 90)}`)];
       if (plan) lines.push(theme.fg("muted", `Repo: ${compactText(plan.repo, 90)}`));
 
@@ -1028,7 +1437,8 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
             `${padCell(item.id, 12)}  ${padCell(semanticSwimlaneCell(item.status, "plan", theme), 6)} ${padCell(semanticSwimlaneCell(item.status, "implement", theme), 10)} ${padCell(semanticSwimlaneCell(item.status, "review", theme), 8)} ${padCell(semanticSwimlaneCell(item.status, "verdict", theme), 12)}`,
           );
           lines.push(`  ${theme.fg("muted", compactText(item.status + " · " + item.title, 92))}`);
-          if (item.role || item.latest) lines.push(`  ${compactText([item.role, item.latest].filter(Boolean).join(": "), 92)}`);
+          if (item.role || item.latest)
+            lines.push(`  ${compactText([item.role, item.latest].filter(Boolean).join(": "), 92)}`);
           lines.push(`  ${theme.fg("dim", compactText(item.branch, 92))}`);
         }
       }
@@ -1036,7 +1446,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       const deferred = plan?.items.filter((item) => !plan?.selected.includes(item)) ?? [];
       if (deferred.length > 0) {
         lines.push("", theme.fg("muted", "Deferred"));
-        for (const item of deferred) lines.push(`○ ${item.issue.id} ${theme.fg("dim", compactText(item.blockingReasons.join("; ") || "not selected", 74))}`);
+        for (const item of deferred)
+          lines.push(
+            `○ ${item.issue.id} ${theme.fg("dim", compactText(item.blockingReasons.join("; ") || "not selected", 74))}`,
+          );
       }
 
       return lines;
@@ -1067,7 +1480,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
           const tui = tuiUnknown as {
             requestRender?: () => void;
           };
-          const theme = themeUnknown as { fg: (name: string, text: string) => string; bold: (text: string) => string };
+          const theme = themeUnknown as {
+            fg: (name: string, text: string) => string;
+            bold: (text: string) => string;
+          };
           let scroll = 0;
           const maxBodyLines = 16;
           const scrollBy = (delta: number): boolean => {
@@ -1107,10 +1523,19 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
                 const truncated = truncateToWidth(line, contentWidth, "…", true);
                 return ` ${truncated}${" ".repeat(Math.max(0, contentWidth - visibleWidth(truncated)))} `;
               };
-              const lines = [border(`╭${"─".repeat(left)}`) + visibleTitle + border(`${"─".repeat(right)}╮`)];
+              const lines = [
+                border(`╭${"─".repeat(left)}`) + visibleTitle + border(`${"─".repeat(right)}╮`),
+              ];
               for (const line of visible) lines.push(border("│") + padLine(line) + border("│"));
-              while (lines.length < maxBodyLines + 1) lines.push(border("│") + padLine("") + border("│"));
-              const hint = maxScroll > 0 ? theme.fg("dim", `ctrl+j/k scroll; /peb-scroll up/down ${scroll + 1}/${maxScroll + 1}`) : theme.fg("dim", "all progress visible");
+              while (lines.length < maxBodyLines + 1)
+                lines.push(border("│") + padLine("") + border("│"));
+              const hint =
+                maxScroll > 0
+                  ? theme.fg(
+                      "dim",
+                      `ctrl+j/k scroll; /peb-scroll up/down ${scroll + 1}/${maxScroll + 1}`,
+                    )
+                  : theme.fg("dim", "all progress visible");
               lines.push(border("│") + padLine(hint) + border("│"));
               lines.push(border(`╰${"─".repeat(innerWidth)}╯`));
               return lines;
@@ -1159,13 +1584,16 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
           startedAt: Date.now(),
           updatedAt: Date.now(),
         };
-        const record = details && typeof details === "object" ? (details as Record<string, unknown>) : {};
+        const record =
+          details && typeof details === "object" ? (details as Record<string, unknown>) : {};
         const errors = Array.isArray(record.errors) ? record.errors.join("; ") : undefined;
         if (typeof record.worktreePath === "string") existing.worktree = record.worktreePath;
         existing.status = status;
-        if (status === "implementing" || status === "reviewing") existing.roleStartedAt = Date.now();
+        if (status === "implementing" || status === "reviewing")
+          existing.roleStartedAt = Date.now();
         existing.updatedAt = Date.now();
-        existing.latest = typeof record.error === "string" ? record.error : errors || existing.latest;
+        existing.latest =
+          typeof record.error === "string" ? record.error : errors || existing.latest;
         items.set(item.issue.id, existing);
         stage = `${item.issue.id}: ${status}`;
         render();
@@ -1174,11 +1602,16 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
         const item = items.get(event.issueId);
         if (!item) return;
         item.role = event.role;
-        if (!item.roleStartedAt || event.phase === "started") item.roleStartedAt = Date.now() - event.elapsedMs;
+        if (!item.roleStartedAt || event.phase === "started")
+          item.roleStartedAt = Date.now() - event.elapsedMs;
         item.agentElapsedMs = event.elapsedMs;
         item.latest = event.text;
         item.updatedAt = Date.now();
-        if (!["approved", "changes_requested", "failed", "pr_opened", "pr_failed"].includes(item.status)) {
+        if (
+          !["approved", "changes_requested", "failed", "pr_opened", "pr_failed"].includes(
+            item.status,
+          )
+        ) {
           item.status = event.role === "implementer" ? "implementing" : "reviewing";
         }
         stage = `${event.issueId}: ${compactText(event.text, 52)}`;
@@ -1197,7 +1630,19 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     };
   }
 
-  function parseRunOptions(args: string, cwd: string): { repo?: string; cwd: string; concurrency: number; state?: string; model: string; timeoutMs: number; maxAttempts: number; uiDelayMs: number } {
+  function parseRunOptions(
+    args: string,
+    cwd: string,
+  ): {
+    repo?: string;
+    cwd: string;
+    concurrency: number;
+    state?: string;
+    model: string;
+    timeoutMs: number;
+    maxAttempts: number;
+    uiDelayMs: number;
+  } {
     const parsed = parseArgs(args);
     return {
       repo: parsed.positionals[0],
@@ -1215,18 +1660,36 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     description: "Scroll the live Pebbles orchestrator card: up, down, page-up, page-down",
     handler: async (args, ctx) => {
       const direction = args.trim().toLowerCase() || "down";
-      const delta = direction === "up" ? -1 : direction === "page-up" || direction === "pageup" ? -8 : direction === "page-down" || direction === "pagedown" ? 8 : 1;
+      const delta =
+        direction === "up"
+          ? -1
+          : direction === "page-up" || direction === "pageup"
+            ? -8
+            : direction === "page-down" || direction === "pagedown"
+              ? 8
+              : 1;
       const scrolled = scrollActiveWidget(delta);
-      if (ctx.hasUI) ctx.ui.notify(scrolled ? `Pebble card scrolled ${direction}` : "No active Pebbles card to scroll, or no more overflow.", scrolled ? "info" : "warning");
+      if (ctx.hasUI)
+        ctx.ui.notify(
+          scrolled
+            ? `Pebble card scrolled ${direction}`
+            : "No active Pebbles card to scroll, or no more overflow.",
+          scrolled ? "info" : "warning",
+        );
     },
   });
 
-  const registerScrollShortcut = (key: string, delta: number, direction: "up" | "down") => {
+  const registerScrollShortcut = (
+    key: Parameters<ExtensionAPI["registerShortcut"]>[0],
+    delta: number,
+    direction: "up" | "down",
+  ) => {
     pi.registerShortcut(key, {
       description: `Scroll Pebbles orchestrator card ${direction}`,
       handler: async (ctx) => {
         const scrolled = scrollActiveWidget(delta);
-        if (!scrolled && ctx.hasUI) ctx.ui.notify(`No active Pebbles card to scroll ${direction}.`, "warning");
+        if (!scrolled && ctx.hasUI)
+          ctx.ui.notify(`No active Pebbles card to scroll ${direction}.`, "warning");
       },
     });
   };
@@ -1253,7 +1716,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       const uiProgress = makeUiProgress(ctx);
       try {
         const options = parseRunOptions(args, ctx.cwd);
-        uiProgress.progress(`Starting /peb-run-ready for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
+        uiProgress.progress(
+          `Starting /peb-run-ready for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`,
+          options,
+        );
         if (ctx.hasUI) ctx.ui.notify("Pebble orchestrator started", "info");
         const { plan, results } = await runReady({
           ...options,
@@ -1278,7 +1744,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       const uiProgress = makeUiProgress(ctx);
       try {
         const options = parseRunOptions(args, ctx.cwd);
-        uiProgress.progress(`Starting /peb-burn-down for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`, options);
+        uiProgress.progress(
+          `Starting /peb-burn-down for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`,
+          options,
+        );
         if (ctx.hasUI) ctx.ui.notify("Pebble orchestrator started", "info");
         const { plan, results } = await runReady({
           ...options,
@@ -1316,35 +1785,58 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   pi.registerTool({
     name: "peb_plan",
     label: "Pebble Plan",
-    description: "Inspect a Pebbles workspace and produce a ready/unblocked execution plan. Does not mutate Pebbles or git.",
+    description:
+      "Inspect a Pebbles workspace and produce a ready/unblocked execution plan. Does not mutate Pebbles or git.",
     promptSnippet: "Plan ready Pebbles work without mutating the workspace.",
-    promptGuidelines: ["Use peb_plan when the user asks what Pebbles work is ready or wants an execution plan."],
+    promptGuidelines: [
+      "Use peb_plan when the user asks what Pebbles work is ready or wants an execution plan.",
+    ],
     parameters: PebPlanParams,
     async execute(_id, params, _signal, _onUpdate, ctx) {
-      const plan = await createPlan({ repo: params.repo, cwd: ctx.cwd, concurrency: params.concurrency ?? DEFAULT_CONCURRENCY, state: params.state });
+      const plan = await createPlan({
+        repo: params.repo,
+        cwd: ctx.cwd,
+        concurrency: params.concurrency ?? DEFAULT_CONCURRENCY,
+        state: params.state,
+      });
       return { content: [{ type: "text", text: formatPlan(plan) }], details: plan };
     },
     renderCall(args, theme) {
-      return new Text(theme.fg("toolTitle", theme.bold("peb_plan ")) + theme.fg("accent", args.repo ?? "cwd"), 0, 0);
+      return new Text(
+        theme.fg("toolTitle", theme.bold("peb_plan ")) + theme.fg("accent", args.repo ?? "cwd"),
+        0,
+        0,
+      );
     },
   });
 
   pi.registerTool({
     name: "peb_sync_github",
     label: "Pebble Sync",
-    description: "Run peb sync github for a Pebbles workspace. Finalizes pending PR close declarations after merge.",
+    description:
+      "Run peb sync github for a Pebbles workspace. Finalizes pending PR close declarations after merge.",
     promptSnippet: "Sync Pebbles PR close declarations from GitHub after PRs merge.",
-    promptGuidelines: ["Use peb_sync_github only when the user asks to sync completed Pebbles PR closures."],
+    promptGuidelines: [
+      "Use peb_sync_github only when the user asks to sync completed Pebbles PR closures.",
+    ],
     parameters: PebSyncParams,
     async execute(_id, params, _signal, _onUpdate, ctx) {
       const { repo } = await detect(params.repo, ctx.cwd);
       const args = ["sync", "github"];
       if (params.dryRun) args.push("--dry-run");
       const result = await checked("peb", args, repo, 120_000);
-      return { content: [{ type: "text", text: result.stdout.trim() || "peb sync github completed." }], details: { repo, dryRun: params.dryRun ?? false } };
+      return {
+        content: [{ type: "text", text: result.stdout.trim() || "peb sync github completed." }],
+        details: { repo, dryRun: params.dryRun ?? false },
+      };
     },
     renderCall(args, theme) {
-      return new Text(theme.fg("toolTitle", theme.bold("peb_sync_github ")) + theme.fg("accent", args.repo ?? "cwd"), 0, 0);
+      return new Text(
+        theme.fg("toolTitle", theme.bold("peb_sync_github ")) +
+          theme.fg("accent", args.repo ?? "cwd"),
+        0,
+        0,
+      );
     },
   });
 }

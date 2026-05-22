@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { getAgentDir } from "@mariozechner/pi-coding-agent";
-import type { AutocompleteItem } from "@mariozechner/pi-tui";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import type { AutocompleteItem } from "@earendil-works/pi-tui";
 
 interface WorkspaceConfig {
   default?: string;
@@ -143,7 +143,10 @@ let workspaceConfig: WorkspaceConfig = {};
 let appendState: ((customType: string, data?: unknown) => void) | null = null;
 
 function piAppendWorkspaceState(workspace: WorkspaceState) {
-  appendState?.(STATE_ENTRY, workspace ? { alias: workspace.alias, path: workspace.path } : { alias: null, path: null });
+  appendState?.(
+    STATE_ENTRY,
+    workspace ? { alias: workspace.alias, path: workspace.path } : { alias: null, path: null },
+  );
 }
 
 function updateStatus(ctx: ExtensionContext) {
@@ -155,12 +158,15 @@ function findWorkspace(query: string): Workspace | undefined {
   const trimmed = query.trim();
   if (!trimmed) return undefined;
 
-  const exact = workspaces.find((workspace) => workspace.alias === trimmed || workspace.path === expandHome(trimmed));
+  const exact = workspaces.find(
+    (workspace) => workspace.alias === trimmed || workspace.path === expandHome(trimmed),
+  );
   if (exact) return exact;
 
   const lower = trimmed.toLowerCase();
   const fuzzy = workspaces.find(
-    (workspace) => workspace.alias.toLowerCase().includes(lower) || workspace.path.toLowerCase().includes(lower),
+    (workspace) =>
+      workspace.alias.toLowerCase().includes(lower) || workspace.path.toLowerCase().includes(lower),
   );
   if (fuzzy) return fuzzy;
 
@@ -181,7 +187,10 @@ function completionItems(prefix: string): AutocompleteItem[] | null {
   }));
   const lower = prefix.trim().toLowerCase();
   const items = [...builtins, ...configured].filter(
-    (item) => !lower || item.value.toLowerCase().includes(lower) || item.label.toLowerCase().includes(lower),
+    (item) =>
+      !lower ||
+      item.value.toLowerCase().includes(lower) ||
+      item.label.toLowerCase().includes(lower),
   );
   return items.length > 0 ? items : null;
 }
@@ -189,7 +198,10 @@ function completionItems(prefix: string): AutocompleteItem[] | null {
 function latestPersistedWorkspace(ctx: ExtensionContext): WorkspaceState | undefined {
   const entry = ctx.sessionManager
     .getBranch()
-    .filter((e: { type: string; customType?: string }) => e.type === "custom" && e.customType === STATE_ENTRY)
+    .filter(
+      (e: { type: string; customType?: string }) =>
+        e.type === "custom" && e.customType === STATE_ENTRY,
+    )
     .pop() as { data?: { alias?: unknown; path?: unknown } } | undefined;
 
   if (!entry) return undefined;
@@ -225,7 +237,10 @@ function resolveRequiredPathInput(input: Record<string, unknown>, workspace: Wor
   }
 }
 
-function mutateToolInputForWorkspace(event: { toolName: string; input: unknown }, workspace: Workspace) {
+function mutateToolInputForWorkspace(
+  event: { toolName: string; input: unknown },
+  workspace: Workspace,
+) {
   if (event.toolName === "bash" && event.input && typeof event.input === "object") {
     const input = event.input as Record<string, unknown>;
     if (typeof input.command === "string") {
@@ -251,7 +266,10 @@ function mutateToolInputForWorkspace(event: { toolName: string; input: unknown }
     if (typeof input.cwd !== "string") input.cwd = workspace.path;
   }
 
-  if ((event.toolName === "peb_plan" || event.toolName === "peb_sync_github") && typeof input.repo !== "string") {
+  if (
+    (event.toolName === "peb_plan" || event.toolName === "peb_sync_github") &&
+    typeof input.repo !== "string"
+  ) {
     input.repo = workspace.path;
   }
 }
@@ -294,9 +312,10 @@ export default function workspaceSwitcher(pi: ExtensionAPI) {
       }
 
       if (arg === "list") {
-        const body = workspaces.length > 0
-          ? workspaces.map((workspace) => `- ${describeWorkspace(workspace)}`).join("\n")
-          : "No workspaces configured. Add ~/.pi/agent/workspaces.json.";
+        const body =
+          workspaces.length > 0
+            ? workspaces.map((workspace) => `- ${describeWorkspace(workspace)}`).join("\n")
+            : "No workspaces configured. Add ~/.pi/agent/workspaces.json.";
         ctx.ui.notify(body, "info");
         return;
       }
@@ -323,13 +342,19 @@ export default function workspaceSwitcher(pi: ExtensionAPI) {
           return;
         }
         setActiveWorkspace(ctx, selected);
-        ctx.ui.notify(selected ? `Active workspace: ${describeWorkspace(selected)}` : "Workspace cleared", "info");
+        ctx.ui.notify(
+          selected ? `Active workspace: ${describeWorkspace(selected)}` : "Workspace cleared",
+          "info",
+        );
         return;
       }
 
       const workspace = findWorkspace(arg);
       if (!workspace) {
-        ctx.ui.notify(`Unknown workspace: ${arg}. Run /repo list to see configured aliases.`, "error");
+        ctx.ui.notify(
+          `Unknown workspace: ${arg}. Run /repo list to see configured aliases.`,
+          "error",
+        );
         return;
       }
 

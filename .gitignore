@@ -8,6 +8,7 @@ shared/stow/pi/.pi/agent/.turbo/
 shared/stow/pi/.pi/agent/packages/*/.turbo/
 shared/stow/pi/.pi/agent/extensions/node_modules/
 shared/stow/pi/.pi/agent/extensions/.turbo/
+shared/stow/pi/.pi/agent/extensions/coverage/
 
 # Runtime symlink managed by omarchy theme-set hook / install.sh
 shared/stow/nvim/.config/nvim/lua/plugins/theme.lua
