@@ -1,0 +1,11 @@
+{
+  "name": "@dotfiles/pi-agent-extensions",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/validate.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.5"
+  }
+}

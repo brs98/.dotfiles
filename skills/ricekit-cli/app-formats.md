@@ -1,288 +1,163 @@
-# Ricekit App-Specific File Formats
+# RiceKit Content Authoring Reference
 
-Reference for creating app-specific theme files from scratch.
+RiceKit applies themes through **config templates** and **HTTP integrations**. Do not put app-specific files inside a theme directory; themes only define palettes and optional wallpapers.
 
-## theme.json (Required)
+## Config package layout
 
-The core theme definition. All colors use `#RRGGBB` hex format.
+User configs live in `~/.config/ricekit/custom-configs/<name>/`. Marketplace configs are installed under `installed-configs/`.
 
-```json
-{
-  "name": "Theme Name",
-  "author": "Your Name",
-  "description": "Theme description",
-  "version": "1.0.0",
-  "colors": {
-    "background": "#1e1e2e",
-    "foreground": "#cdd6f4",
-    "cursor": "#f5e0dc",
-    "selection": "#585b70",
-    "accent": "#89b4fa",
-    "border": "#585b70",
-    "black": "#45475a",
-    "red": "#f38ba8",
-    "green": "#a6e3a1",
-    "yellow": "#f9e2af",
-    "blue": "#89b4fa",
-    "magenta": "#f5c2e7",
-    "cyan": "#94e2d5",
-    "white": "#bac2de",
-    "brightBlack": "#585b70",
-    "brightRed": "#f38ba8",
-    "brightGreen": "#a6e3a1",
-    "brightYellow": "#f9e2af",
-    "brightBlue": "#89b4fa",
-    "brightMagenta": "#f5c2e7",
-    "brightCyan": "#94e2d5",
-    "brightWhite": "#a6adc8"
-  }
-}
+```text
+my-config/
+  config.toml
+  templates/
+    theme.conf        # one or more template files
 ```
 
-## sketchybar-colors.sh
-
-SketchyBar uses `0xAARRGGBB` format (alpha + RGB). Convert: `#RRGGBB` → `0xffRRGGBB`
-
-```bash
-#!/bin/bash
-export COLOR_BACKGROUND="0xff1e1e2e"
-export COLOR_FOREGROUND="0xffcdd6f4"
-export COLOR_ACCENT="0xff89b4fa"
-export COLOR_SELECTION="0xff585b70"
-export COLOR_BORDER="0xff585b70"
-export BAR_COLOR="0xff1e1e2e"
-export BAR_BORDER_COLOR="0xff585b70"
-export ITEM_BG_COLOR="0xff585b70"
-export ICON_COLOR="0xff89b4fa"
-export LABEL_COLOR="0xffcdd6f4"
-export COLOR_BLACK="0xff45475a"
-export COLOR_RED="0xfff38ba8"
-export COLOR_GREEN="0xffa6e3a1"
-export COLOR_YELLOW="0xfff9e2af"
-export COLOR_BLUE="0xff89b4fa"
-export COLOR_MAGENTA="0xfff5c2e7"
-export COLOR_CYAN="0xff94e2d5"
-export COLOR_WHITE="0xffbac2de"
-export COLOR_BRIGHT_BLACK="0xff585b70"
-export COLOR_BRIGHT_RED="0xfff38ba8"
-export COLOR_BRIGHT_GREEN="0xffa6e3a1"
-export COLOR_BRIGHT_YELLOW="0xfff9e2af"
-export COLOR_BRIGHT_BLUE="0xff89b4fa"
-export COLOR_BRIGHT_MAGENTA="0xfff5c2e7"
-export COLOR_BRIGHT_CYAN="0xff94e2d5"
-export COLOR_BRIGHT_WHITE="0xffa6adc8"
-export COLOR_TRANSPARENT="0x801e1e2e"
-export COLOR_SEMI_TRANSPARENT="0xcc1e1e2e"
-```
-
-Reload after changes: `sketchybar --reload`
-
-## aerospace-borders.sh
-
-JankyBorders for AeroSpace window manager. Also uses `0xAARRGGBB` format.
-
-```bash
-#!/bin/bash
-ACTIVE_COLOR="0xff89b4fa"
-INACTIVE_COLOR="0xff585b70"
-BORDER_WIDTH="5.0"
-
-pkill -x borders 2>/dev/null || true
-sleep 0.2
-
-BORDERS_BIN=""
-if [ -x "/opt/homebrew/bin/borders" ]; then
-  BORDERS_BIN="/opt/homebrew/bin/borders"
-elif [ -x "/usr/local/bin/borders" ]; then
-  BORDERS_BIN="/usr/local/bin/borders"
-elif command -v borders >/dev/null 2>&1; then
-  BORDERS_BIN="borders"
-fi
-
-if [ -n "$BORDERS_BIN" ]; then
-  nohup "$BORDERS_BIN" active_color="$ACTIVE_COLOR" inactive_color="$INACTIVE_COLOR" width="$BORDER_WIDTH" >/dev/null 2>&1 &
-  disown
-fi
-```
-
-## kitty.conf
-
-Kitty terminal uses `#RRGGBB` format with `colorN` for ANSI colors.
-
-```conf
-background #1e1e2e
-foreground #cdd6f4
-cursor #f5e0dc
-selection_background #585b70
-selection_foreground #cdd6f4
-
-# Black
-color0 #45475a
-color8 #585b70
-
-# Red
-color1 #f38ba8
-color9 #f38ba8
-
-# Green
-color2 #a6e3a1
-color10 #a6e3a1
-
-# Yellow
-color3 #f9e2af
-color11 #f9e2af
-
-# Blue
-color4 #89b4fa
-color12 #89b4fa
-
-# Magenta
-color5 #f5c2e7
-color13 #f5c2e7
-
-# Cyan
-color6 #94e2d5
-color14 #94e2d5
-
-# White
-color7 #bac2de
-color15 #a6adc8
-```
-
-## wezterm.lua
-
-WezTerm uses Lua table format with `#RRGGBB` strings.
-
-```lua
-return {
-  foreground = "#cdd6f4",
-  background = "#1e1e2e",
-  cursor_bg = "#f5e0dc",
-  cursor_fg = "#1e1e2e",
-  cursor_border = "#f5e0dc",
-  selection_bg = "#585b70",
-  selection_fg = "#cdd6f4",
-  scrollbar_thumb = "#585b70",
-  split = "#585b70",
-
-  ansi = {
-    "#45475a", "#f38ba8", "#a6e3a1", "#f9e2af",
-    "#89b4fa", "#f5c2e7", "#94e2d5", "#bac2de",
-  },
-  brights = {
-    "#585b70", "#f38ba8", "#a6e3a1", "#f9e2af",
-    "#89b4fa", "#f5c2e7", "#94e2d5", "#a6adc8",
-  },
-
-  tab_bar = {
-    background = "#1e1e2e",
-    active_tab = { bg_color = "#585b70", fg_color = "#cdd6f4" },
-    inactive_tab = { bg_color = "#1e1e2e", fg_color = "#585b70" },
-    inactive_tab_hover = { bg_color = "#585b70", fg_color = "#cdd6f4" },
-    new_tab = { bg_color = "#1e1e2e", fg_color = "#585b70" },
-    new_tab_hover = { bg_color = "#585b70", fg_color = "#cdd6f4" },
-  },
-}
-```
-
-## neovim.lua
-
-Neovim highlight groups using vim.cmd.
-
-```lua
-vim.cmd([[
-  hi Normal guibg=#1e1e2e guifg=#cdd6f4
-  hi Cursor guibg=#f5e0dc
-  hi Visual guibg=#585b70
-  hi LineNr guifg=#585b70
-  hi CursorLine guibg=#585b70
-  hi Comment guifg=#585b70
-  hi String guifg=#a6e3a1
-  hi Function guifg=#89b4fa
-  hi Keyword guifg=#f5c2e7
-  hi Type guifg=#f9e2af
-  hi Constant guifg=#94e2d5
-]])
-```
-
-## starship.toml
-
-Starship prompt uses TOML with `#RRGGBB` strings in style fields.
+`config.toml` shape:
 
 ```toml
-format = """
-[┌───────────────────>](#89b4fa)
-[│](#89b4fa)$directory$git_branch$git_status
-[└─>](#89b4fa) """
+[metadata]
+name = "my-config"
+author = "Me"
+version = "1.0.0"
+description = "Optional"
+setup_instructions = "Optional text printed after enabling"
+app = "MyApp"
+category = "terminal" # terminal|editor|statusbar|wm|system|browser
+type = "colors"       # colors (default)|config|integration
 
-[directory]
-style = "#89b4fa"
-truncation_length = 3
-truncate_to_repo = true
+[requires]
+colors = ["background", "foreground", "accent"]
 
-[git_branch]
-symbol = " "
-style = "#f5c2e7"
+[target.macos]
+path = "~/.config/myapp/theme.conf" # file target, or directory when multiple templates
+strategy = "symlink"                # direct (default) or symlink
 
-[git_status]
-style = "#f38ba8"
+[reload.macos]
+command = "myapp --reload"
 ```
 
-## cursor.json / vscode.json
+Rendering rules:
 
-VS Code/Cursor color customizations. Uses `#RRGGBB` format.
+- If `templates/` has one file and target `path` has an extension, that file renders to exactly `path`.
+- Otherwise target `path` is treated as a directory and each template file keeps its filename.
+- `direct` writes the rendered file directly to the target.
+- `symlink` writes the active file to `~/.config/ricekit/active/<app>/<template-file>` and symlinks the target to that active file.
+- After a successful write, RiceKit also saves debug copies under `~/.config/ricekit/rendered/<config-name>/<template-file>` for both strategies.
 
-```json
-{
-  "workbench.colorTheme": "Generated Theme",
-  "workbench.colorCustomizations": {
-    "editor.background": "#1e1e2e",
-    "editor.foreground": "#cdd6f4",
-    "editorCursor.foreground": "#f5e0dc",
-    "editor.selectionBackground": "#585b70",
-    "editorLineNumber.foreground": "#585b70",
-    "editorLineNumber.activeForeground": "#cdd6f4",
-    "editor.lineHighlightBackground": "#585b70",
-    "sideBar.background": "#1e1e2e",
-    "sideBar.foreground": "#cdd6f4",
-    "activityBar.background": "#1e1e2e",
-    "activityBar.foreground": "#cdd6f4",
-    "statusBar.background": "#1e1e2e",
-    "statusBar.foreground": "#cdd6f4",
-    "titleBar.activeBackground": "#1e1e2e",
-    "titleBar.activeForeground": "#cdd6f4",
-    "tab.activeBackground": "#585b70",
-    "tab.activeForeground": "#cdd6f4",
-    "tab.inactiveBackground": "#1e1e2e",
-    "tab.inactiveForeground": "#585b70",
-    "terminal.background": "#1e1e2e",
-    "terminal.foreground": "#cdd6f4",
-    "terminalCursor.foreground": "#f5e0dc",
-    "terminal.ansiBlack": "#45475a",
-    "terminal.ansiRed": "#f38ba8",
-    "terminal.ansiGreen": "#a6e3a1",
-    "terminal.ansiYellow": "#f9e2af",
-    "terminal.ansiBlue": "#89b4fa",
-    "terminal.ansiMagenta": "#f5c2e7",
-    "terminal.ansiCyan": "#94e2d5",
-    "terminal.ansiWhite": "#bac2de",
-    "terminal.ansiBrightBlack": "#585b70",
-    "terminal.ansiBrightRed": "#f38ba8",
-    "terminal.ansiBrightGreen": "#a6e3a1",
-    "terminal.ansiBrightYellow": "#f9e2af",
-    "terminal.ansiBrightBlue": "#89b4fa",
-    "terminal.ansiBrightMagenta": "#f5c2e7",
-    "terminal.ansiBrightCyan": "#94e2d5",
-    "terminal.ansiBrightWhite": "#a6adc8",
-    "input.background": "#585b70",
-    "input.foreground": "#cdd6f4",
-    "focusBorder": "#89b4fa",
-    "list.activeSelectionBackground": "#585b70",
-    "list.activeSelectionForeground": "#cdd6f4",
-    "button.background": "#89b4fa",
-    "button.foreground": "#1e1e2e",
-    "badge.background": "#89b4fa",
-    "badge.foreground": "#1e1e2e"
-  }
-}
+## Theme template syntax
+
+Template expressions use `{{...}}`.
+
+Palette variables:
+
+```text
+foreground background
+black red green yellow blue magenta cyan white
+bright_black bright_red bright_green bright_yellow bright_blue bright_magenta bright_cyan bright_white
+accent error warning success info surface border muted
+muted_foreground primary_foreground destructive_foreground accent_surface
+chart_1 chart_2 chart_3 chart_4 chart_5
 ```
+
+Color functions:
+
+```text
+{{darken(background, 10%)}}
+{{lighten(foreground, 5%)}}
+{{alpha(background, 0.8)}}
+{{blend(foreground, background, 50%)}}
+{{contrast(background)}}
+```
+
+Integration/body-template functions also available from the same engine:
+
+```text
+{{r(accent)}} {{g(accent)}} {{b(accent)}}      # decimal RGB components
+{{to_json_string(accent)}}                    # quoted JSON string, e.g. "#7aa2f7"
+{{rgb_int(accent)}}                           # 24-bit packed integer
+{{rgb_int_for(accent, @srgb)}}                # profile-aware int; @self uses integration [device_profile]
+{{rgb_for(accent, @srgb)}}                    # profile-aware #rrggbb
+{{now_millis()}}                              # Unix epoch milliseconds
+```
+
+## Theme package layout
+
+User themes live in `~/.config/ricekit/custom-themes/<slug>/`.
+
+```text
+my-theme/
+  theme.toml
+  wallpapers/
+    optional.jpg
+```
+
+Full themes define every ANSI color. Overlay themes set `metadata.extends` and may define only the colors they override.
+
+```toml
+[metadata]
+name = "My Theme"
+author = "Me"
+version = "1.0.0"
+variant = "dark" # dark|light
+# extends = "tokyo-night"
+
+[colors.ansi]
+foreground = "#c0caf5"
+background = "#1a1b26"
+black = "#15161e"
+red = "#f7768e"
+green = "#9ece6a"
+yellow = "#e0af68"
+blue = "#7aa2f7"
+magenta = "#bb9af7"
+cyan = "#7dcfff"
+white = "#a9b1d6"
+bright_black = "#414868"
+bright_red = "#f7768e"
+bright_green = "#9ece6a"
+bright_yellow = "#e0af68"
+bright_blue = "#7aa2f7"
+bright_magenta = "#bb9af7"
+bright_cyan = "#7dcfff"
+bright_white = "#c0caf5"
+
+[colors.semantic]
+accent = "#7aa2f7"
+```
+
+## Integration package layout
+
+Integrations resolve from `custom-integrations/` → `installed-integrations/` → `integrations/` and use `integration.toml` plus optional body templates. They do not render files; they fire HTTP requests during CLI/desktop apply.
+
+```toml
+[metadata]
+name = "my-webhook"
+author = "Me"
+version = "1.0.0"
+app = "My Service"
+category = "system"
+description = "Optional"
+
+[requires]
+colors = ["accent"]
+
+[secrets.api_key]
+keychain = "api_key"
+prompt = "API key"
+
+[on_apply]
+method = "POST"
+url = "https://example.invalid/theme?key=@@secret:api_key@@"
+headers = { Content-Type = "application/json" }
+body = "body.json"
+timeout_ms = 5000
+
+[on_apply.retry]
+attempts = 3
+backoff_ms = 250
+```
+
+Secrets use `@@secret:KEY@@` and are substituted only at request time. Store values with `ricekit secrets set <integration> <key>`.
+
+Optional per-user condition overrides are managed by `ricekit integration condition ...` and stored separately in `~/.config/ricekit/integration-overrides/<name>.toml`.

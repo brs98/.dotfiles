@@ -2,6 +2,26 @@
 
 Personal pi configuration managed by GNU stow.
 
+This stow package also contains an isolated Turborepo workspace rooted at
+`.pi/agent`. That keeps Pi-specific validation/package tasks out of the rest of
+this dotfiles repository.
+
+## Monorepo commands
+
+Run these from `shared/stow/pi/.pi/agent`:
+
+```bash
+pnpm install
+pnpm validate
+```
+
+The root `package.json` delegates to `turbo run validate`. Package tasks live in:
+
+- `packages/config` — validates `AGENTS.md`, `mcp.json`, and checks that local Pi runtime state is not tracked.
+- `extensions` — parses each TypeScript extension with esbuild without bundling or writing output.
+
+Turborepo/package-manager metadata is ignored by GNU stow via `shared/stow/pi/.stow-local-ignore`, so stow Pi with `--no-folding` to install the runtime files without adding monorepo files to `~/.pi/agent`. The repo `install.sh` does this automatically.
+
 ## Managed paths
 
 Stowing `shared/stow/pi` into `$HOME` creates:
@@ -20,6 +40,7 @@ Stowing `shared/stow/pi` into `$HOME` creates:
 - `mcp.ts` — adds lazy MCP tools plus the `/mcp` command.
 - `pebble-orchestrator.ts` — plans and burns down Pebbles-backed work with git worktrees and Pi subagents.
 - `workspace-switcher.ts` — adds `/repo` to set an active workspace so relative tool paths and bash commands run from that repo.
+- `imagegen.ts` — adds a `generate_image` tool that delegates to Codex CLI's hosted image generation, saving generated bitmap images to disk.
 
 ## Workspace switcher
 
@@ -62,6 +83,7 @@ While `/peb-run-ready` or `/peb-burn-down` is active in interactive Pi, the exte
 
 Registered tools for agent use:
 
+- `generate_image` — creates bitmap images by shelling out to `codex exec`, using Codex CLI's hosted image generation and subscription-backed auth, then verifies and saves the bitmap locally. Defaults to `/Users/brandon/Pictures/gpt-images/`. Requires `codex` to be installed and logged in.
 - `peb_plan` — read-only execution planning.
 - `peb_sync_github` — explicit `peb sync github` / `--dry-run` support.
 

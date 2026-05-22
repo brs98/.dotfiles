@@ -1,0 +1,7 @@
+{
+  "name": "@dotfiles/pi-agent-config",
+  "private": true,
+  "scripts": {
+    "validate": "node ../../scripts/validate-config.mjs"
+  }
+}

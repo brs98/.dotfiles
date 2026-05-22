@@ -1,0 +1,10 @@
+# Monorepo metadata for the pi stow package. Keep these files in the dotfiles
+# repository without installing them into ~/.pi/agent.
+package\.json
+pnpm-workspace\.yaml
+pnpm-lock\.yaml
+turbo\.json
+scripts
+packages
+node_modules
+\.turbo
