@@ -36,7 +36,7 @@ Commands:
 /repo clear              # return to Pi launch cwd behavior
 ```
 
-When a workspace is active, `workspace-switcher.ts` rewrites relative `read`, `write`, and `edit` paths to that workspace and prefixes `bash` commands with `cd <workspace> &&`. It also nudges `lsp_diagnostics`, `peb_plan`, and `peb_sync_github` to use the active workspace when their cwd/repo argument is omitted. Absolute paths are left unchanged.
+When a workspace is active, `workspace-switcher.ts` rewrites relative `read`, `write`, `edit`, `ls`, `grep`, and `find` paths to that workspace and prefixes `bash` commands with `cd <workspace> &&`. It also nudges `lsp_diagnostics`, `peb_plan`, and `peb_sync_github` to use the active workspace when their cwd/repo argument is omitted. Absolute paths are left unchanged.
 
 Aliases live in `~/.pi/agent/workspaces.json` as a simple map from name to path.
 
