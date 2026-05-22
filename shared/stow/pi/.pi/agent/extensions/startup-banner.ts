@@ -15,11 +15,15 @@ export default function (pi: ExtensionAPI) {
   let bannerDismissed = false;
   let activeCtx: ExtensionContext | undefined;
 
-  function branchHasConversation(ctx: { sessionManager: { getBranch(): Array<{ type: string }> } }): boolean {
+  function branchHasConversation(ctx: {
+    sessionManager: { getBranch(): Array<{ type: string }> };
+  }): boolean {
     return ctx.sessionManager.getBranch().some((entry) => entry.type === "message");
   }
 
-  function branchHasDismissal(ctx: { sessionManager: { getEntries(): Array<{ type: string; customType?: string }> } }): boolean {
+  function branchHasDismissal(ctx: {
+    sessionManager: { getEntries(): Array<{ type: string; customType?: string }> };
+  }): boolean {
     return ctx.sessionManager
       .getEntries()
       .some((entry) => entry.type === "custom" && entry.customType === "startup-banner-dismissed");
@@ -60,7 +64,8 @@ export default function (pi: ExtensionAPI) {
     bannerVisible = true;
     ctx.ui.setWidget("startup-banner", (_tui, theme) => {
       return {
-        render: (width: number) => art.map((line) => truncateToWidth(theme.fg("accent", line), width, "")),
+        render: (width: number) =>
+          art.map((line) => truncateToWidth(theme.fg("accent", line), width, "")),
         invalidate: () => {},
       };
     });

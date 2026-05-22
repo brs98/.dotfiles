@@ -1,10 +1,12 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { basename } from "node:path";
 
 const DIRTY_REFRESH_INTERVAL_MS = 10_000;
 
-function contextColor(percent: number | null | undefined): "success" | "warning" | "error" | "muted" {
+function contextColor(
+  percent: number | null | undefined,
+): "success" | "warning" | "error" | "muted" {
   if (percent === null || percent === undefined) return "muted";
   if (percent >= 90) return "error";
   if (percent >= 70) return "warning";
@@ -14,10 +16,18 @@ function contextColor(percent: number | null | undefined): "success" | "warning"
 function formatModel(model: unknown): string {
   if (!model || typeof model !== "object") return "no-model";
 
-  if ("name" in model && typeof (model as Record<string, unknown>).name === "string" && (model as Record<string, unknown>).name) {
+  if (
+    "name" in model &&
+    typeof (model as Record<string, unknown>).name === "string" &&
+    (model as Record<string, unknown>).name
+  ) {
     return (model as Record<string, unknown>).name as string;
   }
-  if ("id" in model && typeof (model as Record<string, unknown>).id === "string" && (model as Record<string, unknown>).id) {
+  if (
+    "id" in model &&
+    typeof (model as Record<string, unknown>).id === "string" &&
+    (model as Record<string, unknown>).id
+  ) {
     return (model as Record<string, unknown>).id as string;
   }
   return "model";
@@ -42,7 +52,10 @@ export default function statusline(pi: ExtensionAPI) {
     let dirtyTimer: ReturnType<typeof setInterval> | undefined;
 
     const refreshDirty = async () => {
-      const result = await pi.exec("git", ["status", "--porcelain"], { cwd: ctx.cwd, timeout: 5_000 });
+      const result = await pi.exec("git", ["status", "--porcelain"], {
+        cwd: ctx.cwd,
+        timeout: 5_000,
+      });
       if (disposed) return;
       const nextDirty = result.code === 0 && result.stdout.trim().length > 0;
       if (nextDirty !== dirty) {
@@ -70,11 +83,16 @@ export default function statusline(pi: ExtensionAPI) {
           const separator = theme.fg("dim", " │ ");
           const contextUsage = ctx.getContextUsage();
           const contextPercent = contextUsage?.percent;
-          const contextText = theme.fg(contextColor(contextPercent), formatContextPercent(contextPercent));
+          const contextText = theme.fg(
+            contextColor(contextPercent),
+            formatContextPercent(contextPercent),
+          );
 
           const directory = basename(ctx.cwd) || ctx.cwd;
           const branch = footerData.getGitBranch();
-          const branchText = branch ? ` ${theme.fg("success", `(${branch}${dirty ? theme.fg("error", "*") : ""})`)}` : "";
+          const branchText = branch
+            ? ` ${theme.fg("success", `(${branch}${dirty ? theme.fg("error", "*") : ""})`)}`
+            : "";
 
           // Calculate accumulated cost from all session entries
           let totalCost = 0;
@@ -94,7 +112,9 @@ export default function statusline(pi: ExtensionAPI) {
             usageParts.push(costStr);
           }
 
-          const extensionStatuses = Array.from(footerData.getExtensionStatuses?.() ?? new Map<string, string>())
+          const extensionStatuses = Array.from(
+            footerData.getExtensionStatuses?.() ?? new Map<string, string>(),
+          )
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([, text]) => text);
 

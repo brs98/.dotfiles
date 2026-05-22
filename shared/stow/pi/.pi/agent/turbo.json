@@ -1,6 +1,22 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "tasks": {
+    "format": {
+      "cache": false
+    },
+    "format:check": {
+      "outputs": []
+    },
+    "lint": {
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["typecheck"],
+      "outputs": ["coverage/**"]
+    },
+    "typecheck": {
+      "outputs": []
+    },
     "validate": {
       "inputs": [
         "$TURBO_DEFAULT$",

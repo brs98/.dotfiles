@@ -3,16 +3,16 @@ import { existsSync } from "node:fs";
 import { mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
   truncateHead,
   withFileMutationQueue,
-} from "@mariozechner/pi-coding-agent";
-import { StringEnum } from "@mariozechner/pi-ai";
-import { Text } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import { StringEnum } from "@earendil-works/pi-ai";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 type Language = "typescript" | "python" | "rust" | "ruby";
@@ -64,15 +64,23 @@ const NON_EMPTY_DIAGNOSTICS_QUIET_MS = 500;
 
 const LspDiagnosticsParams = Type.Object({
   path: Type.String({ description: "File path to diagnose. Relative paths resolve against cwd." }),
-  cwd: Type.Optional(Type.String({ description: "Working directory. Relative paths resolve against the current pi cwd." })),
-  root: Type.Optional(Type.String({ description: "Project root override. Relative paths resolve against cwd." })),
+  cwd: Type.Optional(
+    Type.String({
+      description: "Working directory. Relative paths resolve against the current pi cwd.",
+    }),
+  ),
+  root: Type.Optional(
+    Type.String({ description: "Project root override. Relative paths resolve against cwd." }),
+  ),
   language: Type.Optional(
     StringEnum(["auto", "typescript", "python", "rust", "ruby"] as const, {
       description: "Language server to use. Default: auto based on file extension.",
       default: "auto",
     }),
   ),
-  timeoutMs: Type.Optional(Type.Number({ description: `Timeout in milliseconds. Default: ${DEFAULT_TIMEOUT_MS}.` })),
+  timeoutMs: Type.Optional(
+    Type.Number({ description: `Timeout in milliseconds. Default: ${DEFAULT_TIMEOUT_MS}.` }),
+  ),
 });
 
 function pathToUri(path: string): string {
@@ -133,7 +141,11 @@ const ROOT_MARKERS: Record<Language, string[]> = {
   ruby: ["Gemfile", ".ruby-version", ".git"],
 };
 
-async function discoverRoot(filePath: string, language: Language, explicitRoot?: string): Promise<string> {
+async function discoverRoot(
+  filePath: string,
+  language: Language,
+  explicitRoot?: string,
+): Promise<string> {
   if (explicitRoot) return canonicalizeExistingPath(explicitRoot);
 
   let current = dirname(filePath);
@@ -163,7 +175,10 @@ function severityName(severity: number | undefined): string {
   }
 }
 
-function configurationForLanguage(language: Language, section: string | undefined): Record<string, unknown> {
+function configurationForLanguage(
+  language: Language,
+  section: string | undefined,
+): Record<string, unknown> {
   if (language === "python") {
     if (section === "python.analysis") {
       return {
@@ -202,7 +217,10 @@ async function cargoCheckDiagnostics(
 ): Promise<Diagnostic[]> {
   if (!existsSync(join(root, "Cargo.toml"))) return [];
 
-  const result = await pi.exec("cargo", ["check", "--message-format=json"], { cwd: root, timeout: timeoutMs });
+  const result = await pi.exec("cargo", ["check", "--message-format=json"], {
+    cwd: root,
+    timeout: timeoutMs,
+  });
   const diagnostics: Diagnostic[] = [];
 
   for (const line of result.stdout.split("\n")) {
@@ -234,11 +252,13 @@ async function cargoCheckDiagnostics(
 
     if (event.reason !== "compiler-message" || !event.message?.message) continue;
 
-    const primarySpan = event.message.spans?.find((span) => span.is_primary) ?? event.message.spans?.[0];
-    if (!primarySpan?.file_name) continue;
+    const primarySpan =
+      event.message.spans?.find((span) => span.is_primary) ?? event.message.spans?.[0];
+    const primaryFileName = primarySpan?.file_name;
+    if (!primaryFileName) continue;
 
-    const spanPath = await canonicalizeExistingPath(resolve(root, primarySpan.file_name)).catch(() =>
-      resolve(root, primarySpan.file_name),
+    const spanPath = await canonicalizeExistingPath(resolve(root, primaryFileName)).catch(() =>
+      resolve(root, primaryFileName),
     );
     if (spanPath !== filePath) continue;
 
@@ -288,7 +308,9 @@ async function truncateFormattedOutput(details: LspDetails): Promise<string> {
 
   const tempDir = await mkdtemp(join(tmpdir(), "pi-lsp-"));
   const outputPath = join(tempDir, "diagnostics.txt");
-  await withFileMutationQueue(outputPath, async () => writeFile(outputPath, details.formatted, "utf8"));
+  await withFileMutationQueue(outputPath, async () =>
+    writeFile(outputPath, details.formatted, "utf8"),
+  );
 
   details.truncated = true;
   details.fullOutputPath = outputPath;
@@ -333,7 +355,9 @@ class LspServer {
       this.pending.clear();
     });
     this.proc.on("close", (code) => {
-      const error = new Error(`${this.config.command} exited with code ${code}. ${this.stderr.trim()}`.trim());
+      const error = new Error(
+        `${this.config.command} exited with code ${code}. ${this.stderr.trim()}`.trim(),
+      );
       for (const pending of this.pending.values()) pending.reject(error);
       this.pending.clear();
     });
@@ -505,7 +529,7 @@ class LspServer {
   }
 
   private handleMessage(message: JsonRpcMessage): void {
-    if (message.id !== undefined && message.method === undefined) {
+    if (message.id !== undefined && message.id !== null && message.method === undefined) {
       const pending = this.pending.get(message.id);
       if (!pending) return;
 
@@ -541,7 +565,9 @@ class LspServer {
         const params = message.params as { items?: Array<{ section?: string }> } | undefined;
         this.respond(
           message.id,
-          (params?.items ?? []).map((item) => configurationForLanguage(this.language, item.section)),
+          (params?.items ?? []).map((item) =>
+            configurationForLanguage(this.language, item.section),
+          ),
         );
         return;
       }
@@ -590,7 +616,11 @@ export default function lsp(pi: ExtensionAPI) {
       const baseCwd = params.cwd ? resolve(ctx.cwd, params.cwd) : ctx.cwd;
       const filePath = await canonicalizeExistingPath(resolve(baseCwd, stripAt(params.path)));
       const language = detectLanguage(filePath, params.language ?? "auto");
-      const root = await discoverRoot(filePath, language, params.root ? resolve(baseCwd, params.root) : undefined);
+      const root = await discoverRoot(
+        filePath,
+        language,
+        params.root ? resolve(baseCwd, params.root) : undefined,
+      );
       const config = serverConfig(language);
       const content = await readFile(filePath, "utf8");
       const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -616,7 +646,9 @@ export default function lsp(pi: ExtensionAPI) {
     },
 
     renderCall(args, theme) {
-      let text = theme.fg("toolTitle", theme.bold("lsp_diagnostics ")) + theme.fg("accent", args.path ?? "...");
+      let text =
+        theme.fg("toolTitle", theme.bold("lsp_diagnostics ")) +
+        theme.fg("accent", args.path ?? "...");
       if (args.language && args.language !== "auto") text += theme.fg("muted", ` ${args.language}`);
       if (args.root) text += theme.fg("dim", ` root=${args.root}`);
       return new Text(text, 0, 0);
@@ -629,7 +661,12 @@ export default function lsp(pi: ExtensionAPI) {
       const errors = details.diagnostics.filter((diagnostic) => diagnostic.severity === 1).length;
       const warnings = details.diagnostics.filter((diagnostic) => diagnostic.severity === 2).length;
       const others = details.diagnostics.length - errors - warnings;
-      const icon = errors > 0 ? theme.fg("error", "✗") : warnings > 0 ? theme.fg("warning", "◐") : theme.fg("success", "✓");
+      const icon =
+        errors > 0
+          ? theme.fg("error", "✗")
+          : warnings > 0
+            ? theme.fg("warning", "◐")
+            : theme.fg("success", "✓");
       let text = `${icon} ${theme.fg("toolTitle", theme.bold("LSP"))} ${theme.fg("accent", details.language)} ${theme.fg(
         "muted",
         `${details.diagnostics.length} diagnostic${details.diagnostics.length === 1 ? "" : "s"}`,
@@ -637,7 +674,8 @@ export default function lsp(pi: ExtensionAPI) {
       if (details.diagnostics.length > 0) {
         text += theme.fg("dim", ` (${errors} errors, ${warnings} warnings, ${others} other)`);
       }
-      if (details.truncated && details.fullOutputPath) text += `\n${theme.fg("warning", `Truncated: ${details.fullOutputPath}`)}`;
+      if (details.truncated && details.fullOutputPath)
+        text += `\n${theme.fg("warning", `Truncated: ${details.fullOutputPath}`)}`;
 
       const content = result.content[0];
       if (expanded && content?.type === "text") {
@@ -647,7 +685,8 @@ export default function lsp(pi: ExtensionAPI) {
       } else if (content?.type === "text") {
         const lines = content.text.split("\n").slice(0, 8);
         text += `\n${theme.fg("toolOutput", lines.join("\n"))}`;
-        if (content.text.split("\n").length > 8) text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
+        if (content.text.split("\n").length > 8)
+          text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
       }
 
       return new Text(text, 0, 0);

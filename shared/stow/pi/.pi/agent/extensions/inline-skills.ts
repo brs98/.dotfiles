@@ -1,4 +1,8 @@
-import { CustomEditor, type ExtensionAPI, type KeybindingsManager } from "@earendil-works/pi-coding-agent";
+import {
+  CustomEditor,
+  type ExtensionAPI,
+  type KeybindingsManager,
+} from "@earendil-works/pi-coding-agent";
 import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -22,7 +26,10 @@ async function readSkillFile(sourcePath: string): Promise<string> {
   return readFile(skillPath, "utf8");
 }
 
-function findInlineSkillNames(text: string, commands: PiCommand[]): { names: string[]; missingSkills: string[] } {
+function findInlineSkillNames(
+  text: string,
+  commands: PiCommand[],
+): { names: string[]; missingSkills: string[] } {
   const names = new Set<string>();
   const missingSkills = new Set<string>();
 
@@ -52,7 +59,8 @@ function stripInlineSkillMarkers(text: string, commands: PiCommand[]): string {
 
 function findSkillCommand(commands: PiCommand[], name: string): PiCommand | undefined {
   return commands.find(
-    (command) => command.source === "skill" && (command.name === `skill:${name}` || command.name === name),
+    (command) =>
+      command.source === "skill" && (command.name === `skill:${name}` || command.name === name),
   );
 }
 
@@ -113,11 +121,16 @@ function getInlineSkillAutocompleteItems(commands: PiCommand[], prefix: string) 
     .sort((a, b) => a.value.localeCompare(b.value));
 }
 
-type AutocompleteTriggerableEditor = CustomEditor & { tryTriggerAutocomplete(): void };
+type EditorLike = { handleInput(data: string): void };
+
+function triggerAutocomplete(editor: object): void {
+  const trigger = Reflect.get(editor, "tryTriggerAutocomplete");
+  if (typeof trigger === "function") trigger.call(editor);
+}
 
 class InlineSkillEditor extends CustomEditor {
-  private baseEditor?: CustomEditor;
-  private keybindings: KeybindingsManager;
+  private baseEditor?: EditorLike;
+  private appKeybindings: KeybindingsManager;
   private onSubmitAttempt: () => void;
 
   constructor(
@@ -125,16 +138,16 @@ class InlineSkillEditor extends CustomEditor {
     theme: ConstructorParameters<typeof CustomEditor>[1],
     keybindings: KeybindingsManager,
     onSubmitAttempt: () => void,
-    baseEditor?: CustomEditor,
+    baseEditor?: EditorLike,
   ) {
     super(tui, theme, keybindings);
-    this.keybindings = keybindings;
+    this.appKeybindings = keybindings;
     this.onSubmitAttempt = onSubmitAttempt;
     this.baseEditor = baseEditor;
   }
 
   override handleInput(data: string): void {
-    const isSubmitting = this.keybindings.matches(data, "tui.input.submit");
+    const isSubmitting = this.appKeybindings.matches(data, "tui.input.submit");
     if (isSubmitting && this.getText().trim().length > 0) {
       this.emitStartupBannerDismissal();
     }
@@ -160,13 +173,16 @@ class InlineSkillEditor extends CustomEditor {
     const prefix = getInlineSkillAutocompletePrefix(beforeCursor);
     if (!prefix) return;
 
-    (this as AutocompleteTriggerableEditor).tryTriggerAutocomplete();
+    triggerAutocomplete(this);
   }
 }
 
-function formatLoadedSkills(skills: Array<{ name: string; path: string; content: string }>): string {
+function formatLoadedSkills(
+  skills: Array<{ name: string; path: string; content: string }>,
+): string {
   const sections = skills.map(
-    (skill) => `<skill name="${skill.name}" path="${skill.path}">\n${skill.content.trim()}\n</skill>`,
+    (skill) =>
+      `<skill name="${skill.name}" path="${skill.path}">\n${skill.content.trim()}\n</skill>`,
   );
 
   return [
@@ -189,7 +205,8 @@ export default function inlineSkills(pi: ExtensionAPI) {
         if (!prefix) return current.getSuggestions(lines, cursorLine, cursorCol, options);
 
         const items = getInlineSkillAutocompleteItems(pi.getCommands(), prefix);
-        if (items.length === 0) return current.getSuggestions(lines, cursorLine, cursorCol, options);
+        if (items.length === 0)
+          return current.getSuggestions(lines, cursorLine, cursorCol, options);
 
         return { prefix, items };
       },
@@ -240,7 +257,10 @@ export default function inlineSkills(pi: ExtensionAPI) {
     }
 
     if (missingSkills.length > 0) {
-      ctx.ui.notify(`Unknown inline skill(s): ${missingSkills.map((name) => `/skill:${name}`).join(", ")}`, "warning");
+      ctx.ui.notify(
+        `Unknown inline skill(s): ${missingSkills.map((name) => `/skill:${name}`).join(", ")}`,
+        "warning",
+      );
     }
 
     if (loadedSkills.length === 0) return { action: "continue" as const };

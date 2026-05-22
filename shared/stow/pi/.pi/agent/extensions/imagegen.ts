@@ -1,10 +1,10 @@
 import { mkdir, readFile, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { StringEnum } from "@mariozechner/pi-ai";
-import type { ExecResult, ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { withFileMutationQueue } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
+import { StringEnum } from "@earendil-works/pi-ai";
+import type { ExecResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 type ImageFormat = "png" | "jpeg" | "webp";
@@ -36,12 +36,14 @@ const GenerateImageParams = Type.Object({
   ),
   model: Type.Optional(
     Type.String({
-      description: "Ignored for the Codex-backed implementation; kept for compatibility with prior generate_image calls.",
+      description:
+        "Ignored for the Codex-backed implementation; kept for compatibility with prior generate_image calls.",
     }),
   ),
   size: Type.Optional(
     Type.String({
-      description: "Desired image size/aspect ratio, e.g. 1024x1024, 1536x1024, 1024x1536, or auto.",
+      description:
+        "Desired image size/aspect ratio, e.g. 1024x1024, 1536x1024, 1024x1536, or auto.",
       default: "1024x1024",
     }),
   ),
@@ -61,14 +63,21 @@ const GenerateImageParams = Type.Object({
       default: DEFAULT_FORMAT,
     }),
   ),
-  timeoutMs: Type.Optional(Type.Number({ description: `Codex execution timeout in milliseconds. Default: ${DEFAULT_TIMEOUT_MS}.` })),
+  timeoutMs: Type.Optional(
+    Type.Number({
+      description: `Codex execution timeout in milliseconds. Default: ${DEFAULT_TIMEOUT_MS}.`,
+    }),
+  ),
 });
 
 function stripAt(path: string): string {
   return path.startsWith("@") ? path.slice(1) : path;
 }
 
-function inferOutputFormat(outputPath: string | undefined, requestedFormat: ImageFormat | undefined): ImageFormat {
+function inferOutputFormat(
+  outputPath: string | undefined,
+  requestedFormat: ImageFormat | undefined,
+): ImageFormat {
   if (requestedFormat) return requestedFormat;
 
   const extension = extname(stripAt(outputPath?.trim() ?? "")).toLowerCase();
@@ -77,7 +86,11 @@ function inferOutputFormat(outputPath: string | undefined, requestedFormat: Imag
   return DEFAULT_FORMAT;
 }
 
-function resolveOutputPath(cwd: string, outputPath: string | undefined, outputFormat: ImageFormat): string {
+function resolveOutputPath(
+  cwd: string,
+  outputPath: string | undefined,
+  outputFormat: ImageFormat,
+): string {
   const path = outputPath?.trim()
     ? stripAt(outputPath.trim())
     : `${DEFAULT_OUTPUT_DIR}/image-${new Date().toISOString().replace(/[:.]/g, "-")}.${outputFormat}`;
@@ -122,19 +135,33 @@ After saving, verify the destination with a filesystem check such as \`file ${pa
 }
 
 function detectImageFormat(bytes: Buffer): string | undefined {
-  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "png";
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpeg";
-  if (bytes.length >= 12 && bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP") return "webp";
+  if (
+    bytes.length >= 8 &&
+    bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  )
+    return "png";
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
+    return "jpeg";
+  if (
+    bytes.length >= 12 &&
+    bytes.subarray(0, 4).toString("ascii") === "RIFF" &&
+    bytes.subarray(8, 12).toString("ascii") === "WEBP"
+  )
+    return "webp";
   return undefined;
 }
 
-async function validateGeneratedImage(path: string): Promise<{ bytes: number; detectedFormat: string }> {
+async function validateGeneratedImage(
+  path: string,
+): Promise<{ bytes: number; detectedFormat: string }> {
   const fileStat = await stat(path);
-  if (!fileStat.isFile() || fileStat.size === 0) throw new Error(`Codex did not create a non-empty file at ${path}.`);
+  if (!fileStat.isFile() || fileStat.size === 0)
+    throw new Error(`Codex did not create a non-empty file at ${path}.`);
 
   const header = await readFile(path);
   const detectedFormat = detectImageFormat(header);
-  if (!detectedFormat) throw new Error(`Generated file is not a recognized PNG, JPEG, or WebP bitmap: ${path}`);
+  if (!detectedFormat)
+    throw new Error(`Generated file is not a recognized PNG, JPEG, or WebP bitmap: ${path}`);
 
   return { bytes: fileStat.size, detectedFormat };
 }
@@ -155,7 +182,8 @@ export default function (pi: ExtensionAPI) {
     label: "Generate Image",
     description:
       "Generate a bitmap image by delegating to Codex CLI's hosted image generation capability, then save it to disk. Requires Codex CLI to be installed and logged in.",
-    promptSnippet: "Generate bitmap images by delegating to Codex CLI's hosted image generation and save them to local files.",
+    promptSnippet:
+      "Generate bitmap images by delegating to Codex CLI's hosted image generation and save them to local files.",
     promptGuidelines: [
       "Use generate_image when the user asks to create, generate, draw, render, or make a bitmap image file.",
       `When using generate_image, omit outputPath unless the user specified a path; default outputs are saved under ${DEFAULT_OUTPUT_DIR}/.`,
@@ -165,11 +193,20 @@ export default function (pi: ExtensionAPI) {
 
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const outputFormat = inferOutputFormat(params.outputPath, params.outputFormat);
-      const outputPath = withDefaultExtension(resolveOutputPath(ctx.cwd, params.outputPath, outputFormat), outputFormat);
-      const lastMessagePath = join(tmpdir(), `pi-codex-image-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`);
+      const outputPath = withDefaultExtension(
+        resolveOutputPath(ctx.cwd, params.outputPath, outputFormat),
+        outputFormat,
+      );
+      const lastMessagePath = join(
+        tmpdir(),
+        `pi-codex-image-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`,
+      );
       const timeout = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-      onUpdate?.({ content: [{ type: "text", text: "Generating image via Codex..." }] });
+      onUpdate?.({
+        content: [{ type: "text", text: "Generating image via Codex..." }],
+        details: {},
+      });
 
       await mkdir(dirname(outputPath), { recursive: true });
 
@@ -201,7 +238,9 @@ export default function (pi: ExtensionAPI) {
 
       const lastMessage = await readFile(lastMessagePath, "utf8").catch(() => "");
       if (result.code !== 0 || lastMessage.trim() === "IMAGE_TOOL_UNAVAILABLE") {
-        throw new Error(`Codex image generation failed.\n${codexFailureMessage(result, lastMessage)}`);
+        throw new Error(
+          `Codex image generation failed.\n${codexFailureMessage(result, lastMessage)}`,
+        );
       }
 
       const validation = await validateGeneratedImage(outputPath);
