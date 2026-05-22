@@ -3,6 +3,8 @@
 
 # Path configuration
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+export VISUAL="nvim"
+export EDITOR="nvim"
 
 # Initialize completions
 autoload -U compinit && compinit
