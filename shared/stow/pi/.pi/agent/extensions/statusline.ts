@@ -38,22 +38,29 @@ export default function statusline(pi: ExtensionAPI) {
 
     let dirty = false;
     let disposed = false;
+    let requestRender: (() => void) | undefined;
 
     const refreshDirty = async () => {
       const result = await pi.exec("git", ["status", "--porcelain"], { cwd: ctx.cwd, timeout: 5_000 });
       if (disposed) return;
-      dirty = result.code === 0 && result.stdout.trim().length > 0;
+      const nextDirty = result.code === 0 && result.stdout.trim().length > 0;
+      if (nextDirty !== dirty) {
+        dirty = nextDirty;
+        requestRender?.();
+      }
     };
 
     void refreshDirty();
     const dirtyTimer = setInterval(() => void refreshDirty(), DIRTY_REFRESH_INTERVAL_MS);
 
     ctx.ui.setFooter((tui, theme, footerData) => {
+      requestRender = () => tui.requestRender();
       const unsubscribeBranch = footerData.onBranchChange(() => tui.requestRender());
 
       return {
         dispose() {
           disposed = true;
+          requestRender = undefined;
           clearInterval(dirtyTimer);
           unsubscribeBranch();
         },

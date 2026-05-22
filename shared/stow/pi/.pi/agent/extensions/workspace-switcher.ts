@@ -103,6 +103,12 @@ function isRelativeFilesystemPath(path: string): boolean {
   return true;
 }
 
+function normalizeToolPath(path: string): string {
+  // Pi's built-in tools accept @path from file-reference completions and strip
+  // the leading @ before resolving. Preserve that behavior before rewriting.
+  return path.startsWith("@") ? path.slice(1) : path;
+}
+
 function resolveAgainstWorkspace(path: string, workspace: Workspace): string {
   return resolve(workspace.path, path);
 }
@@ -182,7 +188,7 @@ function completionItems(prefix: string): AutocompleteItem[] | null {
 
 function latestPersistedWorkspace(ctx: ExtensionContext): WorkspaceState | undefined {
   const entry = ctx.sessionManager
-    .getEntries()
+    .getBranch()
     .filter((e: { type: string; customType?: string }) => e.type === "custom" && e.customType === STATE_ENTRY)
     .pop() as { data?: { alias?: unknown; path?: unknown } } | undefined;
 
@@ -205,17 +211,17 @@ async function selectWorkspace(ctx: ExtensionContext): Promise<WorkspaceState | 
 
 function resolveOptionalPathInput(input: Record<string, unknown>, workspace: Workspace) {
   if (typeof input.path === "string") {
-    if (isRelativeFilesystemPath(input.path)) {
-      input.path = resolveAgainstWorkspace(input.path, workspace);
-    }
+    const path = normalizeToolPath(input.path);
+    input.path = isRelativeFilesystemPath(path) ? resolveAgainstWorkspace(path, workspace) : path;
   } else {
     input.path = workspace.path;
   }
 }
 
 function resolveRequiredPathInput(input: Record<string, unknown>, workspace: Workspace) {
-  if (typeof input.path === "string" && isRelativeFilesystemPath(input.path)) {
-    input.path = resolveAgainstWorkspace(input.path, workspace);
+  if (typeof input.path === "string") {
+    const path = normalizeToolPath(input.path);
+    input.path = isRelativeFilesystemPath(path) ? resolveAgainstWorkspace(path, workspace) : path;
   }
 }
 
