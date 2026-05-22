@@ -29,6 +29,7 @@ Stowing `shared/stow/pi` into `$HOME` creates:
 - `~/.pi/agent/AGENTS.md` — global pi instructions
 - `~/.pi/agent/extensions/` — custom pi extensions
 - `~/.pi/agent/mcp.json` — lazy MCP server configuration
+- `~/.pi/agent/workspaces.json` — named workspace aliases for the `/repo` command
 
 ## Extensions
 
@@ -38,7 +39,27 @@ Stowing `shared/stow/pi` into `$HOME` creates:
 - `lsp.ts` — adds `lsp_diagnostics` with per-language/per-root server isolation for worktrees and subagents.
 - `mcp.ts` — adds lazy MCP tools plus the `/mcp` command.
 - `pebble-orchestrator.ts` — plans and burns down Pebbles-backed work with git worktrees and Pi subagents.
+- `workspace-switcher.ts` — adds `/repo` to set an active workspace so relative tool paths and bash commands run from that repo.
 - `imagegen.ts` — adds a `generate_image` tool that delegates to Codex CLI's hosted image generation, saving generated bitmap images to disk.
+
+## Workspace switcher
+
+Commands:
+
+```text
+/repo                    # select/show active workspace
+/repo core               # use /Users/brandon/personal/ricekit.git/main
+/repo community          # use /Users/brandon/personal/ricekit-community
+/repo dotfiles           # use /Users/brandon/.dotfiles
+/repo /absolute/path     # use an ad-hoc directory
+/repo list               # list configured aliases
+/repo status             # show current active workspace
+/repo clear              # return to Pi launch cwd behavior
+```
+
+When a workspace is active, `workspace-switcher.ts` rewrites relative `read`, `write`, `edit`, `ls`, `grep`, and `find` paths to that workspace and prefixes `bash` commands with `cd <workspace> &&`. It also nudges `lsp_diagnostics`, `peb_plan`, and `peb_sync_github` to use the active workspace when their cwd/repo argument is omitted. Absolute paths are left unchanged.
+
+Aliases live in `~/.pi/agent/workspaces.json` as a simple map from name to path.
 
 ## Pebble orchestrator
 
