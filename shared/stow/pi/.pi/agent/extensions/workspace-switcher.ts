@@ -78,6 +78,11 @@ function loadWorkspaceConfig(cwd: string): WorkspaceConfig {
   return { aliases, default: defaultWorkspace };
 }
 
+function refreshWorkspaces(cwd: string) {
+  workspaceConfig = loadWorkspaceConfig(cwd);
+  workspaces = workspacesFromConfig(workspaceConfig);
+}
+
 function workspacesFromConfig(config: WorkspaceConfig): Workspace[] {
   const aliases = config.aliases ?? {};
   return Object.entries(aliases)
@@ -140,6 +145,7 @@ function setActiveWorkspace(ctx: ExtensionContext, workspace: WorkspaceState) {
 let activeWorkspace: WorkspaceState = null;
 let workspaces: Workspace[] = [];
 let workspaceConfig: WorkspaceConfig = {};
+let workspaceConfigCwd = process.cwd();
 let appendState: ((customType: string, data?: unknown) => void) | null = null;
 
 function piAppendWorkspaceState(workspace: WorkspaceState) {
@@ -179,6 +185,8 @@ function findWorkspace(query: string): Workspace | undefined {
 }
 
 function completionItems(prefix: string): AutocompleteItem[] | null {
+  refreshWorkspaces(workspaceConfigCwd);
+
   const builtins = ["clear", "list", "status"].map((value) => ({ value, label: value }));
   const configured = workspaces.map((workspace) => ({
     value: workspace.alias,
@@ -278,8 +286,8 @@ export default function workspaceSwitcher(pi: ExtensionAPI) {
   appendState = pi.appendEntry.bind(pi);
 
   pi.on("session_start", (_event, ctx) => {
-    workspaceConfig = loadWorkspaceConfig(ctx.cwd);
-    workspaces = workspacesFromConfig(workspaceConfig);
+    workspaceConfigCwd = ctx.cwd;
+    refreshWorkspaces(workspaceConfigCwd);
 
     const restored = latestPersistedWorkspace(ctx);
     if (restored !== undefined) {
@@ -301,8 +309,8 @@ export default function workspaceSwitcher(pi: ExtensionAPI) {
     description: "Set an active workspace for relative tool paths and bash cwd",
     getArgumentCompletions: completionItems,
     handler: async (args, ctx) => {
-      workspaceConfig = loadWorkspaceConfig(ctx.cwd);
-      workspaces = workspacesFromConfig(workspaceConfig);
+      workspaceConfigCwd = ctx.cwd;
+      refreshWorkspaces(workspaceConfigCwd);
       const arg = (args ?? "").trim();
 
       if (arg === "clear" || arg === "none" || arg === "off") {
