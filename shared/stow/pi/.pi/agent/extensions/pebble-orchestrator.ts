@@ -65,7 +65,7 @@ type Plan = {
   selected: PlanItem[];
   openPrs: OpenPr[];
 };
-type AgentRole = "implementer" | "reviewer";
+type AgentRole = "planner" | "implementer" | "reviewer";
 type AgentRun = {
   issueId: string;
   role: AgentRole;
@@ -95,6 +95,7 @@ type AgentProgressEvent = {
 type RunResult = {
   item: PlanItem;
   worktreePath: string;
+  planner?: AgentRun;
   implementer?: AgentRun;
   reviewer?: AgentRun;
   approved: boolean;
@@ -224,6 +225,10 @@ function formatError(error: unknown): string {
 
 function isClosed(issue: PebIssue): boolean {
   return issue.status === "closed" || issue.closed_at != null;
+}
+
+function isInProgress(issue: PebIssue): boolean {
+  return issue.status === "in_progress" || issue.status === "in-progress";
 }
 
 function getDependencyId(dep: unknown): string | undefined {
@@ -381,6 +386,10 @@ function formatRunResults(results: RunResult[]): string {
     lines.push(`${icon} ${id} — ${result.item.issue.title}`);
     lines.push(`  branch: ${result.item.branch}`);
     lines.push(`  worktree: ${result.worktreePath}`);
+    if (result.planner)
+      lines.push(
+        `  planner: exit ${result.planner.exitCode}, ${(result.planner.durationMs / 1000).toFixed(1)}s`,
+      );
     if (result.implementer)
       lines.push(
         `  implementer: exit ${result.implementer.exitCode}, ${(result.implementer.durationMs / 1000).toFixed(1)}s`,
@@ -708,8 +717,9 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     const { repo, gitRoot } = await detect(options.repo, options.cwd);
     const policy = await loadPolicy(repo);
     const workflow = deriveWorkflow(policy, options.state);
-    const args = ["list", "--status", "open", "--json"];
-    if (workflow.readyLabel) args.splice(1, 0, "--label", workflow.readyLabel);
+    const args = workflow.readyLabel
+      ? ["list", "--label", workflow.readyLabel, "--json"]
+      : ["list", "--status", "open", "--json"];
     const issues = jsonData<PebIssue[]>((await checked("peb", args, repo)).stdout);
     const [openPrs, branches, baseRef] = await Promise.all([
       listOpenPrs(gitRoot),
@@ -882,12 +892,35 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     return dispatched;
   }
 
+  function plannerPrompt(plan: Plan, item: PlanItem, worktreePath: string): string {
+    return [
+      "You are a Pi planning subagent working on exactly one Pebbles issue.",
+      "Do not edit files, commit, push, or mutate Pebbles. Plan only.",
+      "Use fresh context to reduce implementation bias. Be concrete enough for a separate implementer subagent.",
+      "",
+      `Pebbles workspace: ${plan.repo}`,
+      `Code worktree: ${worktreePath}`,
+      `Issue: ${item.issue.id} — ${item.issue.title}`,
+      `Branch: ${item.branch}`,
+      `Base: ${plan.baseRef}`,
+      "",
+      "Required workflow:",
+      `1. Run: cd ${JSON.stringify(plan.repo)} && peb show ${item.issue.id} --json`,
+      "2. Inspect relevant files, docs, project instructions, and test/build scripts.",
+      "3. Produce a concise implementation plan with scope boundaries, risks, files likely touched, and verification commands.",
+      "4. Call out any ambiguity that should block implementation. If blocked, say BLOCKED and explain why.",
+      "",
+      "Final response: include Plan, Scope, Files, Verification, Risks, and Blockers sections.",
+    ].join("\n");
+  }
+
   function implementerPrompt(
     plan: Plan,
     item: PlanItem,
     worktreePath: string,
     model: string,
     attempt: number,
+    plannerOutput?: string,
     reviewerFeedback?: string,
   ): string {
     const parts = [
@@ -904,6 +937,14 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       "",
     ];
 
+    if (plannerOutput?.trim()) {
+      parts.push(
+        "Planning subagent output to use as the implementation contract:",
+        plannerOutput.trim(),
+        "",
+      );
+    }
+
     if (reviewerFeedback?.trim()) {
       parts.push(
         "Reviewer feedback to address before the next review:",
@@ -919,12 +960,13 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       "Required workflow:",
       `1. Run: cd ${JSON.stringify(plan.repo)} && peb show ${item.issue.id} --json`,
       "2. Inspect relevant files/tests and project instructions (AGENTS.md, README, package scripts).",
-      "3. Implement the smallest safe vertical slice for this pebble, or address the reviewer feedback for this attempt.",
-      "4. Add/update tests or smoke checks where appropriate.",
-      "5. Run repo-specific checks you can reasonably run.",
-      `6. Commit any changes on ${item.branch} with a conventional commit and a commit body trailer: Closes: ${item.issue.id}`,
-      "7. If no changes were necessary, do not create an empty commit; explain why in the final response.",
-      "8. If you discover follow-up work, mention it in your final report; do not invent ad hoc TODOs in code.",
+      "3. Use the planning subagent output as guidance, but verify assumptions independently.",
+      "4. Implement the smallest safe vertical slice for this pebble, or address the reviewer feedback for this attempt.",
+      "5. Add/update tests or smoke checks where appropriate.",
+      "6. Run repo-specific checks you can reasonably run.",
+      `7. Commit any changes on ${item.branch} with a conventional commit and a commit body trailer: Closes: ${item.issue.id}`,
+      "8. If no changes were necessary, do not create an empty commit; explain why in the final response.",
+      "9. If you discover follow-up work, mention it in your final report; do not invent ad hoc TODOs in code.",
       "",
       "Final response: summarize changes, checks run, commit SHA if any, and any risks/follow-ups.",
     );
@@ -983,6 +1025,48 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     },
   ): Promise<RunResult> {
     const result: RunResult = { item, worktreePath, approved: false, errors: [] };
+    callbacks?.onItemStatus?.(item, "planning", { worktreePath });
+    result.planner = await runPiAgent({
+      issueId: item.issue.id,
+      role: "planner",
+      cwd: worktreePath,
+      model,
+      tools: ["read", "bash", "find", "grep", "lsp_diagnostics"],
+      task: plannerPrompt(plan, item, worktreePath),
+      timeoutMs,
+      onEvent: callbacks?.onAgentEvent,
+    });
+    if (result.planner.exitCode !== 0) {
+      result.errors.push(`planner exited ${result.planner.exitCode}`);
+      callbacks?.onItemStatus?.(item, "failed", { errors: result.errors });
+      await checked(
+        "peb",
+        [
+          "comment",
+          "add",
+          item.issue.id,
+          `pebble-orchestrator planning did not complete in ${plan.runId}: ${result.errors.join("; ")}`,
+        ],
+        plan.repo,
+      ).catch(() => undefined);
+      return result;
+    }
+    if (/\bBLOCKED\b/i.test(result.planner.finalOutput)) {
+      result.errors.push("planner reported BLOCKED");
+      callbacks?.onItemStatus?.(item, "blocked", { errors: result.errors });
+      await checked(
+        "peb",
+        [
+          "comment",
+          "add",
+          item.issue.id,
+          `pebble-orchestrator planning blocked implementation in ${plan.runId}:\n\n${result.planner.finalOutput.slice(0, 4000)}`,
+        ],
+        plan.repo,
+      ).catch(() => undefined);
+      return result;
+    }
+
     let reviewerFeedback: string | undefined;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -999,7 +1083,15 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
         cwd: worktreePath,
         model,
         tools: ["read", "bash", "edit", "write", "find", "grep", "lsp_diagnostics"],
-        task: implementerPrompt(plan, item, worktreePath, model, attempt, reviewerFeedback),
+        task: implementerPrompt(
+          plan,
+          item,
+          worktreePath,
+          model,
+          attempt,
+          result.planner.finalOutput,
+          reviewerFeedback,
+        ),
         timeoutMs,
         onEvent: callbacks?.onAgentEvent,
       });
@@ -1173,7 +1265,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       options.onItemStatus?.(item, "dispatched", { worktreePath });
 
     options.onProgress?.(
-      `Dispatched ${dispatched.length} pebble${dispatched.length === 1 ? "" : "s"}. Running implementer and reviewer subagents now...`,
+      `Dispatched ${dispatched.length} pebble${dispatched.length === 1 ? "" : "s"}. Running planner, implementer, and reviewer subagents now...`,
       { plan, dispatched },
     );
     const results = await limitMap(
@@ -1189,7 +1281,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
           await sleep(options.uiDelayMs);
         }
         options.onProgress?.(
-          `Working on ${item.issue.id}: implementer/reviewer subagents are running in ${worktreePath}`,
+          `Working on ${item.issue.id}: planner/implementer/reviewer subagents are running in ${worktreePath}`,
           { plan, item, worktreePath },
         );
         return runImplementation(
@@ -1258,6 +1350,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     const planned = [
       "planned",
       "dispatched",
+      "planning",
       "waiting",
       "implementing",
       "implemented",
@@ -1267,6 +1360,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       "pr_opened",
       "changes_requested",
       "failed",
+      "blocked",
       "pr_failed",
     ];
     const implemented = [
@@ -1280,7 +1374,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     ];
     const reviewed = ["approved", "opening_pr", "pr_opened", "pr_failed"];
 
-    if (lane === "plan") return planned.includes(status) ? "✓" : "○";
+    if (lane === "plan") {
+      if (status === "planning") return "●";
+      return planned.includes(status) ? "✓" : "○";
+    }
     if (lane === "implement") {
       if (status === "waiting") return "…";
       if (status === "implementing") return "●";
@@ -1295,10 +1392,12 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       return "○";
     }
     if (status === "approved") return "approved";
+    if (status === "planning") return "planning";
     if (status === "waiting") return "waiting";
     if (status === "opening_pr") return "opening";
     if (status === "pr_opened") return "PR open";
     if (status === "changes_requested") return "changes";
+    if (status === "blocked") return "blocked";
     if (status === "failed" || status === "pr_failed") return "failed";
     return "…";
   }
@@ -1315,7 +1414,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     theme: { fg: (name: string, text: string) => string },
   ): string {
     const cell = swimlaneCell(status, lane);
-    if (lane === "plan") return theme.fg(cell === "✓" ? "success" : "muted", cell);
+    if (lane === "plan") {
+      if (cell === "●") return theme.fg("accent", cell);
+      return theme.fg(cell === "✓" ? "success" : "muted", cell);
+    }
     if (lane === "implement") {
       if (cell === "…") return theme.fg("muted", cell);
       if (cell === "●") return theme.fg("accent", cell);
@@ -1330,9 +1432,10 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       return theme.fg("muted", cell);
     }
     if (status === "approved" || status === "pr_opened") return theme.fg("success", cell);
+    if (status === "planning") return theme.fg("accent", cell);
     if (status === "waiting") return theme.fg("muted", cell);
     if (status === "opening_pr") return theme.fg("accent", cell);
-    if (status === "changes_requested") return theme.fg("warning", cell);
+    if (status === "changes_requested" || status === "blocked") return theme.fg("warning", cell);
     if (status === "failed" || status === "pr_failed") return theme.fg("error", cell);
     return theme.fg("muted", cell);
   }
@@ -1589,7 +1692,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
         const errors = Array.isArray(record.errors) ? record.errors.join("; ") : undefined;
         if (typeof record.worktreePath === "string") existing.worktree = record.worktreePath;
         existing.status = status;
-        if (status === "implementing" || status === "reviewing")
+        if (status === "planning" || status === "implementing" || status === "reviewing")
           existing.roleStartedAt = Date.now();
         existing.updatedAt = Date.now();
         existing.latest =
@@ -1608,11 +1711,21 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
         item.latest = event.text;
         item.updatedAt = Date.now();
         if (
-          !["approved", "changes_requested", "failed", "pr_opened", "pr_failed"].includes(
-            item.status,
-          )
+          ![
+            "approved",
+            "changes_requested",
+            "blocked",
+            "failed",
+            "pr_opened",
+            "pr_failed",
+          ].includes(item.status)
         ) {
-          item.status = event.role === "implementer" ? "implementing" : "reviewing";
+          item.status =
+            event.role === "planner"
+              ? "planning"
+              : event.role === "implementer"
+                ? "implementing"
+                : "reviewing";
         }
         stage = `${event.issueId}: ${compactText(event.text, 52)}`;
         render();
@@ -1633,6 +1746,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   function parseRunOptions(
     args: string,
     cwd: string,
+    positionalOffset = 0,
   ): {
     repo?: string;
     cwd: string;
@@ -1645,7 +1759,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
   } {
     const parsed = parseArgs(args);
     return {
-      repo: parsed.positionals[0],
+      repo: parsed.positionals[positionalOffset],
       cwd,
       concurrency: asNumber(parsed.flags.concurrency ?? parsed.flags.c, DEFAULT_CONCURRENCY),
       state: typeof parsed.flags.state === "string" ? parsed.flags.state : undefined,
@@ -1655,6 +1769,301 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       uiDelayMs: asNumber(parsed.flags.uiDelayMs ?? parsed.flags.delayMs, 0, 10 * 60 * 1000),
     };
   }
+
+  type PebblesCommandContext = {
+    cwd: string;
+    hasUI: boolean;
+    ui: {
+      select: (prompt: string, options: string[]) => Promise<string | undefined>;
+      editor: (prompt: string, initialText?: string) => Promise<string | undefined>;
+      confirm: (title: string, message: string) => Promise<boolean>;
+      notify: (message: string, level?: "info" | "warning" | "error") => void;
+    };
+  };
+
+  function readinessGaps(issue: PebIssue): string[] {
+    const gaps: string[] = [];
+    const description = issue.description?.trim() ?? "";
+    const combined = `${issue.title}\n${description}`;
+    if (description.length < 160) gaps.push("description is too short for confident AFK work");
+    if (!/acceptance|done|success|expected|should|must/i.test(combined))
+      gaps.push("missing clear acceptance criteria / definition of done");
+    if (!/test|verify|check|validation|smoke/i.test(combined))
+      gaps.push("missing verification expectation");
+    if (!/scope|non-goal|boundary|limit|only|avoid/i.test(combined))
+      gaps.push("missing scope boundaries or non-goals");
+    return gaps;
+  }
+
+  function formatTriageQueue(issues: PebIssue[]): string {
+    if (issues.length === 0) return "No pebbles need triage.";
+    const lines = ["Pebbles needing triage:", ""];
+    for (const issue of issues) {
+      const gaps = readinessGaps(issue);
+      lines.push(`- ${issue.id} — ${issue.title}`);
+      lines.push(
+        `  status: ${issue.status ?? "unknown"}; labels: ${(issue.labels ?? []).join(", ") || "none"}`,
+      );
+      if (gaps.length > 0) lines.push(`  gaps: ${gaps.join("; ")}`);
+    }
+    return lines.join("\n");
+  }
+
+  async function listTriageIssues(repo: string, workflow: Workflow): Promise<PebIssue[]> {
+    const stateLabels = workflow.stateLabels.filter((label) =>
+      ["needs-triage", "needs-info"].includes(label),
+    );
+    const seen = new Set<string>();
+    const issues: PebIssue[] = [];
+    const listArgs =
+      stateLabels.length > 0
+        ? stateLabels.map((label) => ["list", "--label", label, "--json"])
+        : [["list", "--status", "open", "--json"]];
+
+    for (const args of listArgs) {
+      const listed = jsonData<PebIssue[]>((await checked("peb", args, repo)).stdout);
+      for (const candidate of listed) {
+        if (!candidate.id || seen.has(candidate.id)) continue;
+        const issue = await showIssue(repo, candidate.id);
+        if (isClosed(issue) || isInProgress(issue)) continue;
+        const labels = issue.labels ?? [];
+        if (labels.includes(workflow.readyLabel ?? "ready-for-agent")) continue;
+        if (workflow.reviewLabel && labels.includes(workflow.reviewLabel)) continue;
+        seen.add(issue.id);
+        issues.push(issue);
+      }
+    }
+
+    return issues.sort((left, right) => (left.priority ?? 2) - (right.priority ?? 2));
+  }
+
+  async function transitionStateLabel(
+    repo: string,
+    issue: PebIssue,
+    workflow: Workflow,
+    targetLabel: string,
+    dryRun: boolean,
+  ): Promise<string> {
+    const labels = issue.labels ?? [];
+    const args = ["update", issue.id, "--status", "open"];
+    for (const label of labels) {
+      if (workflow.stateLabels.includes(label) && label !== targetLabel)
+        args.push("--remove-label", label);
+    }
+    if (!labels.includes(targetLabel)) args.push("--add-label", targetLabel);
+    if (dryRun) return `Dry run: peb ${args.join(" ")}`;
+    await checked("peb", args, repo);
+    return `${issue.id} moved to ${targetLabel}.`;
+  }
+
+  async function runInteractiveTriage(
+    ctx: PebblesCommandContext,
+    options: { repo?: string; dryRun: boolean },
+  ): Promise<void> {
+    const { repo } = await detect(options.repo, ctx.cwd);
+    const workflow = deriveWorkflow(await loadPolicy(repo));
+    const issues = await listTriageIssues(repo, workflow);
+    if (!ctx.hasUI) {
+      show(formatTriageQueue(issues), { repo, issues });
+      return;
+    }
+    if (issues.length === 0) {
+      ctx.ui.notify("No Pebbles triage candidates found.", "info");
+      return;
+    }
+
+    let remaining = issues;
+    while (remaining.length > 0) {
+      const choice = await ctx.ui.select("Pebbles triage queue", [
+        ...remaining.map((issue) => {
+          const gaps = readinessGaps(issue).length;
+          return `${issue.id} — ${issue.title}${gaps > 0 ? ` (${gaps} readiness gap${gaps === 1 ? "" : "s"})` : ""}`;
+        }),
+        "Stop triage",
+      ]);
+      if (!choice || choice === "Stop triage") return;
+      const id = choice.split(" ")[0];
+      if (!id) return;
+      const issue = await showIssue(repo, id);
+      const gaps = readinessGaps(issue);
+      show(
+        [
+          `Triage: ${issue.id} — ${issue.title}`,
+          "",
+          issue.description?.trim() || "(no description)",
+          "",
+          gaps.length > 0
+            ? `Readiness gaps:\n- ${gaps.join("\n- ")}`
+            : "No obvious readiness gaps.",
+        ].join("\n"),
+        issue,
+      );
+
+      const stateChoices = ["ready-for-agent", "needs-info", "ready-for-human", "wontfix"].filter(
+        (label) => workflow.stateLabels.length === 0 || workflow.stateLabels.includes(label),
+      );
+      const action = await ctx.ui.select(`Triage ${issue.id}`, [
+        "Edit description",
+        "Add milestone comment",
+        ...stateChoices.map((label) => `Move to ${label}`),
+        "Skip",
+        "Stop triage",
+      ]);
+      if (!action || action === "Stop triage") return;
+      if (action === "Skip") {
+        remaining = remaining.filter((candidate) => candidate.id !== issue.id);
+        continue;
+      }
+      if (action === "Edit description") {
+        const nextDescription = await ctx.ui.editor(
+          `Edit description for ${issue.id}`,
+          issue.description ?? "",
+        );
+        if (nextDescription == null) continue;
+        if (options.dryRun) show(`Dry run: would update description for ${issue.id}.`);
+        else await checked("peb", ["update", issue.id, "--description", nextDescription], repo);
+        remaining = remaining.filter((candidate) => candidate.id !== issue.id);
+        continue;
+      }
+      if (action === "Add milestone comment") {
+        const body = await ctx.ui.editor(`Comment for ${issue.id}`, "");
+        if (!body?.trim()) continue;
+        if (options.dryRun) show(`Dry run: would add comment to ${issue.id}:\n\n${body.trim()}`);
+        else await checked("peb", ["comment", "add", issue.id, body.trim()], repo);
+        continue;
+      }
+      if (action.startsWith("Move to ")) {
+        const target = action.slice("Move to ".length);
+        if (target === "ready-for-agent" && gaps.length > 0) {
+          const confirmed = await ctx.ui.confirm(
+            "Mark ready despite gaps?",
+            `${issue.id} still has readiness gaps:\n\n- ${gaps.join("\n- ")}\n\nContinue?`,
+          );
+          if (!confirmed) continue;
+        }
+        const message = await transitionStateLabel(repo, issue, workflow, target, options.dryRun);
+        show(message, { repo, issue: issue.id, target, dryRun: options.dryRun });
+        remaining = remaining.filter((candidate) => candidate.id !== issue.id);
+      }
+    }
+  }
+
+  pi.registerCommand("pebbles", {
+    description:
+      "Pebbles cockpit: triage pebbles while dispatching ready work to AFK worktree agents",
+    handler: async (args, ctx) => {
+      const parsed = parseArgs(args);
+      const first = parsed.positionals[0]?.toLowerCase();
+      const dryRun = Boolean(parsed.flags["dry-run"] || parsed.flags.dryRun);
+      const autoPr = Boolean(parsed.flags["auto-pr"] || parsed.flags.autoPr);
+      const noDispatch = Boolean(parsed.flags["no-dispatch"] || parsed.flags.noDispatch);
+
+      if (first === "scroll") {
+        const direction = parsed.positionals[1]?.toLowerCase() || "down";
+        const delta =
+          direction === "up"
+            ? -1
+            : direction === "page-up" || direction === "pageup"
+              ? -8
+              : direction === "page-down" || direction === "pagedown"
+                ? 8
+                : 1;
+        const scrolled = scrollActiveWidget(delta);
+        if (ctx.hasUI)
+          ctx.ui.notify(
+            scrolled
+              ? `Pebble card scrolled ${direction}`
+              : "No active Pebbles card to scroll, or no more overflow.",
+            scrolled ? "info" : "warning",
+          );
+        return;
+      }
+
+      if (first === "plan") {
+        try {
+          const options = parseRunOptions(args, ctx.cwd, 1);
+          const plan = await createPlan(options);
+          const { repo } = await detect(options.repo, ctx.cwd);
+          const triageIssues = await listTriageIssues(repo, deriveWorkflow(await loadPolicy(repo)));
+          show(`${formatPlan(plan)}\n\n${formatTriageQueue(triageIssues)}`, {
+            plan,
+            triageIssues,
+          });
+        } catch (error) {
+          show(`pebbles plan failed: ${formatError(error)}`);
+        }
+        return;
+      }
+
+      if (first === "sync") {
+        try {
+          const { repo } = await detect(parsed.positionals[1], ctx.cwd);
+          const syncArgs = ["sync", "github"];
+          if (dryRun) syncArgs.push("--dry-run");
+          const result = await checked("peb", syncArgs, repo, 120_000);
+          show(result.stdout.trim() || "peb sync github completed.");
+        } catch (error) {
+          show(`pebbles sync failed: ${formatError(error)}`);
+        }
+        return;
+      }
+
+      const triageOnly = first === "triage" || Boolean(parsed.flags["triage-only"]);
+      const runOnly = first === "run" || first === "run-ready" || first === "burn-down";
+      const positionalOffset = first === "triage" || runOnly ? 1 : 0;
+      const options = parseRunOptions(args, ctx.cwd, positionalOffset);
+      const shouldDispatch = !dryRun && !noDispatch && !triageOnly;
+      const shouldCreatePrs = autoPr || first === "burn-down";
+      const uiProgress = makeUiProgress(ctx);
+
+      try {
+        uiProgress.progress(
+          `Starting /pebbles for ${options.repo ?? ctx.cwd}${dryRun ? " (dry run)" : ""}.`,
+          options,
+        );
+        if (dryRun) {
+          const plan = await createPlan(options);
+          const { repo } = await detect(options.repo, ctx.cwd);
+          const triageIssues = await listTriageIssues(repo, deriveWorkflow(await loadPolicy(repo)));
+          show(`${formatPlan(plan)}\n\n${formatTriageQueue(triageIssues)}`, {
+            plan,
+            triageIssues,
+            dryRun: true,
+          });
+          return;
+        }
+
+        const runPromise = shouldDispatch
+          ? runReady({
+              ...options,
+              createPrs: shouldCreatePrs,
+              onProgress: uiProgress.progress,
+              onPlan: uiProgress.onPlan,
+              onItemStatus: uiProgress.onItemStatus,
+              onAgentEvent: uiProgress.onAgentEvent,
+            })
+          : createPlan(options).then((plan) => ({ plan, results: [] as RunResult[] }));
+
+        const triagePromise = runOnly
+          ? Promise.resolve()
+          : runInteractiveTriage(ctx, {
+              repo: options.repo,
+              dryRun: false,
+            });
+
+        const [{ plan, results }] = await Promise.all([runPromise, triagePromise]);
+        show(`${formatPlan(plan)}\n\n${formatRunResults(results)}`, {
+          plan,
+          results,
+          autoPr: shouldCreatePrs,
+        });
+      } catch (error) {
+        show(`pebbles failed: ${formatError(error)}`);
+      } finally {
+        uiProgress.dispose();
+      }
+    },
+  });
 
   pi.registerCommand("peb-scroll", {
     description: "Scroll the live Pebbles orchestrator card: up, down, page-up, page-down",

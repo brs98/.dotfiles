@@ -63,23 +63,36 @@ Aliases live in `~/.pi/agent/workspaces.json` as a simple map from name to path.
 
 ## Pebble orchestrator
 
-Commands:
+Primary command:
 
 ```text
-/peb-plan [repo] [--concurrency 3] [--state ready-for-agent]
-/peb-run-ready [repo] [--concurrency 3] [--maxAttempts 3] [--uiDelayMs 0] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
-/peb-burn-down [repo] [--concurrency 3] [--maxAttempts 3] [--uiDelayMs 0] [--model vercel-ai-gateway/moonshotai/kimi-k2.6]
-/peb-scroll <up|down|page-up|page-down>
-/peb-sync [repo] [--dry-run]
+/pebbles [repo] [--concurrency 3] [--auto-pr] [--dry-run] [--no-dispatch]
 ```
 
-`/peb-plan` is read-only: it runs `peb where`, reads `peb config label-policy show --json`, lists open ready pebbles, filters existing PRs, reuses existing orchestrator branches/worktrees when present, checks dependency metadata, and emits a parallel-safe batch. It prefers the `ready-for-agent` state label and `in-review` review label when the repo policy defines them.
+`/pebbles` is the Pebbles cockpit. It triages underdefined pebbles with the user while, unless `--dry-run` or `--no-dispatch` is set, dispatching already-ready pebbles to AFK agents in isolated git worktrees. The command understands the Pebbles state machine: `needs-triage` / `needs-info` → `ready-for-agent` → `in_progress` → `in-review` → closed by merge sync. In strict label-policy repos, it updates state labels while leaving category labels such as `bug` and `enhancement` intact.
 
-`/peb-run-ready` creates one git worktree per selected pebble, marks each pebble `in_progress`, comments with run metadata, then runs implementer/reviewer subagents. If review returns `CHANGES_REQUESTED`, the implementer receives the reviewer feedback and retries until `APPROVED` or `--maxAttempts` is reached. It leaves approved branches ready for humans to push/open PRs. For UI testing, `--uiDelayMs <ms>` (alias: `--delayMs`) pauses each selected pebble before implementer work so the live card is inspectable.
+The cockpit has three internal phases:
 
-`/peb-burn-down` does the same implementation/review feedback loop, then pushes approved branches, opens GitHub PRs with `gh pr create`, records `peb closes add <id> --pr <url>`, and moves `ready-for-agent` to `in-review` when those labels exist. Pebbles remain `in_progress` until `peb sync github` closes them after merge.
+1. **Triage** — shows readiness gaps for pebbles labeled `needs-triage` or `needs-info` (or open non-ready pebbles when no state labels exist), then lets the user edit the description, add milestone comments, or move the pebble to `ready-for-agent`, `needs-info`, `ready-for-human`, or `wontfix` where those labels exist. The readiness heuristic checks for a substantive description, acceptance/done wording, verification expectations, and scope/non-goal boundaries; moving to `ready-for-agent` with gaps requires confirmation.
+2. **Dispatch** — plans a parallel-safe ready batch, creates/reuses one worktree per pebble, marks selected pebbles `in_progress`, and writes a concise orchestration comment.
+3. **Agent pipeline** — runs fresh-context planning, implementation, and review subagents. Review output feeds back into implementation until `APPROVED` or `--maxAttempts` is reached. `--auto-pr` pushes approved branches, opens PRs, records `peb closes add <id> --pr <url>`, and moves ready labels to `in-review` when configured. Pebbles are not closed on PR open; `peb sync github` finalizes closures after merge.
 
-While `/peb-run-ready` or `/peb-burn-down` is active in interactive Pi, the extension keeps a live bordered `Pebble orchestrator` swimlane card above the editor plus a footer status. The card updates once per second and on subagent JSON events, showing each selected pebble across color-coded Plan, Implement, Review, and Verdict columns, plus selected/deferred pebbles, branch, current implementer/reviewer status, and latest subagent activity. If the card overflows, scroll down/up with `ctrl+j` / `ctrl+k`; the active card intentionally captures raw `ctrl+k` before Pi's editor `ctrl+k` delete-to-line-end binding. `/peb-scroll up` / `/peb-scroll down`, `ctrl+shift+j` / `ctrl+shift+k`, and raw terminal `alt+↑` / `alt+↓` or `alt+k` / `alt+j` remain fallbacks.
+`--dry-run` performs no Pebbles, git, or subagent mutations; it prints the ready plan plus triage queue and exits without opening the interactive triage loop.
+
+Useful single-command variants:
+
+```text
+/pebbles plan [repo] [--concurrency 3] [--state ready-for-agent]
+/pebbles triage [repo] [--no-dispatch]
+/pebbles run-ready [repo] [--concurrency 3]
+/pebbles burn-down [repo] [--concurrency 3]       # equivalent to --auto-pr
+/pebbles sync [repo] [--dry-run]
+/pebbles scroll <up|down|page-up|page-down>
+```
+
+Compatibility commands remain available for now: `/peb-plan`, `/peb-run-ready`, `/peb-burn-down`, `/peb-scroll`, and `/peb-sync`.
+
+While `/pebbles`, `/peb-run-ready`, or `/peb-burn-down` is active in interactive Pi, the extension keeps a live bordered `Pebble orchestrator` swimlane card above the editor plus a footer status. The card updates once per second and on subagent JSON events, showing each selected pebble across color-coded Plan, Implement, Review, and Verdict columns, plus selected/deferred pebbles, branch, current subagent status, and latest activity. If the card overflows, scroll down/up with `ctrl+j` / `ctrl+k`; the active card intentionally captures raw `ctrl+k` before Pi's editor `ctrl+k` delete-to-line-end binding. `/pebbles scroll up` / `/pebbles scroll down`, `/peb-scroll up` / `/peb-scroll down`, `ctrl+shift+j` / `ctrl+shift+k`, and raw terminal `alt+↑` / `alt+↓` or `alt+k` / `alt+j` remain fallbacks.
 
 Registered tools for agent use:
 
