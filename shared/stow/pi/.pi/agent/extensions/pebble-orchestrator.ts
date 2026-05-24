@@ -1636,7 +1636,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
                 maxScroll > 0
                   ? theme.fg(
                       "dim",
-                      `ctrl+j/k scroll; /peb-scroll up/down ${scroll + 1}/${maxScroll + 1}`,
+                      `ctrl+j/k scroll; /pebbles scroll up/down ${scroll + 1}/${maxScroll + 1}`,
                     )
                   : theme.fg("dim", "all progress visible");
               lines.push(border("│") + padLine(hint) + border("│"));
@@ -1820,7 +1820,7 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
         ? stateLabels.map((label) => ["list", "--label", label, "--json"])
         : [["list", "--status", "open", "--json"]];
 
-    for (const args of listArgs) {
+    const addCandidates = async (args: string[]) => {
       const listed = jsonData<PebIssue[]>((await checked("peb", args, repo)).stdout);
       for (const candidate of listed) {
         if (!candidate.id || seen.has(candidate.id)) continue;
@@ -1829,10 +1829,14 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
         const labels = issue.labels ?? [];
         if (labels.includes(workflow.readyLabel ?? "ready-for-agent")) continue;
         if (workflow.reviewLabel && labels.includes(workflow.reviewLabel)) continue;
+        if (labels.includes("wontfix")) continue;
         seen.add(issue.id);
         issues.push(issue);
       }
-    }
+    };
+
+    for (const args of listArgs) await addCandidates(args);
+    await addCandidates(["list", "--json"]);
 
     return issues.sort((left, right) => (left.priority ?? 2) - (right.priority ?? 2));
   }
@@ -2052,9 +2056,13 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
             });
 
         const [{ plan, results }] = await Promise.all([runPromise, triagePromise]);
-        show(`${formatPlan(plan)}\n\n${formatRunResults(results)}`, {
+        const triageIssues =
+          results.length === 0 ? await listTriageIssues(plan.repo, plan.workflow) : [];
+        const triageSummary = results.length === 0 ? `\n\n${formatTriageQueue(triageIssues)}` : "";
+        show(`${formatPlan(plan)}\n\n${formatRunResults(results)}${triageSummary}`, {
           plan,
           results,
+          triageIssues,
           autoPr: shouldCreatePrs,
         });
       } catch (error) {
@@ -2062,29 +2070,6 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
       } finally {
         uiProgress.dispose();
       }
-    },
-  });
-
-  pi.registerCommand("peb-scroll", {
-    description: "Scroll the live Pebbles orchestrator card: up, down, page-up, page-down",
-    handler: async (args, ctx) => {
-      const direction = args.trim().toLowerCase() || "down";
-      const delta =
-        direction === "up"
-          ? -1
-          : direction === "page-up" || direction === "pageup"
-            ? -8
-            : direction === "page-down" || direction === "pagedown"
-              ? 8
-              : 1;
-      const scrolled = scrollActiveWidget(delta);
-      if (ctx.hasUI)
-        ctx.ui.notify(
-          scrolled
-            ? `Pebble card scrolled ${direction}`
-            : "No active Pebbles card to scroll, or no more overflow.",
-          scrolled ? "info" : "warning",
-        );
     },
   });
 
@@ -2105,91 +2090,6 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
 
   registerScrollShortcut("ctrl+shift+j", 1, "down");
   registerScrollShortcut("ctrl+shift+k", -1, "up");
-
-  pi.registerCommand("peb-plan", {
-    description: "Plan ready Pebbles work and show an unblocked parallel batch",
-    handler: async (args, ctx) => {
-      try {
-        const options = parseRunOptions(args, ctx.cwd);
-        const plan = await createPlan(options);
-        show(formatPlan(plan), plan);
-      } catch (error) {
-        show(`peb-plan failed: ${formatError(error)}`);
-      }
-    },
-  });
-
-  pi.registerCommand("peb-run-ready", {
-    description: "Dispatch ready pebbles to worktrees, implement, and review without opening PRs",
-    handler: async (args, ctx) => {
-      const uiProgress = makeUiProgress(ctx);
-      try {
-        const options = parseRunOptions(args, ctx.cwd);
-        uiProgress.progress(
-          `Starting /peb-run-ready for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`,
-          options,
-        );
-        if (ctx.hasUI) ctx.ui.notify("Pebble orchestrator started", "info");
-        const { plan, results } = await runReady({
-          ...options,
-          createPrs: false,
-          onProgress: uiProgress.progress,
-          onPlan: uiProgress.onPlan,
-          onItemStatus: uiProgress.onItemStatus,
-          onAgentEvent: uiProgress.onAgentEvent,
-        });
-        show(`${formatPlan(plan)}\n\n${formatRunResults(results)}`, { plan, results });
-      } catch (error) {
-        show(`peb-run-ready failed: ${formatError(error)}`);
-      } finally {
-        uiProgress.dispose();
-      }
-    },
-  });
-
-  pi.registerCommand("peb-burn-down", {
-    description: "Run a plan/implement/review/PR cycle for ready pebbles",
-    handler: async (args, ctx) => {
-      const uiProgress = makeUiProgress(ctx);
-      try {
-        const options = parseRunOptions(args, ctx.cwd);
-        uiProgress.progress(
-          `Starting /peb-burn-down for ${options.repo ?? ctx.cwd}. This may take several minutes while subagents work...`,
-          options,
-        );
-        if (ctx.hasUI) ctx.ui.notify("Pebble orchestrator started", "info");
-        const { plan, results } = await runReady({
-          ...options,
-          createPrs: true,
-          onProgress: uiProgress.progress,
-          onPlan: uiProgress.onPlan,
-          onItemStatus: uiProgress.onItemStatus,
-          onAgentEvent: uiProgress.onAgentEvent,
-        });
-        show(`${formatPlan(plan)}\n\n${formatRunResults(results)}`, { plan, results });
-      } catch (error) {
-        show(`peb-burn-down failed: ${formatError(error)}`);
-      } finally {
-        uiProgress.dispose();
-      }
-    },
-  });
-
-  pi.registerCommand("peb-sync", {
-    description: "Run peb sync github for a Pebbles workspace",
-    handler: async (args, ctx) => {
-      try {
-        const parsed = parseArgs(args);
-        const { repo } = await detect(parsed.positionals[0], ctx.cwd);
-        const syncArgs = ["sync", "github"];
-        if (parsed.flags["dry-run"] || parsed.flags.dryRun) syncArgs.push("--dry-run");
-        const result = await checked("peb", syncArgs, repo, 120_000);
-        show(result.stdout.trim() || "peb sync github completed.");
-      } catch (error) {
-        show(`peb-sync failed: ${formatError(error)}`);
-      }
-    },
-  });
 
   pi.registerTool({
     name: "peb_plan",

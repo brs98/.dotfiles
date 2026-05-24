@@ -73,7 +73,7 @@ Primary command:
 
 The cockpit has three internal phases:
 
-1. **Triage** — shows readiness gaps for pebbles labeled `needs-triage` or `needs-info` (or open non-ready pebbles when no state labels exist), then lets the user edit the description, add milestone comments, or move the pebble to `ready-for-agent`, `needs-info`, `ready-for-human`, or `wontfix` where those labels exist. The readiness heuristic checks for a substantive description, acceptance/done wording, verification expectations, and scope/non-goal boundaries; moving to `ready-for-agent` with gaps requires confirmation.
+1. **Triage** — shows readiness gaps for pebbles labeled `needs-triage` or `needs-info`, then falls back to any non-closed, non-ready, non-review pebble so the cockpit still has useful work when nothing is dispatchable. It lets the user edit the description, add milestone comments, or move the pebble to `ready-for-agent`, `needs-info`, `ready-for-human`, or `wontfix` where those labels exist. The readiness heuristic checks for a substantive description, acceptance/done wording, verification expectations, and scope/non-goal boundaries; moving to `ready-for-agent` with gaps requires confirmation.
 2. **Dispatch** — plans a parallel-safe ready batch, creates/reuses one worktree per pebble, marks selected pebbles `in_progress`, and writes a concise orchestration comment.
 3. **Agent pipeline** — runs fresh-context planning, implementation, and review subagents. Review output feeds back into implementation until `APPROVED` or `--maxAttempts` is reached. `--auto-pr` pushes approved branches, opens PRs, records `peb closes add <id> --pr <url>`, and moves ready labels to `in-review` when configured. Pebbles are not closed on PR open; `peb sync github` finalizes closures after merge.
 
@@ -90,9 +90,9 @@ Useful single-command variants:
 /pebbles scroll <up|down|page-up|page-down>
 ```
 
-Compatibility commands remain available for now: `/peb-plan`, `/peb-run-ready`, `/peb-burn-down`, `/peb-scroll`, and `/peb-sync`.
+When no pebbles are ready for dispatch, `/pebbles` stays useful: it reports that no work was selected, lists triage candidates with readiness gaps, and in interactive mode prompts the user to promote, clarify, defer, or mark them for human follow-up.
 
-While `/pebbles`, `/peb-run-ready`, or `/peb-burn-down` is active in interactive Pi, the extension keeps a live bordered `Pebble orchestrator` swimlane card above the editor plus a footer status. The card updates once per second and on subagent JSON events, showing each selected pebble across color-coded Plan, Implement, Review, and Verdict columns, plus selected/deferred pebbles, branch, current subagent status, and latest activity. If the card overflows, scroll down/up with `ctrl+j` / `ctrl+k`; the active card intentionally captures raw `ctrl+k` before Pi's editor `ctrl+k` delete-to-line-end binding. `/pebbles scroll up` / `/pebbles scroll down`, `/peb-scroll up` / `/peb-scroll down`, `ctrl+shift+j` / `ctrl+shift+k`, and raw terminal `alt+↑` / `alt+↓` or `alt+k` / `alt+j` remain fallbacks.
+While `/pebbles` is active in interactive Pi, the extension keeps a live bordered `Pebble orchestrator` swimlane card above the editor plus a footer status. The card updates once per second and on subagent JSON events, showing each selected pebble across color-coded Plan, Implement, Review, and Verdict columns, plus selected/deferred pebbles, branch, current subagent status, and latest activity. If the card overflows, scroll down/up with `ctrl+j` / `ctrl+k`; the active card intentionally captures raw `ctrl+k` before Pi's editor `ctrl+k` delete-to-line-end binding. `/pebbles scroll up` / `/pebbles scroll down`, `ctrl+shift+j` / `ctrl+shift+k`, and raw terminal `alt+↑` / `alt+↓` or `alt+k` / `alt+j` remain fallbacks.
 
 Registered tools for agent use:
 
@@ -102,7 +102,7 @@ Registered tools for agent use:
 
 Expected tools: `peb`, `git`, `gh` for PR steps, and `pi`. The orchestrator never runs `peb init`, never closes pebbles on PR open, and is designed to resume from Pebbles comments plus existing branches/worktrees/PRs.
 
-Smoke check performed while adding this extension: `pi --no-extensions -e ./shared/stow/pi/.pi/agent/extensions/pebble-orchestrator.ts --mode json --no-session -p "/peb-plan /Users/brandon/.dotfiles"` loaded the extension and produced a real plan from the dotfiles Pebbles workspace.
+Smoke check performed while adding this extension: `pi --no-extensions -e ./shared/stow/pi/.pi/agent/extensions/pebble-orchestrator.ts --mode json --no-session -p "/pebbles plan /Users/brandon/.dotfiles"` loaded the extension and produced a real plan from the dotfiles Pebbles workspace.
 
 ## MCP command
 
