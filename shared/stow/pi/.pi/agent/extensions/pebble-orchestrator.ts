@@ -10,7 +10,13 @@ import {
   truncateTail,
   withFileMutationQueue,
 } from "@earendil-works/pi-coding-agent";
-import { matchesKey, Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import {
+  type AutocompleteItem,
+  matchesKey,
+  Text,
+  truncateToWidth,
+  visibleWidth,
+} from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 type ExecResult = { stdout: string; stderr: string; code: number | null; killed?: boolean };
@@ -1952,9 +1958,148 @@ export default function pebbleOrchestrator(pi: ExtensionAPI) {
     }
   }
 
+  type PebblesCompletion = { value: string; label: string; description?: string };
+
+  const subcommandCompletions: PebblesCompletion[] = [
+    { value: "plan ", label: "plan", description: "Show ready-work plan and triage queue" },
+    { value: "triage ", label: "triage", description: "Run interactive triage only" },
+    { value: "run-ready ", label: "run-ready", description: "Run ready pebble agents" },
+    { value: "run ", label: "run", description: "Alias for run-ready" },
+    {
+      value: "burn-down ",
+      label: "burn-down",
+      description: "Run ready pebbles and open PRs",
+    },
+    { value: "sync ", label: "sync", description: "Run peb sync github" },
+    { value: "scroll ", label: "scroll", description: "Scroll the live progress card" },
+  ];
+
+  const runFlagCompletions: PebblesCompletion[] = [
+    { value: "--dry-run ", label: "--dry-run", description: "Plan only; do not mutate" },
+    { value: "--auto-pr ", label: "--auto-pr", description: "Open PRs for approved branches" },
+    { value: "--no-dispatch ", label: "--no-dispatch", description: "Do not dispatch agents" },
+    { value: "--triage-only ", label: "--triage-only", description: "Only run triage flow" },
+    { value: "--concurrency ", label: "--concurrency", description: "Maximum parallel pebbles" },
+    { value: "--c ", label: "--c", description: "Alias for --concurrency" },
+    { value: "--state ", label: "--state", description: "Pickup label" },
+    { value: "--model ", label: "--model", description: "Model for subagents" },
+    { value: "--timeoutMs ", label: "--timeoutMs", description: "Per-agent timeout in ms" },
+    { value: "--timeout ", label: "--timeout", description: "Alias for --timeoutMs" },
+    {
+      value: "--maxAttempts ",
+      label: "--maxAttempts",
+      description: "Implementation/review attempts",
+    },
+    { value: "--attempts ", label: "--attempts", description: "Alias for --maxAttempts" },
+    { value: "--uiDelayMs ", label: "--uiDelayMs", description: "Delay before implementers" },
+    { value: "--delayMs ", label: "--delayMs", description: "Alias for --uiDelayMs" },
+  ];
+
+  const valueCompletions: Record<string, PebblesCompletion[]> = {
+    "--state": [
+      "ready-for-agent",
+      "needs-triage",
+      "needs-info",
+      "ready-for-human",
+      "in-review",
+    ].map((value) => ({ value: `${value} `, label: value })),
+    "--concurrency": ["1", "2", "3", "4", "5"].map((value) => ({
+      value: `${value} `,
+      label: value,
+    })),
+    "--c": ["1", "2", "3", "4", "5"].map((value) => ({ value: `${value} `, label: value })),
+    "--attempts": ["1", "2", "3"].map((value) => ({ value: `${value} `, label: value })),
+    "--maxAttempts": ["1", "2", "3"].map((value) => ({
+      value: `${value} `,
+      label: value,
+    })),
+    "--timeout": ["300000", "600000", "1800000"].map((value) => ({
+      value: `${value} `,
+      label: value,
+    })),
+    "--timeoutMs": ["300000", "600000", "1800000"].map((value) => ({
+      value: `${value} `,
+      label: value,
+    })),
+    "--uiDelayMs": ["0", "1000", "5000"].map((value) => ({
+      value: `${value} `,
+      label: value,
+    })),
+    "--delayMs": ["0", "1000", "5000"].map((value) => ({
+      value: `${value} `,
+      label: value,
+    })),
+    "--model": [{ value: `${DEFAULT_MODEL} `, label: DEFAULT_MODEL }],
+  };
+
+  function splitCompletionToken(prefix: string): { before: string; token: string } {
+    const match = /^(.*\s)?(\S*)$/s.exec(prefix);
+    return { before: match?.[1] ?? "", token: match?.[2] ?? "" };
+  }
+
+  function completeToken(
+    before: string,
+    token: string,
+    candidates: PebblesCompletion[],
+  ): AutocompleteItem[] | null {
+    const lower = token.toLowerCase();
+    const filtered = candidates.filter(
+      (item) =>
+        item.label.toLowerCase().startsWith(lower) ||
+        item.value.trim().toLowerCase().startsWith(lower),
+    );
+    if (filtered.length === 0) return null;
+    return filtered.map((item) => ({
+      value: `${before}${item.value}`,
+      label: item.label,
+      description: item.description,
+    }));
+  }
+
+  function pebblesArgumentCompletions(prefix: string): AutocompleteItem[] | null {
+    const { before, token } = splitCompletionToken(prefix);
+    const eq = token.indexOf("=");
+    if (eq > 0) {
+      const flag = token.slice(0, eq);
+      const valuePrefix = token.slice(eq + 1);
+      if (valueCompletions[flag])
+        return completeToken(`${before}${flag}=`, valuePrefix, valueCompletions[flag]);
+    }
+
+    const previousToken = before.trimEnd().split(/\s+/).pop();
+    if (previousToken && valueCompletions[previousToken])
+      return completeToken(before, token, valueCompletions[previousToken]);
+
+    const parsed = parseArgs(prefix);
+    const first = parsed.positionals[0]?.toLowerCase();
+    const completingFirstPositional =
+      !token.startsWith("--") &&
+      (parsed.positionals.length === 0 ||
+        (parsed.positionals.length === 1 && parsed.positionals[0] === token));
+    if (completingFirstPositional)
+      return completeToken(before, token, [...subcommandCompletions, ...runFlagCompletions]);
+
+    if (first === "scroll") {
+      return completeToken(before, token, [
+        { value: "up ", label: "up" },
+        { value: "down ", label: "down" },
+        { value: "page-up ", label: "page-up" },
+        { value: "page-down ", label: "page-down" },
+      ]);
+    }
+
+    const flags =
+      first === "sync"
+        ? [{ value: "--dry-run ", label: "--dry-run", description: "Report sync without mutating" }]
+        : runFlagCompletions;
+    if (token === "" || token.startsWith("-")) return completeToken(before, token, flags);
+    return null;
+  }
+
   pi.registerCommand("pebbles", {
     description:
       "Pebbles cockpit: triage pebbles while dispatching ready work to AFK worktree agents",
+    getArgumentCompletions: pebblesArgumentCompletions,
     handler: async (args, ctx) => {
       const parsed = parseArgs(args);
       const first = parsed.positionals[0]?.toLowerCase();
