@@ -31,6 +31,27 @@ peb show pebbles-abc --json     | jq '.data.dependencies'
 
 Human-formatted output (no `--json`) is for the user, not for you.
 
+## Brandon's Pi source-of-truth workflow
+
+For Brandon's repos, the Raspberry Pi is the canonical Pebbles writer. When operating from Brandon's Mac or advising him how to add pebbles there, do **not** use plain local `peb create/update/comment` inside Mac checkouts. Use the Pi remote plus an explicit repo alias:
+
+```sh
+peb remote add pi ssh://mizu@100.121.123.91   # one-time on the Mac
+peb --remote pi -R ricekit create "Title" -t feature -p 2 -l area
+peb --remote pi -R pebbles list --json
+peb --remote pi -R dotfiles show <id>
+```
+
+Shortcuts are encouraged on the Mac:
+
+```sh
+alias peb-ricekit='peb --remote pi -R ricekit'
+alias peb-pebbles='peb --remote pi -R pebbles'
+alias peb-dotfiles='peb --remote pi -R dotfiles'
+```
+
+Use plain local `peb ...` only when intentionally mutating the authoritative Pi checkout or when the user explicitly chooses a local-only workspace.
+
 ## Core workflow
 
 ```sh
