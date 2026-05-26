@@ -41,6 +41,25 @@ Stowing `shared/stow/pi` into `$HOME` creates:
 - `pebble-orchestrator.ts` — plans and burns down Pebbles-backed work with git worktrees and Pi subagents.
 - `workspace-switcher.ts` — adds `/repo` to set an active workspace so relative tool paths and bash commands run from that repo.
 - `imagegen.ts` — adds a `generate_image` tool that delegates to Codex CLI's hosted image generation, saving generated bitmap images to disk.
+- `goal-mode.ts` — adds Codex-like `/goal` session objectives with hidden context injection, progress/budget tracking, and a `goal_update` tool.
+
+## Goal mode
+
+Commands:
+
+```text
+/goal                         # create or edit the current session goal
+/goal set <objective>          # set a goal and immediately start working on it
+/goal edit                     # edit the objective and immediately resume work
+/goal status                   # show objective, status, usage, budget, and blocker audit
+/goal pause                    # pause context injection
+/goal resume                   # resume and immediately continue work
+/goal clear                    # clear the session goal
+/goal done                     # mark complete by explicit user command
+/goal budget <tokens>          # set a positive token budget
+```
+
+While a goal is active, `goal-mode.ts` injects hidden Codex-like goal context before each turn: keep the full objective intact, verify completion against current evidence, and only report a blocker after the same blocker recurs for three goal turns. The `/goal` command includes subcommand autocomplete. The model-facing `goal_update` tool can mark a goal `complete` or, after the blocker audit threshold, `blocked`; user commands control pause/resume/clear. Goals persist in the Pi session with custom `goal-state` entries and do not depend on Codex CLI or `~/.codex` state.
 
 ## Workspace switcher
 
