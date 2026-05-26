@@ -16,6 +16,7 @@ setopt HIST_SAVE_NO_DUPS
 setopt SHARE_HISTORY
 
 # Aliases
+alias p="pi"
 alias c="claude --dangerously-skip-permissions"
 alias cat="bat --theme=base16"
 alias cdc="cd ~/.config/"

@@ -6,6 +6,11 @@
       "headers": {
         "CONTEXT7_API_KEY": "$CONTEXT7_API_KEY"
       }
+    },
+    "linear": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
     }
   }
 }
