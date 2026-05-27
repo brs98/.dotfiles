@@ -25,7 +25,8 @@ Do **not** use it for:
 
 - Save outputs under `/Users/brandon/Pictures/gpt-images/` unless the user specifies a path.
 - Prefer descriptive filenames, e.g. `generated-images/retro-terminal-mascot.png`.
-- Use `1024x1024` for square assets, `1536x1024` for landscape, and `1024x1536` for portrait unless the user asks otherwise.
+- Use `3840x2160` for desktop wallpapers and RiceKit theme-source images unless the user asks otherwise.
+- Use `1024x1024` for square assets, `1536x1024` for non-wallpaper landscape assets, and `1024x1536` for portrait assets unless the user asks otherwise.
 - Use `outputFormat: "png"` unless JPEG/WebP is requested.
 
 ## Prompting
