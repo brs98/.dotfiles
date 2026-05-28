@@ -1,8 +1,8 @@
 # Agent Router Extension
 
-Global Pi extension for routing repo tasks to specialized agent harnesses. Repo-specific agents and protected paths live in each repo's `.pi/agent-router.config.ts`.
+Experimental Pi extension for routing repo tasks to specialized agent harnesses. Repo-specific agents and protected paths live in each repo's `.pi/agent-router.config.ts`.
 
-> Experimental: disabled by default. Set `PI_AGENT_ROUTER_ENABLED=1` before starting Pi to opt in.
+> Experimental: kept outside Pi's auto-discovered `extensions/` directory so it is disabled by default. Load explicitly with `pi -e ~/.pi/agent/extensions-experimental/agent-router` when testing.
 
 ## What it does
 
@@ -49,9 +49,7 @@ export default {
 };
 ```
 
-If `PI_AGENT_ROUTER_ENABLED` is not truthy (`1`, `true`, `yes`, or `on`), Agent Router registers nothing and remains unavailable to the main Pi agent.
-
-If no repo config exists after opting in, Agent Router stays quiet for model turns: it does not register `route_agent_task` or `safe_bash`, and it does not append Agent Router guidance to the system prompt. The `/route-agent` command still has **soft fallback mode** for manual diagnostics; it falls back to a permissive `repo-coordinator` agent, with route enforcement and auto-delegation disabled. Normal `write`/`edit` behavior is not route-gated in unconfigured repos. Built-in protections still block `.git/**` and `node_modules/**`.
+Because this extension lives in `extensions-experimental/`, Pi will not auto-load it. When loaded explicitly, if no repo config exists, Agent Router stays quiet for model turns: it does not register `route_agent_task` or `safe_bash`, and it does not append Agent Router guidance to the system prompt. The `/route-agent` command still has **soft fallback mode** for manual diagnostics; it falls back to a permissive `repo-coordinator` agent, with route enforcement and auto-delegation disabled. Normal `write`/`edit` behavior is not route-gated in unconfigured repos. Built-in protections still block `.git/**` and `node_modules/**`.
 
 ## Tool input shape
 
@@ -113,7 +111,7 @@ Example:
 ```json
 {
   "command": "pnpm",
-  "args": ["exec", "oxfmt", "--check", ".pi/extensions/agent-router"],
+  "args": ["exec", "oxfmt", "--check", "extensions-experimental/agent-router"],
   "timeoutMs": 60000
 }
 ```

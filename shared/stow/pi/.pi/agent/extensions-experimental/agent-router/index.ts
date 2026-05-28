@@ -30,7 +30,6 @@ import type {
 } from "./types";
 
 const activeRouteEntryType = "agent-router-active-route";
-const extensionEnabledEnvName = "PI_AGENT_ROUTER_ENABLED";
 
 const intentValues = ["feature", "bugfix", "refactor", "quality", "docs"] as const;
 
@@ -57,8 +56,6 @@ interface DelegationOutcome {
 }
 
 export default function agentRouterExtension(pi: ExtensionAPI) {
-  if (!isAgentRouterExtensionEnabled()) return;
-
   let activeRoute: ActiveRoute | undefined;
   let routeEnforcementEnabled = false;
   let agentRouterToolsRegistered = false;
@@ -386,11 +383,6 @@ ${renderRouteSystemGuidance(activeRoute, routeEnforcementEnabled)}`,
 
     return undefined;
   });
-}
-
-function isAgentRouterExtensionEnabled(): boolean {
-  const value = process.env[extensionEnabledEnvName]?.trim().toLowerCase();
-  return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
 async function maybeDelegateWork(input: {
