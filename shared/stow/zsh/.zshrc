@@ -56,20 +56,20 @@ fi
 
 # Pi
 export PI_SKIP_VERSION_CHECK=1
-alias piar="pi --agent-router"
 
 pi() {
   local stamp="${XDG_CACHE_HOME:-$HOME/.cache}/pi-last-update"
   local now last
-  local enable_agent_router=0
-  local agent_router_extension="$HOME/.dotfiles/shared/stow/pi/.pi/agent/extensions-experimental/agent-router"
-  local -a pi_args
+  local enable_experimental=0
+  local experimental_extensions_dir="$HOME/.dotfiles/shared/stow/pi/.pi/agent/extensions-experimental"
+  local -a pi_args experimental_args
   pi_args=()
+  experimental_args=()
 
   while (( $# > 0 )); do
     case "$1" in
-      --agent-router)
-        enable_agent_router=1
+      --experimental)
+        enable_experimental=1
         ;;
       *)
         pi_args+=("$1")
@@ -86,11 +86,18 @@ pi() {
     command pi update >/tmp/pi-update.log 2>&1 && printf '%s\n' "$now" > "$stamp"
   fi
 
-  if (( enable_agent_router )); then
-    command pi -e "$agent_router_extension" "${pi_args[@]}"
-  else
-    command pi "${pi_args[@]}"
+  if (( enable_experimental )) && [[ -d "$experimental_extensions_dir" ]]; then
+    local extension_entry
+    for extension_entry in ${experimental_extensions_dir}/*.ts(N) ${experimental_extensions_dir}/*/index.ts(N); do
+      if [[ "$extension_entry" == */index.ts ]]; then
+        experimental_args+=("-e" "${extension_entry:h}")
+      else
+        experimental_args+=("-e" "$extension_entry")
+      fi
+    done
   fi
+
+  command pi "${experimental_args[@]}" "${pi_args[@]}"
 }
 
 # Conveyor
