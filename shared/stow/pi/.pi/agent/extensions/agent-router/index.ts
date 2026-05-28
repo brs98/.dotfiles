@@ -58,6 +58,7 @@ interface DelegationOutcome {
 export default function agentRouterExtension(pi: ExtensionAPI) {
   let activeRoute: ActiveRoute | undefined;
   let routeEnforcementEnabled = false;
+  let agentRouterToolsRegistered = false;
 
   function setActiveRoute(
     task: RouteTaskInput,
@@ -92,7 +93,7 @@ export default function agentRouterExtension(pi: ExtensionAPI) {
     if (!ctx) return;
 
     if (!routeEnforcementEnabled) {
-      ctx.ui.setStatus("agent-router", "route: soft fallback");
+      ctx.ui.setStatus("agent-router", undefined);
       return;
     }
 
@@ -221,8 +222,12 @@ export default function agentRouterExtension(pi: ExtensionAPI) {
     },
   });
 
-  pi.registerTool(routeAgentTaskTool);
-  pi.registerTool(createSafeBashTool());
+  function registerAgentRouterTools(): void {
+    if (agentRouterToolsRegistered) return;
+    pi.registerTool(routeAgentTaskTool);
+    pi.registerTool(createSafeBashTool());
+    agentRouterToolsRegistered = true;
+  }
 
   pi.registerCommand("route-agent", {
     description:
@@ -276,6 +281,7 @@ export default function agentRouterExtension(pi: ExtensionAPI) {
         const { task } = parsed;
         const config = await loadAgentRouterConfig(ctx.cwd);
         routeEnforcementEnabled = config.isRepoConfigured;
+        if (config.isRepoConfigured) registerAgentRouterTools();
         const decision = routeAgentTask(task, config.agents, config.protectedPathPolicies);
         const route = setActiveRoute(task, decision, "command", ctx);
         ctx.ui.setWidget("agent-router", renderRoutingDecisionLines(task, decision));
@@ -304,12 +310,16 @@ export default function agentRouterExtension(pi: ExtensionAPI) {
     activeRoute = restoreActiveRoute(ctx);
     const config = await loadAgentRouterConfig(ctx.cwd);
     routeEnforcementEnabled = config.isRepoConfigured;
+    if (config.isRepoConfigured) registerAgentRouterTools();
     updateRouteUi(ctx);
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
     const config = await loadAgentRouterConfig(ctx.cwd);
     routeEnforcementEnabled = config.isRepoConfigured;
+    if (!config.isRepoConfigured) return undefined;
+
+    registerAgentRouterTools();
     return {
       systemPrompt: `${event.systemPrompt}
 
@@ -347,7 +357,7 @@ ${renderRouteSystemGuidance(activeRoute, routeEnforcementEnabled)}`,
     }
 
     if (!routeEnforcementEnabled) {
-      ctx.ui.setStatus("agent-router", "route: soft fallback");
+      ctx.ui.setStatus("agent-router", undefined);
       return;
     }
 

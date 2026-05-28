@@ -4,7 +4,7 @@ Global Pi extension for routing repo tasks to specialized agent harnesses. Repo-
 
 ## What it does
 
-- Registers the model-callable `route_agent_task` and `safe_bash` tools.
+- Registers the model-callable `route_agent_task` and `safe_bash` tools only when the current repo has `.pi/agent-router.config.ts`.
 - Registers the `/route-agent` slash command.
 - Loads repo-specific routing config from `.pi/agent-router.config.ts`.
 - Routes edit/read paths to specialized repo agents.
@@ -47,7 +47,7 @@ export default {
 };
 ```
 
-If no repo config exists, Agent Router runs in **soft fallback mode**. It falls back to a permissive `repo-coordinator` agent so routing still works, but route enforcement and auto-delegation are disabled. Normal `write`/`edit` behavior is not route-gated in unconfigured repos. Built-in protections still block `.git/**` and `node_modules/**`.
+If no repo config exists, Agent Router stays quiet for model turns: it does not register `route_agent_task` or `safe_bash`, and it does not append Agent Router guidance to the system prompt. The `/route-agent` command still has **soft fallback mode** for manual diagnostics; it falls back to a permissive `repo-coordinator` agent, with route enforcement and auto-delegation disabled. Normal `write`/`edit` behavior is not route-gated in unconfigured repos. Built-in protections still block `.git/**` and `node_modules/**`.
 
 ## Tool input shape
 
@@ -66,7 +66,7 @@ If no repo config exists, Agent Router runs in **soft fallback mode**. It falls 
 
 Each `RoutedAgentWork` includes a `subagentInvocation` object and the tool output renders the same data as JSON. You can still copy/paste it into the user-level `subagent` tool from `~/.pi/agent/extensions/subagent.ts`.
 
-For a pragmatic v1, `route_agent_task` also spawns child Pi processes directly in configured repos. Auto-delegation is default-on for parent sessions when `.pi/agent-router.config.ts` exists, and caller-provided `delegate: false` is ignored in that configured mode. In soft fallback mode, auto-delegation is disabled. Delegated child processes suppress recursive delegation via `PI_AGENT_ROUTER_DELEGATE_DEPTH`.
+For a pragmatic v1, `route_agent_task` also spawns child Pi processes directly in configured repos. Auto-delegation is default-on for parent sessions when `.pi/agent-router.config.ts` exists, and caller-provided `delegate: false` is ignored in that configured mode. When no repo config exists, `route_agent_task` is not registered for model use and `/route-agent` soft fallback disables auto-delegation. Delegated child processes suppress recursive delegation via `PI_AGENT_ROUTER_DELEGATE_DEPTH`.
 
 Optional delegation fields:
 
