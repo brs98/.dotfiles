@@ -30,6 +30,7 @@ import type {
 } from "./types";
 
 const activeRouteEntryType = "agent-router-active-route";
+const extensionEnabledEnvName = "PI_AGENT_ROUTER_ENABLED";
 
 const intentValues = ["feature", "bugfix", "refactor", "quality", "docs"] as const;
 
@@ -56,6 +57,8 @@ interface DelegationOutcome {
 }
 
 export default function agentRouterExtension(pi: ExtensionAPI) {
+  if (!isAgentRouterExtensionEnabled()) return;
+
   let activeRoute: ActiveRoute | undefined;
   let routeEnforcementEnabled = false;
   let agentRouterToolsRegistered = false;
@@ -91,11 +94,6 @@ export default function agentRouterExtension(pi: ExtensionAPI) {
 
   function updateRouteUi(ctx?: ExtensionContext): void {
     if (!ctx) return;
-
-    if (!routeEnforcementEnabled) {
-      ctx.ui.setStatus("agent-router", undefined);
-      return;
-    }
 
     const route = activeRoute;
     if (!route) {
@@ -330,6 +328,14 @@ ${renderRouteSystemGuidance(activeRoute, routeEnforcementEnabled)}`,
   pi.on("tool_call", async (event, ctx) => {
     if (event.toolName !== "write" && event.toolName !== "edit") return undefined;
 
+    const config = await loadAgentRouterConfig(ctx.cwd);
+    routeEnforcementEnabled = config.isRepoConfigured;
+
+    if (!config.isRepoConfigured) {
+      ctx.ui.setStatus("agent-router", undefined);
+      return undefined;
+    }
+
     const toolPath =
       typeof event.input.path === "string"
         ? getCanonicalToolPath(event.input.path, ctx.cwd)
@@ -343,8 +349,6 @@ ${renderRouteSystemGuidance(activeRoute, routeEnforcementEnabled)}`,
       };
     }
 
-    const config = await loadAgentRouterConfig(ctx.cwd);
-    routeEnforcementEnabled = config.isRepoConfigured;
     const protectedReason = getProtectedPathBlockReason(
       toolPath.repoPath,
       config.protectedPathPolicies,
@@ -354,11 +358,6 @@ ${renderRouteSystemGuidance(activeRoute, routeEnforcementEnabled)}`,
         block: true,
         reason: protectedReason,
       };
-    }
-
-    if (!routeEnforcementEnabled) {
-      ctx.ui.setStatus("agent-router", undefined);
-      return;
     }
 
     const route = activeRoute;
@@ -387,6 +386,11 @@ ${renderRouteSystemGuidance(activeRoute, routeEnforcementEnabled)}`,
 
     return undefined;
   });
+}
+
+function isAgentRouterExtensionEnabled(): boolean {
+  const value = process.env[extensionEnabledEnvName]?.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
 async function maybeDelegateWork(input: {
