@@ -56,10 +56,28 @@ fi
 
 # Pi
 export PI_SKIP_VERSION_CHECK=1
+alias piar="pi --agent-router"
 
 pi() {
   local stamp="${XDG_CACHE_HOME:-$HOME/.cache}/pi-last-update"
   local now last
+  local enable_agent_router=0
+  local agent_router_extension="$HOME/.dotfiles/shared/stow/pi/.pi/agent/extensions-experimental/agent-router"
+  local -a pi_args
+  pi_args=()
+
+  while (( $# > 0 )); do
+    case "$1" in
+      --agent-router)
+        enable_agent_router=1
+        ;;
+      *)
+        pi_args+=("$1")
+        ;;
+    esac
+    shift
+  done
+
   now=$(date +%s)
   last=$(cat "$stamp" 2>/dev/null || echo 0)
 
@@ -68,7 +86,11 @@ pi() {
     command pi update >/tmp/pi-update.log 2>&1 && printf '%s\n' "$now" > "$stamp"
   fi
 
-  command pi "$@"
+  if (( enable_agent_router )); then
+    command pi -e "$agent_router_extension" "${pi_args[@]}"
+  else
+    command pi "${pi_args[@]}"
+  fi
 }
 
 # Conveyor

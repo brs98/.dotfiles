@@ -2,7 +2,7 @@
 
 Experimental Pi extension for routing repo tasks to specialized agent harnesses. Repo-specific agents and protected paths live in each repo's `.pi/agent-router.config.ts`.
 
-> Experimental: kept outside Pi's auto-discovered `extensions/` directory so it is disabled by default. Load explicitly with `pi -e ~/.pi/agent/extensions-experimental/agent-router` when testing.
+> Experimental: kept outside Pi's auto-discovered `extensions/` directory so it is disabled by default. Load explicitly with `pi --agent-router` or `piar` from this dotfiles zsh wrapper when testing.
 
 ## What it does
 
