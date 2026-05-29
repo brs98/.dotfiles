@@ -1,0 +1,20 @@
+{
+  "private": true,
+  "name": "@brandon/picastle",
+  "type": "module",
+  "bin": {
+    "picastle": "bin/picastle"
+  },
+  "scripts": {
+    "typecheck": "tsc main.mts --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck",
+    "prep": "bash scripts/prep.sh",
+    "start": "tsx main.mts"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.76.0",
+    "tsx": "^4.22.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

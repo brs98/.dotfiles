@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Run prep from the caller's current repo, then execute the SDK orchestrator.
+bash "$SCRIPT_DIR/scripts/prep.sh" "$@"
+exec npx --prefix "$SCRIPT_DIR" tsx "$SCRIPT_DIR/main.mts" "$@"
