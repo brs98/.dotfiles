@@ -109,4 +109,18 @@ write.
 
 ## Resume behavior
 
-At the start of each iteration, Picastle scans its runtime worktrees for local `picastle/<issue>-*` branches that are ahead of the base branch, do not yet have an open PR, and whose pebble is still in the ready queue. Those branches are reviewed/published before planning new work, preventing duplicate branches after an interrupted push/review phase.
+At the start of each iteration, Picastle derives recovery state from Pebbles,
+local `picastle/<issue>-*` branches, registered worktrees, and open PRs before
+it asks the planner for new work. Recovery is handled first:
+
+- dirty ready-queue worktrees are sent back through implementation so uncommitted
+  work is not lost
+- ahead-of-base branches with no open PR are reviewed/published before planning
+- orphan local branches are attached to a runtime worktree before publishing
+- branches with open PRs have their Pebbles closure/review state reconciled
+- zero-ahead, stale, duplicate, missing-pebble, and non-ready branches are
+  summarized instead of silently creating another branch for the same pebble
+
+If recovery finds resumable local work, Picastle finishes that recovery pass and
+restarts the loop rather than selecting new issues in the same iteration. This
+keeps interrupted implement, review, push, and PR-creation phases idempotent.

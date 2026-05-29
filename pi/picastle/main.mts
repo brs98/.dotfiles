@@ -17,6 +17,8 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 
+import { buildRecoveryPlan, type RecoveryBranchInput, type RecoveryPlan } from "./recovery.mjs";
+
 type PlannedIssue = { id: string; title: string; branch: string };
 type CompletedIssue = PlannedIssue & { worktreePath: string };
 type ReviewStatus = "approved" | "changes_requested" | "blocked";
@@ -107,17 +109,34 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   checkMinFreeSpace(`iteration ${iteration} start`);
   console.log(`\n=== Picastle iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
 
-  const unpublished = collectUnpublishedLocalWork();
-  if (unpublished.length > 0) {
-    console.log(`Found ${unpublished.length} unpublished local Picastle branch(es); reviewing/publishing before planning new work.`);
-    if (PUBLISHER_AGENT) {
-      await publishCompletedIssuesWithAgent(unpublished, iteration);
-    } else {
-      await publishCompletedIssues(unpublished, iteration);
+  const recovery = recoverInterruptedRun();
+  if (recovery.interruptedImplementations.length > 0) {
+    console.log("Recovery has interrupted implementation work; resuming before planning new work.");
+    const settled = await runWithConcurrency(recovery.interruptedImplementations, CONCURRENCY, (issue) =>
+      implementIssue(issue, iteration),
+    );
+    const completed = settled.flatMap((outcome) => outcome.status === "fulfilled" && outcome.value ? [outcome.value] : []);
+    for (const outcome of settled) {
+      if (outcome.status === "rejected") console.error(`  ✗ recovery implementer failed: ${formatError(outcome.reason)}`);
     }
+    if (completed.length > 0) {
+      if (PUBLISHER_AGENT) await publishCompletedIssuesWithAgent(completed, iteration);
+      else await publishCompletedIssues(completed, iteration);
+    }
+    continue;
   }
 
-  const issues = await planIssues(iteration);
+  if (recovery.unpublishedBranches.length > 0) {
+    console.log("Recovery has unpublished local branches; reviewing/publishing before planning new work.");
+    if (PUBLISHER_AGENT) {
+      await publishCompletedIssuesWithAgent(recovery.unpublishedBranches, iteration);
+    } else {
+      await publishCompletedIssues(recovery.unpublishedBranches, iteration);
+    }
+    continue;
+  }
+
+  const issues = await planIssues(iteration, recovery.blockedIssueIds);
   if (issues.length === 0) {
     console.log("No unblocked issues to work on. Exiting.");
     break;
@@ -173,59 +192,184 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 console.log("\nPicastle done.");
 
 
-function collectUnpublishedLocalWork(): CompletedIssue[] {
-  const entries = run("git worktree list --porcelain", repoRoot).stdout
-    .split(/\n(?=worktree )/)
-    .map((block) => block.trim())
-    .filter(Boolean);
-  const completed: CompletedIssue[] = [];
-  const seen = new Set<string>();
+function recoverInterruptedRun(): RecoveryPlan & { unpublishedBranches: CompletedIssue[] } {
+  const prune = run("git worktree prune --verbose", repoRoot, { allowFailure: true });
+  if (prune.status !== 0) console.warn(`  ⚠ git worktree prune failed: ${prune.stderr || prune.stdout}`);
+  else if (prune.stdout.trim()) console.log(`Recovery pruned stale worktree metadata:\n${prune.stdout.trim()}`);
 
-  for (const entry of entries) {
-    const worktreePath = entry.match(/^worktree (.+)$/m)?.[1];
-    const branchRef = entry.match(/^branch refs\/heads\/(.+)$/m)?.[1];
-    if (!worktreePath || !branchRef || !branchRef.startsWith("picastle/")) continue;
-    if (!worktreePath.startsWith(worktreesDir)) continue;
-    if (seen.has(branchRef)) continue;
-    seen.add(branchRef);
+  const branchInputs = collectRecoveryBranches();
+  const plan = buildRecoveryPlan(branchInputs, ISSUE_STATUS);
+  logRecoveryPlan(plan);
 
+  for (const published of plan.alreadyPublished) {
+    const closes = run(pebCommand(`closes add ${shellQuote(published.id)} --pr ${shellQuote(published.prUrl)}`), repoRoot, {
+      allowFailure: true,
+    });
+    if (closes.status !== 0 && !/already/i.test(closes.stderr + closes.stdout)) {
+      console.warn(`  ⚠ failed to declare pending pebble closure for ${published.id}: ${closes.stderr || closes.stdout}`);
+    }
+    markIssueInReview(published.id);
+  }
+
+  const unpublishedBranches = plan.unpublishedBranches.map((issue) => ({
+    ...issue,
+    worktreePath: issue.worktreePath ?? ensureBranchWorktree(issue.branch),
+  }));
+
+  return { ...plan, unpublishedBranches };
+}
+
+function collectRecoveryBranches(): RecoveryBranchInput[] {
+  const worktrees = collectWorktreeEntries();
+  const worktreeByBranch = new Map(worktrees.filter((entry) => entry.branch).map((entry) => [entry.branch!, entry]));
+  const openPrByHead = loadOpenPrsByHead();
+  const issueCache = new Map<string, { title?: string; status?: string } | undefined>();
+
+  const localBranches = listLocalPicastleBranches();
+  const localBranchNames = new Set(localBranches.map((branch) => branch.branch));
+  const inputs: RecoveryBranchInput[] = localBranches.map((localBranch) => {
+    const issueId = extractIssueIdFromBranch(localBranch.branch);
+    const worktree = worktreeByBranch.get(localBranch.branch);
+    const dirty = worktree?.path && existsSync(worktree.path)
+      ? run("git status --porcelain", worktree.path, { allowFailure: true }).stdout.trim().length > 0
+      : false;
     const ahead = Number(
-      run(`git rev-list --count ${shellQuote(BASE_BRANCH)}..HEAD`, worktreePath, { allowFailure: true }).stdout.trim() || "0",
+      run(`git rev-list --count ${shellQuote(BASE_BRANCH)}..${shellQuote(localBranch.branch)}`, repoRoot, {
+        allowFailure: true,
+      }).stdout.trim() || "0",
     );
-    if (ahead <= 0) continue;
+    const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
+    return {
+      branch: localBranch.branch,
+      issueId,
+      title: issue?.title,
+      issueStatus: issue?.status,
+      ahead,
+      dirty,
+      worktreePath: worktree?.path,
+      openPrUrl: openPrByHead.get(localBranch.branch),
+      commitTime: localBranch.commitTime,
+    };
+  });
 
-    const existingPr = run(
-      `gh pr list --state open --head ${shellQuote(branchRef)} --json url --jq '.[0].url // ""'`,
-      repoRoot,
-      { allowFailure: true },
-    ).stdout.trim();
-    if (existingPr) continue;
-
-    const id = extractIssueIdFromBranch(branchRef);
-    if (!id) continue;
-
-    const show = run(pebCommand(`show ${shellQuote(id)} --json`), repoRoot, { allowFailure: true });
-    if (show.status !== 0) continue;
-    const issue = JSON.parse(show.stdout).data as { title?: string; status?: string };
-    if (issue.status !== ISSUE_STATUS) continue;
-
-    completed.push({
-      id,
-      title: issue.title ?? id,
-      branch: branchRef,
-      worktreePath,
+  for (const [head, url] of openPrByHead) {
+    if (!head.startsWith("picastle/") || localBranchNames.has(head)) continue;
+    const issueId = extractIssueIdFromBranch(head);
+    const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
+    inputs.push({
+      branch: head,
+      issueId,
+      title: issue?.title,
+      issueStatus: issue?.status,
+      ahead: 0,
+      dirty: false,
+      openPrUrl: url,
     });
   }
 
-  return completed;
+  return inputs;
+}
+
+function listLocalPicastleBranches(): Array<{ branch: string; commitTime?: number }> {
+  const result = run("git for-each-ref --format='%(refname:short)%00%(committerdate:unix)' refs/heads/picastle", repoRoot, {
+    allowFailure: true,
+  });
+  if (result.status !== 0) {
+    console.warn(`  ⚠ failed to list local Picastle branches: ${result.stderr || result.stdout}`);
+    return [];
+  }
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [branch, commitTime] = line.split("\0");
+      return { branch: branch!, commitTime: Number(commitTime) || undefined };
+    });
+}
+
+function collectWorktreeEntries(): Array<{ path: string; branch?: string }> {
+  return run("git worktree list --porcelain", repoRoot).stdout
+    .split(/\n(?=worktree )/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((entry) => ({
+      path: entry.match(/^worktree (.+)$/m)?.[1] ?? "",
+      branch: entry.match(/^branch refs\/heads\/(.+)$/m)?.[1],
+    }))
+    .filter((entry) => entry.path);
+}
+
+function loadOpenPrsByHead(): Map<string, string> {
+  const result = run(
+    `gh pr list --state open --json headRefName,url --jq '.[] | [.headRefName, .url] | @tsv'`,
+    repoRoot,
+    { allowFailure: true },
+  );
+  if (result.status !== 0) {
+    console.warn(`  ⚠ failed to list open PRs; recovery will treat local branches as unpublished: ${result.stderr || result.stdout}`);
+    return new Map();
+  }
+  return new Map(
+    result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [head, url] = line.split("\t");
+        return [head!, url!] as const;
+      }),
+  );
+}
+
+function readIssueForRecovery(
+  issueId: string,
+  cache: Map<string, { title?: string; status?: string } | undefined>,
+): { title?: string; status?: string } | undefined {
+  if (cache.has(issueId)) return cache.get(issueId);
+  const show = run(pebCommand(`show ${shellQuote(issueId)} --json`), repoRoot, { allowFailure: true });
+  if (show.status !== 0) {
+    cache.set(issueId, undefined);
+    return undefined;
+  }
+  const issue = JSON.parse(show.stdout).data as { title?: string; status?: string };
+  cache.set(issueId, issue);
+  return issue;
+}
+
+function logRecoveryPlan(plan: RecoveryPlan): void {
+  const zeroAhead = plan.ignoredBranches.filter((branch) => branch.reason === "zero commits ahead of base and clean").length;
+  const ignoredOther = plan.ignoredBranches.length - zeroAhead;
+  const active = plan.interruptedImplementations.length + plan.unpublishedBranches.length;
+  if (active === 0 && plan.alreadyPublished.length === 0 && plan.deferredBranches.length === 0 && zeroAhead === 0) return;
+
+  console.log(
+    `Recovery scan: ${plan.interruptedImplementations.length} interrupted, ` +
+      `${plan.unpublishedBranches.length} unpublished, ${plan.alreadyPublished.length} already published, ` +
+      `${plan.deferredBranches.length} deferred, ${zeroAhead} zero-ahead ignored` +
+      (ignoredOther > 0 ? `, ${ignoredOther} other ignored` : "") +
+      ".",
+  );
+  for (const issue of plan.interruptedImplementations) {
+    console.log(`  resume implement: ${issue.id} ${issue.branch}${issue.worktreePath ? ` (${issue.worktreePath})` : ""}`);
+  }
+  for (const issue of plan.unpublishedBranches) {
+    console.log(`  publish: ${issue.id} ${issue.branch}${issue.worktreePath ? "" : " (orphan branch; attaching worktree)"}`);
+  }
+  for (const issue of plan.alreadyPublished) {
+    console.log(`  published: ${issue.id} ${issue.branch} → ${issue.prUrl}`);
+  }
+  for (const branch of plan.deferredBranches) {
+    console.warn(`  defer: ${branch.issueId} ${branch.branch}: ${branch.reason}`);
+  }
 }
 
 function extractIssueIdFromBranch(branch: string): string | undefined {
-  return branch.match(/^picastle\/([a-z0-9_]+-[a-z0-9]{3,})-/)?.[1];
+  return branch.match(/^picastle\/([a-z0-9][a-z0-9_-]*-[a-z0-9]{3,})-/)?.[1];
 }
 
-async function planIssues(iteration: number): Promise<PlannedIssue[]> {
-  const candidates = loadCandidateIssues();
+async function planIssues(iteration: number, suppressedIssueIds: Set<string>): Promise<PlannedIssue[]> {
+  const candidates = loadCandidateIssues(suppressedIssueIds);
   const issuesJson = JSON.stringify(candidates);
 
   const openPrsJson = run(
@@ -275,12 +419,12 @@ async function planIssues(iteration: number): Promise<PlannedIssue[]> {
   return MAX_ISSUES > 0 ? planned.slice(0, MAX_ISSUES) : planned;
 }
 
-function loadCandidateIssues(): unknown[] {
+function loadCandidateIssues(suppressedIssueIds = new Set<string>()): unknown[] {
   const byId = new Map<string, unknown>();
   const add = (items: unknown[]) => {
     for (const item of items) {
       const id = typeof item === "object" && item && "id" in item ? String((item as { id: unknown }).id) : "";
-      if (id && !byId.has(id)) byId.set(id, item);
+      if (id && !suppressedIssueIds.has(id) && !byId.has(id)) byId.set(id, item);
     }
   };
 
@@ -810,15 +954,15 @@ async function runPiAgent(args: {
 
 function ensureIssueWorktree(issue: PlannedIssue): string {
   const branch = normalizeBranch(issue.branch, issue.id, issue.title);
-  const worktreeName = branch.replace(/^picastle\//, "").replace(/[^a-zA-Z0-9._-]/g, "-");
-  const worktreePath = join(worktreesDir, worktreeName);
+  return ensureBranchWorktree(branch);
+}
 
-  const existingWorktree = run("git worktree list --porcelain", repoRoot).stdout;
-  if (existingWorktree.includes(`worktree ${worktreePath}\n`)) {
-    return worktreePath;
-  }
+function ensureBranchWorktree(branch: string): string {
+  const existing = collectWorktreeEntries().find((entry) => entry.branch === branch && existsSync(entry.path));
+  if (existing) return existing.path;
 
-  mkdirSync(dirname(worktreePath), { recursive: true });
+  mkdirSync(worktreesDir, { recursive: true });
+  const worktreePath = availableWorktreePath(branch);
   const branchExists = run(`git rev-parse --verify ${shellQuote(branch)}`, repoRoot, {
     allowFailure: true,
   }).status === 0;
@@ -837,6 +981,18 @@ function ensureIssueWorktree(issue: PlannedIssue): string {
 
   runWorktreeReadyHook(worktreePath);
   return worktreePath;
+}
+
+function availableWorktreePath(branch: string): string {
+  const worktreeName = branch.replace(/^picastle\//, "").replace(/[^a-zA-Z0-9._-]/g, "-");
+  const preferred = join(worktreesDir, worktreeName);
+  if (!existsSync(preferred)) return preferred;
+  const currentBranch = run("git branch --show-current", preferred, { allowFailure: true }).stdout.trim();
+  if (currentBranch === branch) return preferred;
+  for (let index = 2; ; index++) {
+    const candidate = `${preferred}-${index}`;
+    if (!existsSync(candidate)) return candidate;
+  }
 }
 
 function runWorktreeReadyHook(worktreePath: string): void {
