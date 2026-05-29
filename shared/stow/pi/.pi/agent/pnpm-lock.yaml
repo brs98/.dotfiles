@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@earendil-works/pi-tui@0.75.4':
+    hash: f8f2db95ba562d89c127741e906c15b28d4b7821a21caf0997104d3c7c5d6360
+    path: patches/@earendil-works__pi-tui@0.75.4.patch
+
 importers:
 
   .:
@@ -22,7 +27,7 @@ importers:
         version: 0.75.4(ws@8.21.0)(zod@4.4.3)
       '@earendil-works/pi-tui':
         specifier: 0.75.4
-        version: 0.75.4
+        version: 0.75.4(patch_hash=f8f2db95ba562d89c127741e906c15b28d4b7821a21caf0997104d3c7c5d6360)
       '@swc/core':
         specifier: ^1.15.33
         version: 1.15.33
@@ -2896,7 +2901,7 @@ snapshots:
     dependencies:
       '@earendil-works/pi-agent-core': 0.75.4(ws@8.21.0)(zod@4.4.3)
       '@earendil-works/pi-ai': 0.75.4(ws@8.21.0)(zod@4.4.3)
-      '@earendil-works/pi-tui': 0.75.4
+      '@earendil-works/pi-tui': 0.75.4(patch_hash=f8f2db95ba562d89c127741e906c15b28d4b7821a21caf0997104d3c7c5d6360)
       '@silvia-odwyer/photon-node': 0.3.4
       chalk: 5.6.2
       cross-spawn: 7.0.6
@@ -2921,7 +2926,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-tui@0.75.4':
+  '@earendil-works/pi-tui@0.75.4(patch_hash=f8f2db95ba562d89c127741e906c15b28d4b7821a21caf0997104d3c7c5d6360)':
     dependencies:
       get-east-asian-width: 1.6.0
       marked: 15.0.12

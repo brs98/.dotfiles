@@ -410,12 +410,45 @@ function borderLine(
   width: number,
   title?: string,
 ): string {
-  const label = title ? ` ${title} ` : "";
-  const fillWidth = Math.max(
-    0,
-    width - visibleWidth(left) - visibleWidth(right) - visibleWidth(label),
-  );
-  return left + label + fill.repeat(fillWidth) + right;
+  if (width <= 0) return "";
+  if (width <= visibleWidth(left)) return truncateToWidth(left, width, "");
+
+  const sideWidth = visibleWidth(left) + visibleWidth(right);
+  const maxLabelWidth = Math.max(0, width - sideWidth);
+  const label = title ? truncateToWidth(` ${title} `, maxLabelWidth, "") : "";
+  const fillWidth = Math.max(0, width - sideWidth - visibleWidth(label));
+  return truncateToWidth(left + label + fill.repeat(fillWidth) + right, width, "");
+}
+
+function horizontalLine(left: string, fill: string, right: string, width: number): string {
+  if (width <= 0) return "";
+  if (width <= visibleWidth(left)) return truncateToWidth(left, width, "");
+
+  const fillWidth = Math.max(0, width - visibleWidth(left) - visibleWidth(right));
+  return truncateToWidth(left + fill.repeat(fillWidth) + right, width, "");
+}
+
+function contentLine(text: string, innerWidth: number, outerWidth: number): string {
+  if (outerWidth <= 0) return "";
+  if (outerWidth < 4) return truncateToWidth(`│ ${text} │`, outerWidth, "");
+  return `│ ${padCell(text, innerWidth)} │`;
+}
+
+class NarrowSafeText implements Component {
+  private readonly text: Text;
+
+  constructor(text: string) {
+    this.text = new Text(text, 0, 0);
+  }
+
+  invalidate(): void {
+    this.text.invalidate();
+  }
+
+  render(width: number): string[] {
+    if (width < 4) return [""];
+    return this.text.render(width).map((line) => truncateToWidth(line, width, ""));
+  }
 }
 
 class PokemonSubagentCard implements Component {
@@ -441,41 +474,42 @@ class PokemonSubagentCard implements Component {
   }
 
   render(width: number): string[] {
+    if (width < 4) return [""];
     if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
 
-    const cardWidth = Math.max(36, Math.min(width, 104));
-    const innerWidth = Math.max(1, cardWidth - 4);
-    const imageColumns = Math.min(this.params.imageColumns, innerWidth);
+    const cardWidth = Math.max(0, Math.min(width, 104));
+    const innerWidth = Math.max(0, cardWidth - 4);
     const imageRows = this.params.imageRows;
     const lines: string[] = [];
 
     lines.push(borderLine("╭", "─", "╮", cardWidth, this.params.title));
-    lines.push(`│ ${padCell(this.params.pokemon, innerWidth)} │`);
-    lines.push(`├${"─".repeat(cardWidth - 2)}┤`);
+    lines.push(contentLine(this.params.pokemon, innerWidth, cardWidth));
+    lines.push(horizontalLine("├", "─", "┤", cardWidth));
 
-    const imageLines = this.imageLines(imageColumns, imageRows);
+    const imageColumns = Math.min(this.params.imageColumns, innerWidth);
+    const imageLines = imageColumns >= 12 ? this.imageLines(imageColumns, imageRows) : undefined;
     if (imageLines) {
       lines.push(...imageLines);
-      lines.push(`├${"─".repeat(cardWidth - 2)}┤`);
-    } else {
+      lines.push(horizontalLine("├", "─", "┤", cardWidth));
+    } else if (!getCapabilities().images) {
       for (let row = 0; row < imageRows; row += 1) {
-        lines.push(`│ ${padCell(this.params.fallbackArtLines[row] ?? "", innerWidth)} │`);
+        lines.push(contentLine(this.params.fallbackArtLines[row] ?? "", innerWidth, cardWidth));
       }
-      lines.push(`├${"─".repeat(cardWidth - 2)}┤`);
+      lines.push(horizontalLine("├", "─", "┤", cardWidth));
     }
 
     for (const infoLine of this.params.rightLines) {
-      lines.push(`│ ${padCell(infoLine, innerWidth)} │`);
+      lines.push(contentLine(infoLine, innerWidth, cardWidth));
     }
 
     if (this.params.outputLines.length > 0) {
-      lines.push(`├${"─".repeat(cardWidth - 2)}┤`);
+      lines.push(horizontalLine("├", "─", "┤", cardWidth));
       for (const outputLine of this.params.outputLines) {
-        lines.push(`│ ${padCell(outputLine, innerWidth)} │`);
+        lines.push(contentLine(outputLine, innerWidth, cardWidth));
       }
     }
 
-    lines.push(`╰${"─".repeat(cardWidth - 2)}╯`);
+    lines.push(horizontalLine("╰", "─", "╯", cardWidth));
     this.cachedLines = lines;
     this.cachedWidth = width;
     return lines;
@@ -637,12 +671,12 @@ export default function subagent(pi: ExtensionAPI) {
       if (role) text += ` ${theme.fg("muted", "role: ")}${theme.fg("dim", role)}`;
       if (cwd) text += ` ${theme.fg("muted", "cwd: ")}${theme.fg("dim", cwd)}`;
       text += `\n${theme.fg("dim", preview)}`;
-      return new Text(text, 0, 0);
+      return new NarrowSafeText(text);
     },
 
     renderResult(result, { expanded, isPartial }, theme) {
       const details = result.details as SubagentDetails | undefined;
-      if (!details) return new Text("(no subagent details)", 0, 0);
+      if (!details) return new NarrowSafeText("(no subagent details)");
 
       const pokemon =
         details.pokemon ??
@@ -653,7 +687,6 @@ export default function subagent(pi: ExtensionAPI) {
           cwd: details.cwd,
         });
       const colorToken = isPartial ? "warning" : "accent";
-      const imageColumns = expanded ? 36 : 24;
       const imageRows = expanded ? 14 : 8;
       const fallbackArtLines = (
         expanded
@@ -668,7 +701,7 @@ export default function subagent(pi: ExtensionAPI) {
         )}`;
         if (details.model) text += theme.fg("muted", ` ${details.model}`);
         text += `\n${theme.fg("muted", "task: ")}${theme.fg("dim", details.task)}`;
-        return new Text(text, 0, 0);
+        return new NarrowSafeText(text);
       }
 
       const ok = details.exitCode === 0;
@@ -718,7 +751,7 @@ export default function subagent(pi: ExtensionAPI) {
           `${theme.fg("muted", "task: ")}${theme.fg("dim", details.task)}`,
         ].filter(Boolean),
         outputLines,
-        imageColumns,
+        imageColumns: expanded ? 36 : 24,
         imageRows,
       });
     },

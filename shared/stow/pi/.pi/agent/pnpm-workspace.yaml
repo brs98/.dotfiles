@@ -1,3 +1,6 @@
 packages:
-  - "packages/*"
-  - "extensions"
+  - packages/*
+  - extensions
+
+patchedDependencies:
+  '@earendil-works/pi-tui@0.75.4': patches/@earendil-works__pi-tui@0.75.4.patch

@@ -4,8 +4,10 @@ export default function ricekit(pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     if (!ctx.hasUI) return;
 
-    // Custom working indicator with ricekit-colored frames
-    // Uses a subtle pulse that matches the ricekit accent palette
+    // Custom working indicator with ricekit-colored frames. The pi-tui render
+    // safety guard now truncates final lines on ultra-narrow resize, so the
+    // normal Working... loader can stay visible.
+    ctx.ui.setWorkingVisible(true);
     ctx.ui.setWorkingIndicator({
       frames: [
         ctx.ui.theme.fg("dim", "⠋"),
