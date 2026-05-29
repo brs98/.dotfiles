@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
@@ -114,6 +115,7 @@ function normalizeCommand(argv: string[], cwd: string, root: string): ReviewStep
   if (command === "peb") return normalizePebCommand(argv, cwd);
   if (command === "gh") return normalizeGhCommand(argv, cwd);
   if (command === "find") ensureFindIsReadOnly(argv);
+  ensureFilesystemCommandPathsInsideRoot(argv, cwd, root);
 
   return { argv, cwd, mode: "source" };
 }
@@ -196,6 +198,262 @@ function ensureFindIsReadOnly(argv: string[]): void {
   ]);
   const found = argv.find((arg) => forbiddenWriteActions.has(arg));
   if (found) throw new Error(`review_check does not allow find action: ${found}`);
+}
+
+function ensureFilesystemCommandPathsInsideRoot(argv: string[], cwd: string, root: string): void {
+  const command = argv[0]!;
+  if (command === "pwd") return;
+
+  const paths = filesystemPathArguments(argv);
+  for (const path of paths) {
+    ensurePathArgumentInsideRoot(path, cwd, root);
+  }
+}
+
+function filesystemPathArguments(argv: string[]): string[] {
+  const command = argv[0]!;
+  if (command === "grep") return grepPathArguments(argv);
+  if (command === "find") return findPathArguments(argv);
+  if (command === "ls" || command === "cat" || command === "head" || command === "tail" || command === "wc") {
+    return simpleFilesystemPathArguments(argv, command);
+  }
+  return [];
+}
+
+function simpleFilesystemPathArguments(argv: string[], command: string): string[] {
+  const paths: string[] = [];
+  let parsingOptions = true;
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (parsingOptions && arg === "--") {
+      parsingOptions = false;
+      continue;
+    }
+
+    if (parsingOptions && arg.startsWith("--") && arg !== "--") {
+      const [option, inlineValue] = splitLongOption(arg);
+      if (isPathValuedOption(command, option)) {
+        const value = inlineValue ?? argv[++i];
+        if (!value) throw new Error(`${option} requires a value`);
+        paths.push(value);
+        continue;
+      }
+      if (inlineValue === undefined && isValueOption(command, option)) i++;
+      continue;
+    }
+
+    if (parsingOptions && arg.startsWith("-") && arg !== "-") {
+      const valueOption = shortValueOption(command, arg);
+      if (valueOption?.pathValue) {
+        paths.push(valueOption.value ?? argv[++i] ?? "");
+      } else if (valueOption && valueOption.value === undefined) {
+        i++;
+      }
+      continue;
+    }
+
+    paths.push(arg);
+  }
+
+  return paths;
+}
+
+function grepPathArguments(argv: string[]): string[] {
+  const paths: string[] = [];
+  const positional: string[] = [];
+  let parsingOptions = true;
+  let hasExplicitPattern = false;
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (parsingOptions && arg === "--") {
+      parsingOptions = false;
+      continue;
+    }
+
+    if (parsingOptions && arg.startsWith("--") && arg !== "--") {
+      const [option, inlineValue] = splitLongOption(arg);
+      if (option === "--file" || option === "--exclude-from") {
+        const value = inlineValue ?? argv[++i];
+        if (!value) throw new Error(`${option} requires a value`);
+        paths.push(value);
+        if (option === "--file") hasExplicitPattern = true;
+        continue;
+      }
+      if (option === "--regexp") {
+        if (inlineValue === undefined) i++;
+        hasExplicitPattern = true;
+        continue;
+      }
+      if (inlineValue === undefined && GREP_VALUE_OPTIONS.has(option)) i++;
+      continue;
+    }
+
+    if (parsingOptions && arg.startsWith("-") && arg !== "-") {
+      const consumed = consumeGrepShortOptions(arg, argv, i, paths);
+      if (consumed.hasExplicitPattern) hasExplicitPattern = true;
+      i += consumed.extraArgs;
+      continue;
+    }
+
+    positional.push(arg);
+  }
+
+  paths.push(...(hasExplicitPattern ? positional : positional.slice(1)));
+  return paths;
+}
+
+function findPathArguments(argv: string[]): string[] {
+  const paths: string[] = [];
+  let i = 1;
+
+  for (; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (isFindExpressionStart(arg)) break;
+    paths.push(arg);
+  }
+
+  for (; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (FIND_PATH_VALUE_OPTIONS.has(arg)) {
+      const value = argv[++i];
+      if (!value) throw new Error(`${arg} requires a value`);
+      paths.push(value);
+    }
+  }
+
+  return paths;
+}
+
+const GREP_VALUE_OPTIONS = new Set([
+  "--after-context",
+  "--before-context",
+  "--binary-files",
+  "--context",
+  "--devices",
+  "--directories",
+  "--exclude",
+  "--exclude-dir",
+  "--group-separator",
+  "--include",
+  "--label",
+  "--max-count",
+]);
+const FIND_PATH_VALUE_OPTIONS = new Set(["-anewer", "-cnewer", "-files0-from", "-newer", "-samefile"]);
+
+function consumeGrepShortOptions(
+  arg: string,
+  argv: string[],
+  index: number,
+  paths: string[],
+): { extraArgs: number; hasExplicitPattern: boolean } {
+  let hasExplicitPattern = false;
+  const optionCharsWithValues = new Set(["A", "B", "C", "D", "d", "m"]);
+
+  for (let offset = 1; offset < arg.length; offset++) {
+    const option = arg[offset]!;
+    const rest = arg.slice(offset + 1);
+    if (option === "e" || option === "f") {
+      const value = rest || argv[index + 1];
+      if (!value) throw new Error(`-${option} requires a value`);
+      if (option === "f") paths.push(value);
+      hasExplicitPattern = true;
+      return { extraArgs: rest ? 0 : 1, hasExplicitPattern };
+    }
+    if (optionCharsWithValues.has(option)) return { extraArgs: rest ? 0 : 1, hasExplicitPattern };
+  }
+
+  return { extraArgs: 0, hasExplicitPattern };
+}
+
+function isFindExpressionStart(arg: string): boolean {
+  return arg.startsWith("-") || arg === "(" || arg === "!" || arg === ",";
+}
+
+function splitLongOption(arg: string): [string, string | undefined] {
+  const equalsIndex = arg.indexOf("=");
+  if (equalsIndex === -1) return [arg, undefined];
+  return [arg.slice(0, equalsIndex), arg.slice(equalsIndex + 1)];
+}
+
+function isPathValuedOption(command: string, option: string): boolean {
+  return command === "wc" && option === "--files0-from";
+}
+
+function isValueOption(command: string, option: string): boolean {
+  const optionsByCommand = new Map([
+    ["head", new Set(["--bytes", "--lines"])],
+    ["tail", new Set(["--bytes", "--lines", "--pid", "--sleep-interval"])],
+    [
+      "ls",
+      new Set([
+        "--block-size",
+        "--color",
+        "--format",
+        "--hide",
+        "--ignore",
+        "--indicator-style",
+        "--quoting-style",
+        "--sort",
+        "--tabsize",
+        "--time-style",
+        "--width",
+      ]),
+    ],
+  ]);
+  return optionsByCommand.get(command)?.has(option) ?? false;
+}
+
+function shortValueOption(command: string, arg: string): { value?: string; pathValue: boolean } | undefined {
+  const optionCharsByCommand = new Map([
+    ["head", new Set(["c", "n"])],
+    ["tail", new Set(["c", "n", "s"])],
+    ["ls", new Set(["I", "T", "w"])],
+  ]);
+  const pathOptionCharsByCommand = new Map([["wc", new Set(["0"])]]);
+  const pathOption = findShortOptionValue(arg, pathOptionCharsByCommand.get(command));
+  if (pathOption) return { value: pathOption.value, pathValue: true };
+  const value = findShortOptionValue(arg, optionCharsByCommand.get(command));
+  return value ? { value: value.value, pathValue: false } : undefined;
+}
+
+function findShortOptionValue(arg: string, optionChars: Set<string> | undefined): { value?: string } | undefined {
+  if (!optionChars) return undefined;
+  for (let offset = 1; offset < arg.length; offset++) {
+    const option = arg[offset]!;
+    if (!optionChars.has(option)) continue;
+    return { value: arg.slice(offset + 1) || undefined };
+  }
+  return undefined;
+}
+
+function ensurePathArgumentInsideRoot(path: string, cwd: string, root: string): void {
+  if (!path || path === "-") return;
+  if (path.startsWith("~")) throw new Error(`review_check does not allow home paths for filesystem command arguments: ${path}`);
+  if (isAbsolute(path)) throw new Error(`review_check does not allow absolute paths for filesystem command arguments: ${path}`);
+  if (hasParentDirectorySegment(path)) {
+    throw new Error(`review_check does not allow parent directory segments in filesystem command arguments: ${path}`);
+  }
+
+  const resolved = resolve(cwd, path);
+  if (!isInside(root, resolved)) throw new Error(`review_check path escapes the worktree: ${path}`);
+
+  const real = realpathIfPresent(resolved);
+  if (real && !isInside(realpathIfPresent(root) ?? root, real)) throw new Error(`review_check path escapes the worktree: ${path}`);
+}
+
+function hasParentDirectorySegment(path: string): boolean {
+  return path.split(/[\\/]+/).includes("..");
+}
+
+function realpathIfPresent(path: string): string | undefined {
+  try {
+    return realpathSync.native(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
 }
 
 function ensureGitSubcommandArgsReadOnly(argv: string[]): void {

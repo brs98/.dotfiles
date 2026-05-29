@@ -106,6 +106,16 @@ test("rejects paths that escape the worktree", () => {
   assert.throws(() => planReviewCommand("git -C /tmp status", root), /escapes the worktree/);
 });
 
+test("confines filesystem command path arguments to the worktree", () => {
+  assert.throws(() => planReviewCommand("cat /tmp/x", root), /absolute paths/);
+  assert.throws(() => planReviewCommand("cat ~/.foo", root), /home paths/);
+  assert.throws(() => planReviewCommand("grep x ../file", root), /parent directory/);
+  assert.throws(() => planReviewCommand("find /tmp", root), /absolute paths/);
+
+  const plan = planReviewCommand("cat pi/picastle/package.json", root);
+  assert.deepEqual(plan.steps[0]?.argv, ["cat", "pi/picastle/package.json"]);
+});
+
 test("rejects write-capable find actions", () => {
   assert.throws(() => planReviewCommand("find . -delete", root), /find action: -delete/);
   assert.throws(() => planReviewCommand("find . -exec rm {} ;", root), /shell operator/);
