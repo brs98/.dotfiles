@@ -27,7 +27,7 @@ const REVIEW_CHECK_PARAMETERS = {
   additionalProperties: false,
 };
 
-const SOURCE_COMMANDS = new Set(["git", "peb", "gh", "rg", "grep", "find", "ls", "pwd", "cat", "head", "tail", "wc"]);
+const SOURCE_COMMANDS = new Set(["git", "peb", "gh", "grep", "find", "ls", "pwd", "cat", "head", "tail", "wc"]);
 const COPY_COMMANDS = new Set(["npm", "pnpm", "yarn", "bun", "deno", "cargo", "go", "pytest", "python", "python3"]);
 const READ_ONLY_GIT_SUBCOMMANDS = new Set([
   "status",
@@ -349,6 +349,7 @@ function reviewCommandEnv(guardBin?: string): NodeJS.ProcessEnv {
     ...process.env,
     PATH: guardBin ? `${guardBin}${process.env.PATH ? `:${process.env.PATH}` : ""}` : process.env.PATH,
     GIT_TERMINAL_PROMPT: "0",
+    GIT_OPTIONAL_LOCKS: "0",
     GIT_PAGER: "cat",
     GIT_EXTERNAL_DIFF: "",
     GH_PROMPT_DISABLED: "1",

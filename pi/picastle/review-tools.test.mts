@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import test from "node:test";
 
 import { createReviewCheckTool, planReviewCommand } from "./review-tools.mts";
@@ -39,6 +42,7 @@ test("rejects mutating git, gh, and Pebbles commands", () => {
 test("rejects commands that are not on the review allowlist", () => {
   assert.throws(() => planReviewCommand("touch pwned", root), /does not allow command: touch/);
   assert.throws(() => planReviewCommand("npm install", root), /only allows npm test/);
+  assert.throws(() => planReviewCommand("rg --pre rm pattern file", root), /does not allow command: rg/);
 });
 
 test("rejects paths that escape the worktree", () => {
@@ -70,3 +74,28 @@ test("custom tool executes allowed source inspection", async () => {
   const result = await tool.execute("test", { command: "git status --short" } as never, undefined, undefined, {} as never);
   assert.match(result.content[0]?.type === "text" ? result.content[0].text ?? "" : "", /\$ git status --short/);
 });
+
+test("source git status does not refresh the index", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "picastle-review-index-"));
+  try {
+    runGit(repo, "init");
+    writeFileSync(join(repo, "tracked.txt"), "original\n");
+    runGit(repo, "add", "tracked.txt");
+    const indexPath = join(repo, ".git", "index");
+    const before = statSync(indexPath, { bigint: true }).mtimeNs;
+
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const tool = createReviewCheckTool(repo);
+    await tool.execute("test", { command: "git status --short" } as never, undefined, undefined, {} as never);
+
+    const after = statSync(indexPath, { bigint: true }).mtimeNs;
+    assert.equal(after, before);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+function runGit(cwd: string, ...args: string[]): void {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+}
