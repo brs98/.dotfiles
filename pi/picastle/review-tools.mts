@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 
@@ -48,7 +48,7 @@ const ALLOWED_PEB_NESTED_SUBCOMMANDS = new Map([
 ]);
 const READ_ONLY_GH_SUBCOMMANDS = new Map([["pr", new Set(["list", "view", "diff", "checks"])]]);
 export function createReviewCheckTool(root: string): ToolDefinition {
-  const reviewRoot = resolve(root);
+  const reviewRoot = resolveReviewRoot(root);
   return defineTool({
     name: "review_check",
     label: "review_check",
@@ -79,7 +79,7 @@ export function createReviewCheckTool(root: string): ToolDefinition {
 }
 
 export function planReviewCommand(command: string, root: string): ReviewCommandPlan {
-  const reviewRoot = resolve(root);
+  const reviewRoot = resolveReviewRoot(root);
   if (!command.trim()) throw new Error("review_check requires a command");
 
   const segments = splitCommandChain(command);
@@ -112,7 +112,7 @@ function normalizeCommand(argv: string[], cwd: string, root: string): ReviewStep
   }
 
   if (command === "git") return normalizeGitCommand(argv, cwd, root);
-  if (command === "peb") return normalizePebCommand(argv, cwd);
+  if (command === "peb") return normalizePebCommand(argv, cwd, root);
   if (command === "gh") return normalizeGhCommand(argv, cwd);
   if (command === "find") ensureFindIsReadOnly(argv);
   ensureFilesystemCommandPathsInsideRoot(argv, cwd, root);
@@ -149,16 +149,21 @@ function normalizeGitCommand(argv: string[], cwd: string, root: string): ReviewS
   return { argv: normalized, cwd: gitCwd, mode: "source" };
 }
 
-function normalizePebCommand(argv: string[], cwd: string): ReviewStep {
+function normalizePebCommand(argv: string[], cwd: string, root: string): ReviewStep {
   let index = 1;
   while (index < argv.length) {
     const arg = argv[index]!;
     if (arg === "--remote" || arg === "-R" || arg === "--repo") {
-      if (!argv[index + 1]) throw new Error(`${arg} requires a value`);
+      const value = argv[index + 1];
+      if (!value) throw new Error(`${arg} requires a value`);
+      ensurePebRepositoryOptionIsSafe(arg, value, cwd, root);
       index += 2;
       continue;
     }
     if (arg.startsWith("--remote=") || arg.startsWith("--repo=")) {
+      const [option, value] = splitLongOption(arg);
+      if (!value) throw new Error(`${option} requires a value`);
+      ensurePebRepositoryOptionIsSafe(option, value, cwd, root);
       index += 1;
       continue;
     }
@@ -176,11 +181,19 @@ function normalizePebCommand(argv: string[], cwd: string): ReviewStep {
 }
 
 function normalizeGhCommand(argv: string[], cwd: string): ReviewStep {
-  const area = argv[1];
-  const subcommand = argv[2];
+  let index = 1;
+  while (index < argv.length && argv[index]!.startsWith("-")) {
+    const arg = argv[index]!;
+    ensureGhOptionIsSafe(arg);
+    throw new Error(`review_check does not allow gh global option: ${arg}`);
+  }
+
+  const area = argv[index];
+  const subcommand = argv[index + 1];
   if (!area || !subcommand || !READ_ONLY_GH_SUBCOMMANDS.get(area)?.has(subcommand)) {
     throw new Error(`review_check does not allow gh command: ${argv.slice(1).join(" ") || "<missing>"}`);
   }
+  for (const arg of argv.slice(index + 2)) ensureGhOptionIsSafe(arg);
   return { argv, cwd, mode: "source" };
 }
 
@@ -246,7 +259,9 @@ function simpleFilesystemPathArguments(argv: string[], command: string): string[
     if (parsingOptions && arg.startsWith("-") && arg !== "-") {
       const valueOption = shortValueOption(command, arg);
       if (valueOption?.pathValue) {
-        paths.push(valueOption.value ?? argv[++i] ?? "");
+        const value = valueOption.value ?? argv[++i];
+        if (!value) throw new Error(`${arg} requires a path value`);
+        paths.push(value);
       } else if (valueOption && valueOption.value === undefined) {
         i++;
       }
@@ -439,7 +454,7 @@ function ensurePathArgumentInsideRoot(path: string, cwd: string, root: string): 
   const resolved = resolve(cwd, path);
   if (!isInside(root, resolved)) throw new Error(`review_check path escapes the worktree: ${path}`);
 
-  const real = realpathIfPresent(resolved);
+  const real = realpathForExistingPrefix(resolved);
   if (real && !isInside(realpathIfPresent(root) ?? root, real)) throw new Error(`review_check path escapes the worktree: ${path}`);
 }
 
@@ -454,6 +469,40 @@ function realpathIfPresent(path: string): string | undefined {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw error;
   }
+}
+
+function realpathForExistingPrefix(path: string): string | undefined {
+  const suffix: string[] = [];
+  let current = path;
+  while (true) {
+    const real = realpathIfPresent(current);
+    if (real) return suffix.length === 0 ? real : resolve(real, ...suffix.reverse());
+    const parent = dirname(current);
+    if (parent === current) return undefined;
+    suffix.push(basename(current));
+    current = parent;
+  }
+}
+
+function ensurePebRepositoryOptionIsSafe(option: string, value: string, cwd: string, root: string): void {
+  if (value.startsWith("~") || hasParentDirectorySegment(value) || isAbsolute(value)) {
+    throw new Error(`review_check does not allow peb ${option} path escapes: ${value}`);
+  }
+  if (/[\\/]/.test(value)) {
+    const resolved = resolve(cwd, value);
+    const real = realpathIfPresent(resolved) ?? resolved;
+    if (!isInside(root, real)) throw new Error(`review_check does not allow peb ${option} path escapes: ${value}`);
+    throw new Error(`review_check does not allow path-like peb ${option} values: ${value}`);
+  }
+}
+
+function ensureGhOptionIsSafe(arg: string): void {
+  const [option] = splitLongOption(arg);
+  if (option === "--repo" || option === "--web" || option === "--browser" || arg === "-R" || arg === "-w") {
+    throw new Error(`review_check does not allow gh option: ${arg}`);
+  }
+  if (arg.startsWith("-R") && arg !== "-R") throw new Error(`review_check does not allow gh option: ${arg}`);
+  if (arg.startsWith("-w") && arg !== "-w") throw new Error(`review_check does not allow gh option: ${arg}`);
 }
 
 function ensureGitSubcommandArgsReadOnly(argv: string[]): void {
@@ -498,20 +547,22 @@ function isGitOpenFilesInPagerShortOption(arg: string): boolean {
   return arg.startsWith("-") && !arg.startsWith("--") && arg.slice(1).includes("O");
 }
 
-function executeReviewCommandPlan(plan: ReviewCommandPlan, _root: string): { status: number; stdout: string; stderr: string } {
-  return executeSteps(plan.steps);
+function executeReviewCommandPlan(plan: ReviewCommandPlan, root: string): { status: number; stdout: string; stderr: string } {
+  return executeSteps(plan.steps, root);
 }
 
 function executeSteps(
   steps: ReviewStep[],
+  root: string,
 ): { status: number; stdout: string; stderr: string } {
   let stdout = "";
   let stderr = "";
 
   for (const step of steps) {
     const argv = step.argv[0] === "git" ? gitArgv(step.argv) : step.argv;
+    const cwd = ensureExecutionCwd(step.cwd, root);
     const result = spawnSync(argv[0]!, argv.slice(1), {
-      cwd: step.cwd,
+      cwd,
       encoding: "utf8",
       maxBuffer: 1024 * 1024 * 20,
       timeout: 10 * 60 * 1000,
@@ -519,8 +570,10 @@ function executeSteps(
     });
     stdout += result.stdout ?? "";
     stderr += result.stderr ?? "";
-    const status = result.status ?? (result.error ? 1 : 0);
-    if (status !== 0) return { status, stdout, stderr: stderr + (result.error ? String(result.error) : "") };
+    if (result.status === null) {
+      return { status: 1, stdout, stderr: stderr + formatSpawnFailure(result.error, result.signal) };
+    }
+    if (result.status !== 0) return { status: result.status, stdout, stderr: stderr + (result.error ? String(result.error) : "") };
   }
 
   return { status: 0, stdout, stderr };
@@ -571,11 +624,35 @@ function reviewCommandEnv(): NodeJS.ProcessEnv {
   };
 }
 
+function resolveReviewRoot(root: string): string {
+  return realpathSync.native(resolve(root));
+}
+
 function resolveReviewPath(root: string, cwd: string, path: string): string {
   if (path === "~" || path.startsWith("~/")) throw new Error("review_check paths must stay inside the worktree");
   const resolved = resolve(isAbsolute(path) ? path : join(cwd, path));
   if (!isInside(root, resolved)) throw new Error(`review_check path escapes the worktree: ${path}`);
-  return resolved;
+  let real: string;
+  try {
+    real = realpathSync.native(resolved);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error(`review_check path does not exist: ${path}`);
+    throw error;
+  }
+  if (!isInside(root, real)) throw new Error(`review_check path escapes the worktree: ${path}`);
+  return real;
+}
+
+function ensureExecutionCwd(cwd: string, root: string): string {
+  const realRoot = resolveReviewRoot(root);
+  const realCwd = realpathSync.native(cwd);
+  if (!isInside(realRoot, realCwd)) throw new Error(`review_check cwd escapes the worktree: ${cwd}`);
+  return realCwd;
+}
+
+function formatSpawnFailure(error: Error | undefined, signal: NodeJS.Signals | null): string {
+  const details = [signal ? `signal ${signal}` : undefined, error ? error.message : undefined].filter(Boolean).join("; ");
+  return details ? `spawn failed: ${details}` : "spawn failed with unknown termination";
 }
 
 function isInside(root: string, candidate: string): boolean {

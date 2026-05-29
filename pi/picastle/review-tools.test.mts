@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -37,6 +37,12 @@ test("allows read-only Pebbles inspection with remote args", () => {
   assert.equal(plan.mode, "source");
 });
 
+test("rejects path-like Pebbles repo and remote options", () => {
+  assert.throws(() => planReviewCommand("peb -R /tmp show dotfiles-evh", root), /peb -R path escapes/);
+  assert.throws(() => planReviewCommand("peb --repo ../outside show dotfiles-evh", root), /peb --repo path escapes/);
+  assert.throws(() => planReviewCommand("peb --remote=../outside show dotfiles-evh", root), /peb --remote path escapes/);
+});
+
 test("allows git grep pathspec separator", () => {
   const plan = planReviewCommand("git grep needle -- pi/picastle/README.md", root);
   assert.deepEqual(plan.steps[0]?.argv, ["git", "grep", "needle", "--", "pi/picastle/README.md"]);
@@ -51,6 +57,9 @@ test("rejects mutating git, gh, and Pebbles commands", () => {
   assert.throws(() => planReviewCommand("git commit -am nope", root), /git subcommand: commit/);
   assert.throws(() => planReviewCommand("git branch scratch", root), /git branch argument: scratch/);
   assert.throws(() => planReviewCommand("gh pr create --fill", root), /gh command/);
+  assert.throws(() => planReviewCommand("gh pr view --web", root), /gh option: --web/);
+  assert.throws(() => planReviewCommand("gh --repo owner/repo pr view 1", root), /gh option: --repo/);
+  assert.throws(() => planReviewCommand("gh pr view 1 --repo owner/repo", root), /gh option: --repo/);
   assert.throws(() => planReviewCommand("peb update dotfiles-evh --status closed", root), /peb subcommand: update/);
 });
 
@@ -106,6 +115,22 @@ test("rejects paths that escape the worktree", () => {
   assert.throws(() => planReviewCommand("git -C /tmp status", root), /escapes the worktree/);
 });
 
+test("rejects symlink escapes for cd, git -C, and filesystem arguments", () => {
+  const repo = mkdtempSync(join(tmpdir(), "picastle-review-symlink-"));
+  const outside = mkdtempSync(join(tmpdir(), "picastle-review-outside-"));
+  try {
+    symlinkSync(outside, join(repo, "outside-link"));
+    assert.throws(() => planReviewCommand("cd outside-link && pwd", repo), /escapes the worktree/);
+    assert.throws(() => planReviewCommand("git -C outside-link status", repo), /escapes the worktree/);
+    assert.throws(() => planReviewCommand("find outside-link -maxdepth 1 -type f -print", repo), /escapes the worktree/);
+    assert.throws(() => planReviewCommand("grep -f outside-link/patterns.txt needle file.txt", repo), /escapes the worktree/);
+    assert.throws(() => planReviewCommand("wc --files0-from outside-link/files.txt", repo), /escapes the worktree/);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
 test("confines filesystem command path arguments to the worktree", () => {
   assert.throws(() => planReviewCommand("cat /tmp/x", root), /absolute paths/);
   assert.throws(() => planReviewCommand("cat ~/.foo", root), /home paths/);
@@ -114,6 +139,15 @@ test("confines filesystem command path arguments to the worktree", () => {
 
   const plan = planReviewCommand("cat pi/picastle/package.json", root);
   assert.deepEqual(plan.steps[0]?.argv, ["cat", "pi/picastle/package.json"]);
+});
+
+test("confines path-valued options for find, grep, and wc", () => {
+  assert.throws(() => planReviewCommand("find . -newer /tmp/reference", root), /absolute paths/);
+  assert.throws(() => planReviewCommand("find . -files0-from ../files", root), /parent directory/);
+  assert.throws(() => planReviewCommand("grep --exclude-from /tmp/patterns needle .", root), /absolute paths/);
+  assert.throws(() => planReviewCommand("grep -f ../patterns needle .", root), /parent directory/);
+  assert.throws(() => planReviewCommand("wc --files0-from /tmp/files", root), /absolute paths/);
+  assert.throws(() => planReviewCommand("wc -0 ../files", root), /parent directory/);
 });
 
 test("rejects write-capable find actions", () => {
@@ -133,6 +167,25 @@ test("custom tool executes allowed source inspection", async () => {
   const tool = createReviewCheckTool(root);
   const result = await tool.execute("test", { command: "git status --short" } as never, undefined, undefined, {} as never);
   assert.match(result.content[0]?.type === "text" ? result.content[0].text ?? "" : "", /\$ git status --short/);
+});
+
+test("custom tool treats signal termination as failure", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "picastle-review-signal-"));
+  const bin = mkdtempSync(join(tmpdir(), "picastle-review-bin-"));
+  const oldPath = process.env.PATH;
+  try {
+    writeExecutable(join(bin, "git"), "#!/bin/sh\nkill -TERM $$\nsleep 1\n");
+    process.env.PATH = `${bin}:${oldPath ?? ""}`;
+    const tool = createReviewCheckTool(repo);
+    await assert.rejects(
+      () => tool.execute("test", { command: "git status --short" } as never, undefined, undefined, {} as never),
+      /signal SIGTERM/,
+    );
+  } finally {
+    process.env.PATH = oldPath;
+    rmSync(bin, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+  }
 });
 
 test("reviewer session setup does not load project-local Pi extensions", async () => {
@@ -169,7 +222,7 @@ test("reviewer session setup does not load project-local Pi extensions", async (
     const { session, extensionsResult } = await createAgentSession({
       cwd: repo,
       agentDir,
-      tools: ["read", "grep", "find", "ls", "review_check"],
+      tools: ["review_check"],
       customTools: [createReviewCheckTool(repo)],
       authStorage,
       modelRegistry: ModelRegistry.create(authStorage, join(agentDir, "models.json")),
@@ -182,6 +235,8 @@ test("reviewer session setup does not load project-local Pi extensions", async (
       assert.equal(extensionsResult.extensions.length, 0);
       assert.equal(existsSync(pwnedOnLoad), false);
       assert.equal(existsSync(pwnedOnSessionStart), false);
+      assert.deepEqual(session.getActiveToolNames(), ["review_check"]);
+      assert.equal(session.getAllTools().some((tool) => ["read", "grep", "find", "ls"].includes(tool.name)), false);
     } finally {
       session.dispose();
     }

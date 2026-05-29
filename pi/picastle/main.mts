@@ -464,7 +464,7 @@ async function reviewCompletedIssue(
   const stdout = await runPiAgent({
     name: `reviewer-${issue.id}-${pass}`,
     cwd: issue.worktreePath,
-    tools: ["read", "grep", "find", "ls", "review_check"],
+    tools: ["review_check"],
     customTools: [createReviewCheckTool(issue.worktreePath)],
     disableExtensions: true,
     prompt,
@@ -1044,13 +1044,14 @@ function run(
     maxBuffer: 1024 * 1024 * 20,
     env: { ...process.env, ...(opts.env ?? {}) },
   });
-  const status = result.status ?? 1;
+  const status = result.status === null ? 1 : result.status;
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
+  const termination = result.status === null ? formatSpawnFailure(result.error, result.signal) : "";
   if (status !== 0 && !opts.allowFailure) {
-    throw new Error(`command failed (${status}): ${command}\n${stdout}${stderr}`);
+    throw new Error(`command failed (${status}): ${command}\n${stdout}${stderr}${termination}`);
   }
-  return { status, stdout, stderr };
+  return { status, stdout, stderr: stderr + termination };
 }
 
 function extractPrRef(output: string): string | undefined {
@@ -1160,6 +1161,11 @@ function append(path: string, text: string): void {
 
 function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max)}\n... truncated ...`;
+}
+
+function formatSpawnFailure(error: Error | undefined, signal: NodeJS.Signals | null): string {
+  const details = [signal ? `signal ${signal}` : undefined, error ? error.message : undefined].filter(Boolean).join("; ");
+  return details ? `spawn failed: ${details}` : "spawn failed with unknown termination";
 }
 
 function formatError(error: unknown): string {
