@@ -1,7 +1,41 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildRecoveryPlan } from "./recovery.mjs";
+import { buildRecoveryPlan, extractIssueIdFromBranch, type RecoveryBranchInput } from "./recovery.mjs";
+
+test("extracts pebble ids before realistic branch slugs during recovery", () => {
+  assert.equal(extractIssueIdFromBranch("picastle/ricekit-394-fix-old"), "ricekit-394");
+  assert.equal(extractIssueIdFromBranch("picastle/dotfiles-yi5-resumable-idempotent-runs"), "dotfiles-yi5");
+
+  const issuesById = new Map([
+    ["ricekit-394", { title: "Fix publish recovery", status: "ready_for_agent" }],
+    ["dotfiles-yi5", { title: "Make runs resumable", status: "ready_for_agent" }],
+  ]);
+  const collected = [
+    { branch: "picastle/ricekit-394-fix-old", ahead: 3, dirty: false, commitTime: 10 },
+    { branch: "picastle/ricekit-394-fix-new", ahead: 1, dirty: false, commitTime: 20 },
+    { branch: "picastle/dotfiles-yi5-resumable-idempotent-runs", ahead: 0, dirty: true, worktreePath: "/tmp/worktrees/dotfiles-yi5-resumable-idempotent-runs" },
+  ].map((branch): RecoveryBranchInput => {
+    const issueId = extractIssueIdFromBranch(branch.branch);
+    const issue = issueId ? issuesById.get(issueId) : undefined;
+    return {
+      ...branch,
+      issueId,
+      title: issue?.title,
+      issueStatus: issue?.status,
+    };
+  });
+
+  const plan = buildRecoveryPlan(collected, "ready_for_agent");
+
+  assert.deepEqual(plan.unpublishedBranches.map((issue) => issue.id), ["ricekit-394"]);
+  assert.deepEqual(plan.interruptedImplementations.map((issue) => issue.id), ["dotfiles-yi5"]);
+  assert.equal(plan.deferredBranches.length, 1);
+  assert.equal(plan.blockedIssueIds.has("ricekit-394"), true);
+  assert.equal(plan.blockedIssueIds.has("dotfiles-yi5"), true);
+  assert.equal(plan.blockedIssueIds.has("ricekit-394-fix"), false);
+  assert.equal(plan.blockedIssueIds.has("dotfiles-yi5-resumable-idempotent"), false);
+});
 
 test("recovers one canonical unpublished branch per ready pebble", () => {
   const plan = buildRecoveryPlan(

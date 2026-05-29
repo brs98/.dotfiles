@@ -17,7 +17,7 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 
-import { buildRecoveryPlan, type RecoveryBranchInput, type RecoveryPlan } from "./recovery.mjs";
+import { buildRecoveryPlan, extractIssueIdFromBranch, type RecoveryBranchInput, type RecoveryPlan } from "./recovery.mjs";
 
 type PlannedIssue = { id: string; title: string; branch: string };
 type CompletedIssue = PlannedIssue & { worktreePath: string };
@@ -365,10 +365,6 @@ function logRecoveryPlan(plan: RecoveryPlan): void {
   for (const branch of plan.deferredBranches) {
     console.warn(`  defer: ${branch.issueId} ${branch.branch}: ${branch.reason}`);
   }
-}
-
-function extractIssueIdFromBranch(branch: string): string | undefined {
-  return branch.match(/^picastle\/([a-z0-9][a-z0-9_-]*-[a-z0-9]{3,})-/)?.[1];
 }
 
 async function planIssues(iteration: number, suppressedIssueIds: Set<string>): Promise<PlannedIssue[]> {

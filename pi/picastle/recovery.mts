@@ -31,6 +31,10 @@ export type RecoveryPlan = {
   blockedIssueIds: Set<string>;
 };
 
+export function extractIssueIdFromBranch(branch: string): string | undefined {
+  return branch.match(/^picastle\/([a-z0-9][a-z0-9_]*-[a-z0-9]{3,})-/)?.[1];
+}
+
 export function buildRecoveryPlan(
   branches: RecoveryBranchInput[],
   readyStatus: string,
