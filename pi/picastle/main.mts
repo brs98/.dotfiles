@@ -21,8 +21,8 @@ import {
   buildRecoveryPlan,
   classifyPebShowFailure,
   extractIssueIdFromBranch,
+  findOpenPrForIssue,
   normalizeOpenPrsJson,
-  parseFirstOpenPrUrl,
   parseKnownIssueIdsJson,
   parseOpenPrsByHead,
   type RecoveryBranchInput,
@@ -327,12 +327,12 @@ function loadOpenPrsByHead(): Map<string, string> {
   return parseOpenPrsByHead(result.stdout);
 }
 
-function loadExistingOpenPrUrl(branch: string): string | undefined {
+function loadExistingOpenPrForIssue(issueId: string): { headRefName: string; url: string } | undefined {
   const result = run(
-    `gh pr list --state open --head ${shellQuote(branch)} --json headRefName,url`,
+    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json headRefName,url`,
     repoRoot,
   );
-  return parseFirstOpenPrUrl(result.stdout);
+  return findOpenPrForIssue(result.stdout, issueId);
 }
 
 function loadKnownIssueIdsForRecovery(): string[] {
@@ -693,10 +693,10 @@ async function repairFromReview(
 async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
   console.log(`\n==> Publishing approved branch ${issue.id} (${issue.branch})`);
 
-  const existingPr = loadExistingOpenPrUrl(issue.branch);
+  const existingPr = loadExistingOpenPrForIssue(issue.id);
   if (existingPr) {
-    console.log(`  already has PR: ${existingPr}`);
-    const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr)}`), repoRoot, {
+    console.log(`  issue already has open PR on ${existingPr.headRefName}: ${existingPr.url}`);
+    const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr.url)}`), repoRoot, {
       allowFailure: true,
     });
     if (closes.status !== 0 && !/already/i.test(closes.stderr + closes.stdout)) {
@@ -784,9 +784,15 @@ async function publishCompletedIssues(
     try {
       console.log(`\n==> Publishing ${issue.id} (${issue.branch})`);
 
-      const existingPr = loadExistingOpenPrUrl(issue.branch);
+      const existingPr = loadExistingOpenPrForIssue(issue.id);
       if (existingPr) {
-        console.log(`  already has PR: ${existingPr}`);
+        console.log(`  issue already has open PR on ${existingPr.headRefName}: ${existingPr.url}`);
+        const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr.url)}`), repoRoot, {
+          allowFailure: true,
+        });
+        if (closes.status !== 0 && !/already/i.test(closes.stderr + closes.stdout)) {
+          console.warn(`  ⚠ failed to declare pending pebble closure for ${issue.id}: ${closes.stderr || closes.stdout}`);
+        }
         markIssueInReview(issue.id);
         continue;
       }

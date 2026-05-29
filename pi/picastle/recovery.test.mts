@@ -5,6 +5,7 @@ import {
   buildRecoveryPlan,
   classifyPebShowFailure,
   extractIssueIdFromBranch,
+  findOpenPrForIssue,
   normalizeOpenPrsJson,
   parseFirstOpenPrUrl,
   parseKnownIssueIdsJson,
@@ -194,6 +195,76 @@ test("keeps lookup failures distinct from confirmed missing pebbles", () => {
   );
 });
 
+test("does not treat open PR branches as already published when pebble lookup is not confirmed", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+        issueId: "dotfiles-yi5",
+        ahead: 0,
+        dirty: false,
+        openPrUrl: "https://github.com/example/repo/pull/12",
+        issueLookup: { state: "failed", message: "database is locked" },
+      },
+      {
+        branch: "picastle/dotfiles-zzz-missing",
+        issueId: "dotfiles-zzz",
+        ahead: 1,
+        dirty: false,
+        openPrUrl: "https://github.com/example/repo/pull/13",
+        issueLookup: { state: "not_found", message: "not found" },
+      },
+    ],
+    "ready_for_agent",
+  );
+
+  assert.deepEqual(plan.alreadyPublished, []);
+  assert.deepEqual(plan.ignoredBranches.map((branch) => [branch.issueId, branch.reason]), [
+    ["dotfiles-yi5", "pebble lookup failed: database is locked"],
+  ]);
+  assert.deepEqual(plan.deferredBranches.map((branch) => [branch.issueId, branch.reason]), [
+    ["dotfiles-zzz", "pebble was not found"],
+  ]);
+  assert.equal(plan.blockedIssueIds.has("dotfiles-yi5"), false);
+  assert.equal(plan.blockedIssueIds.has("dotfiles-zzz"), true);
+});
+
+test("does not reconcile open PR branches for non-ready pebbles", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+        issueId: "dotfiles-yi5",
+        title: "Make runs resumable",
+        issueStatus: "in_review",
+        issueLookup: { state: "found" },
+        ahead: 0,
+        dirty: false,
+        openPrUrl: "https://github.com/example/repo/pull/12",
+      },
+      {
+        branch: "picastle/dotfiles-yi5-local-duplicate",
+        issueId: "dotfiles-yi5",
+        title: "Make runs resumable",
+        issueStatus: "in_review",
+        issueLookup: { state: "found" },
+        ahead: 2,
+        dirty: false,
+      },
+    ],
+    "ready_for_agent",
+  );
+
+  assert.deepEqual(plan.alreadyPublished, []);
+  assert.deepEqual(plan.ignoredBranches.map((branch) => [branch.issueId, branch.reason]), [
+    ["dotfiles-yi5", "pebble status is in_review, not ready_for_agent"],
+  ]);
+  assert.deepEqual(plan.deferredBranches.map((branch) => [branch.issueId, branch.reason]), [
+    ["dotfiles-yi5", "pebble status is in_review, not ready_for_agent"],
+  ]);
+  assert.deepEqual(plan.unpublishedBranches, []);
+});
+
 test("parses known issue id discovery output deterministically", () => {
   assert.deepEqual(parseKnownIssueIdsJson(JSON.stringify({ data: [{ id: "my-repo" }, { id: "my-repo-abc" }, { id: "my-repo" }] })), [
     "my-repo-abc",
@@ -227,6 +298,22 @@ test("parses open PR discovery output for recovery and publish probes", () => {
   );
   assert.equal(parseFirstOpenPrUrl(stdout), "https://github.com/acme/repo/pull/12");
   assert.equal(normalizeOpenPrsJson(stdout), stdout);
+});
+
+test("finds existing open PRs by pebble id instead of exact branch only", () => {
+  const stdout = JSON.stringify([
+    { number: 10, headRefName: "picastle/my-repo-abc-other-work", url: "https://github.com/acme/repo/pull/10" },
+    { number: 11, headRefName: "picastle/dotfiles-abc-other-work", url: "https://github.com/acme/repo/pull/11" },
+    { number: 12, headRefName: "picastle/dotfiles-yi5-resumable-idempotent-runs", url: "https://github.com/acme/repo/pull/12" },
+  ]);
+
+  assert.deepEqual(findOpenPrForIssue(stdout, "dotfiles-yi5"), {
+    number: 12,
+    headRefName: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+    url: "https://github.com/acme/repo/pull/12",
+  });
+  assert.equal(findOpenPrForIssue(stdout, "dotfiles-xyz"), undefined);
+  assert.equal(findOpenPrForIssue(stdout, "my-repo"), undefined);
 });
 
 test("classifies peb show failures without collapsing them all to not-found", () => {

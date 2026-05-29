@@ -117,9 +117,11 @@ it asks the planner for new work. Recovery is handled first:
   work is not lost
 - ahead-of-base branches with no open PR are reviewed/published before planning
 - orphan local branches are attached to a runtime worktree before publishing
-- branches with open PRs have their Pebbles closure/review state reconciled
-- zero-ahead, stale, duplicate, missing-pebble, and non-ready branches are
-  summarized instead of silently creating another branch for the same pebble
+- branches with open PRs have their Pebbles closure/review state reconciled only
+  after the pebble lookup succeeds and the pebble is still in the ready queue
+- zero-ahead/stale branches are summarized as ignored; duplicate, missing-pebble,
+  lookup-failed, and non-ready branches with recoverable work are deferred and
+  block new planning for that pebble instead of silently creating another branch
 
 If recovery finds resumable local work, Picastle finishes that recovery pass and
 restarts the loop rather than selecting new issues in the same iteration. This

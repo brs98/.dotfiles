@@ -3,6 +3,8 @@ export type RecoveryIssueLookup =
   | { state: "not_found"; message?: string }
   | { state: "failed"; message: string };
 
+export type OpenPrRecord = { number?: number; headRefName: string; url: string };
+
 export type RecoveryBranchInput = {
   branch: string;
   issueId?: string;
@@ -93,7 +95,7 @@ export function buildRecoveryPlan(
   const activeByIssue = new Map<string, RecoveryBranchDecision[]>();
   const publishedBranchByIssue = new Map<string, RecoveryBranchInput>();
   for (const branch of branches) {
-    if (branch.issueId && branch.openPrUrl && !publishedBranchByIssue.has(branch.issueId)) {
+    if (branch.issueId && branch.openPrUrl && isIssueReadyForRecoveryTransition(branch, readyStatus) && !publishedBranchByIssue.has(branch.issueId)) {
       publishedBranchByIssue.set(branch.issueId, branch);
     }
   }
@@ -107,23 +109,16 @@ export function buildRecoveryPlan(
     const issueId = branch.issueId;
     const title = branch.title ?? issueId;
 
-    if (branch.openPrUrl) {
-      plan.alreadyPublished.push({ id: issueId, title, branch: branch.branch, worktreePath: branch.worktreePath, prUrl: branch.openPrUrl });
-      plan.blockedIssueIds.add(issueId);
-      continue;
-    }
-
     const hasRecoverableWork = branch.dirty || branch.ahead > 0;
-    const publishedBranch = publishedBranchByIssue.get(issueId);
-    if (publishedBranch) {
-      const decision = {
-        ...branch,
-        issueId,
-        reason: `issue already has an open PR on ${publishedBranch.branch}; not publishing duplicate`,
-      };
-      if (hasRecoverableWork) plan.deferredBranches.push(decision);
-      else plan.ignoredBranches.push(decision);
-      plan.blockedIssueIds.add(issueId);
+
+    if (!isIssueLookupConfirmed(branch)) {
+      const decision = { ...branch, issueId, reason: recoveryIssueLookupReason(branch.issueLookup) };
+      if (hasRecoverableWork) {
+        plan.deferredBranches.push(decision);
+        plan.blockedIssueIds.add(issueId);
+      } else {
+        plan.ignoredBranches.push(decision);
+      }
       continue;
     }
 
@@ -138,6 +133,24 @@ export function buildRecoveryPlan(
       } else {
         plan.ignoredBranches.push(decision);
       }
+      continue;
+    }
+
+    if (branch.openPrUrl) {
+      plan.alreadyPublished.push({ id: issueId, title, branch: branch.branch, worktreePath: branch.worktreePath, prUrl: branch.openPrUrl });
+      plan.blockedIssueIds.add(issueId);
+      continue;
+    }
+    const publishedBranch = publishedBranchByIssue.get(issueId);
+    if (publishedBranch) {
+      const decision = {
+        ...branch,
+        issueId,
+        reason: `issue already has an open PR on ${publishedBranch.branch}; not publishing duplicate`,
+      };
+      if (hasRecoverableWork) plan.deferredBranches.push(decision);
+      else plan.ignoredBranches.push(decision);
+      plan.blockedIssueIds.add(issueId);
       continue;
     }
 
@@ -225,6 +238,14 @@ export function parseOpenPrsByHead(stdout: string): Map<string, string> {
   return new Map(parseOpenPrRecords(stdout).map((pr) => [pr.headRefName, pr.url]));
 }
 
+export function findOpenPrForIssue(stdout: string, issueId: string): OpenPrRecord | undefined {
+  return parseOpenPrRecords(stdout).find((pr) => {
+    const inferredIssueId = extractIssueIdFromBranch(pr.headRefName);
+    if (inferredIssueId) return inferredIssueId === issueId;
+    return extractIssueIdFromBranch(pr.headRefName, [issueId]) === issueId;
+  });
+}
+
 export function normalizeOpenPrsJson(stdout: string): string {
   return JSON.stringify(parseOpenPrRecords(stdout));
 }
@@ -241,7 +262,7 @@ export function classifyPebShowFailure(output: string): RecoveryIssueLookup {
   return { state: "failed", message };
 }
 
-function parseOpenPrRecords(stdout: string): Array<{ number?: number; headRefName: string; url: string }> {
+function parseOpenPrRecords(stdout: string): OpenPrRecord[] {
   const trimmed = stdout.trim();
   if (!trimmed) {
     throw new Error("failed to parse gh pr list JSON: empty output");
@@ -273,6 +294,17 @@ function parseOpenPrRecords(stdout: string): Array<{ number?: number; headRefNam
       url: record.url,
     };
   });
+}
+
+function isIssueReadyForRecoveryTransition(branch: RecoveryBranchInput, readyStatus: string): boolean {
+  return isIssueLookupConfirmed(branch) && branch.issueStatus === readyStatus;
+}
+
+function isIssueLookupConfirmed(branch: RecoveryBranchInput): boolean {
+  // Unit tests and older callers may provide only issueStatus. Runtime recovery
+  // always sets issueLookup; when it says failed/not_found, fail closed so open
+  // PR branches cannot mutate Pebbles as "already published".
+  return branch.issueLookup?.state === "found" || (branch.issueLookup === undefined && branch.issueStatus !== undefined);
 }
 
 function recoveryIssueLookupReason(lookup: RecoveryIssueLookup | undefined): string {
