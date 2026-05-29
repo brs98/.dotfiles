@@ -59,8 +59,14 @@ Runtime files are outside the target repo:
 ```txt
 ~/.cache/picastle/<safe-repo-path>/
   logs/
+    picastle-planner-<iteration>-audit.json
   worktrees/
 ```
+
+Planner audits record selected and skipped candidate issues with categories such
+as `existing_pr`, `dependency`, `overlap_risk`, `missing_context`, and
+`policy_status`. Console output also summarizes those reasons so an empty plan is
+never just `issues: []` without explaining what Picastle considered.
 
 Implementer worktrees may contain untracked `.picastle/pending-*.jsonl` manifests.
 The host fan-in script applies those to Pebbles after each iteration.
