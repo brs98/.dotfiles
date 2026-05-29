@@ -23,6 +23,13 @@ export type PublishFlowDecision =
   | { kind: "update-existing-branch-pr"; existingPr: ExistingOpenPr; shouldPush: true; shouldCreatePr: false }
   | { kind: "create-new-pr"; shouldPush: true; shouldCreatePr: true }
   | { kind: "skip-pr-creation"; shouldPush: true; shouldCreatePr: false };
+export type PublishCommandBoundaryDecision = {
+  kind: PublishFlowDecision["kind"];
+  shouldRunPushBoundary: boolean;
+  shouldPush: boolean;
+  shouldCreatePr: boolean;
+  existingPrUrl?: string;
+};
 
 export type RecoveryBranchInput = {
   branch: string;
@@ -158,11 +165,6 @@ export function buildRecoveryPlan(
       continue;
     }
 
-    if (branch.openPrUrl && !branch.dirty && unpushed === 0) {
-      plan.alreadyPublished.push({ id: issueId, title, branch: branch.branch, worktreePath: branch.worktreePath, prUrl: branch.openPrUrl });
-      plan.blockedIssueIds.add(issueId);
-      continue;
-    }
     const openPrBranch = openPrBranchByIssue.get(issueId);
     if (openPrBranch && openPrBranch.branch !== branch.branch) {
       const decision = {
@@ -172,6 +174,12 @@ export function buildRecoveryPlan(
       };
       if (hasRecoverableWork) plan.deferredBranches.push(decision);
       else plan.ignoredBranches.push(decision);
+      plan.blockedIssueIds.add(issueId);
+      continue;
+    }
+
+    if (branch.openPrUrl && !branch.dirty && unpushed === 0) {
+      plan.alreadyPublished.push({ id: issueId, title, branch: branch.branch, worktreePath: branch.worktreePath, prUrl: branch.openPrUrl });
       plan.blockedIssueIds.add(issueId);
       continue;
     }
@@ -323,6 +331,20 @@ export function decidePublishFlow(
     return { kind: "create-new-pr", shouldPush: true, shouldCreatePr: true };
   }
   return { kind: "skip-pr-creation", shouldPush: true, shouldCreatePr: false };
+}
+
+export function decidePublishCommandBoundary(
+  flow: PublishFlowDecision,
+  options: { push?: boolean } = {},
+): PublishCommandBoundaryDecision {
+  const shouldPush = flow.shouldPush && (options.push ?? true);
+  return {
+    kind: flow.kind,
+    shouldRunPushBoundary: shouldPush,
+    shouldPush,
+    shouldCreatePr: flow.shouldCreatePr,
+    ...("existingPr" in flow ? { existingPrUrl: flow.existingPr.url } : {}),
+  };
 }
 
 export function isRecognizedRecoveryPrHead(branch: string): boolean {

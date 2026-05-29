@@ -10,6 +10,7 @@ import {
   assertSafeRecoveryBranchName,
   buildRecoveryPlan,
   classifyPebShowFailure,
+  decidePublishCommandBoundary,
   decidePublishFlow,
   extractIssueIdFromBranch,
   findOpenPrForIssue,
@@ -149,6 +150,52 @@ test("does not publish duplicate local branches when the issue already has an op
   ]);
   assert.equal(plan.deferredBranches.length, 1);
   assert.match(plan.deferredBranches[0]!.reason, /already has an open PR/);
+  assert.equal(plan.blockedIssueIds.has("ricekit-394"), true);
+});
+
+test("reconciles only one clean ready open PR branch per pebble", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/ricekit-394-fix-old",
+        issueId: "ricekit-394",
+        title: "Fix publish recovery",
+        issueStatus: "ready_for_agent",
+        issueLookup: { state: "found" },
+        ahead: 0,
+        dirty: false,
+        openPrUrl: "https://github.com/example/repo/pull/41",
+      },
+      {
+        branch: "picastle/ricekit-394-fix-new",
+        issueId: "ricekit-394",
+        title: "Fix publish recovery",
+        issueStatus: "ready_for_agent",
+        issueLookup: { state: "found" },
+        ahead: 0,
+        dirty: false,
+        openPrUrl: "https://github.com/example/repo/pull/42",
+      },
+    ],
+    "ready_for_agent",
+  );
+
+  assert.deepEqual(plan.alreadyPublished, [
+    {
+      id: "ricekit-394",
+      title: "Fix publish recovery",
+      branch: "picastle/ricekit-394-fix-old",
+      worktreePath: undefined,
+      prUrl: "https://github.com/example/repo/pull/41",
+    },
+  ]);
+  assert.deepEqual(selectRecoveryActions(plan), [
+    { kind: "declare-pending-closure", issueId: "ricekit-394", prUrl: "https://github.com/example/repo/pull/41" },
+  ]);
+  assert.deepEqual(plan.unpublishedBranches, []);
+  assert.equal(plan.ignoredBranches.length, 1);
+  assert.equal(plan.ignoredBranches[0]!.branch, "picastle/ricekit-394-fix-new");
+  assert.match(plan.ignoredBranches[0]!.reason, /already has an open PR on picastle\/ricekit-394-fix-old/);
   assert.equal(plan.blockedIssueIds.has("ricekit-394"), true);
 });
 
@@ -763,15 +810,16 @@ test("plan-only recovery produces no mutating recovery actions", () => {
 // The publisher-agent path requires a live Pi SDK reviewer session before it
 // reaches publishApprovedIssue. That path and the direct path share
 // decidePublishFlow; the integration test above exercises the direct command
-// boundary, while this helper test locks the no-PR-create decisions used by both
-// paths.
+// boundary, while this helper test locks the publisher-agent command decision
+// that must not create a duplicate PR for an existing issue PR.
 test("publish flow reuses existing issue PRs and only creates PRs when needed", () => {
+  const defaultPublisherAgentExistingIssuePrFlow = decidePublishFlow(
+    "picastle/dotfiles-aaa-new-branch",
+    { headRefName: "sandcastle/dotfiles-aaa-existing-pr", url: "https://github.com/example/repo/pull/1" },
+    { openPrs: true },
+  );
   assert.deepEqual(
-    decidePublishFlow(
-      "picastle/dotfiles-aaa-new-branch",
-      { headRefName: "sandcastle/dotfiles-aaa-existing-pr", url: "https://github.com/example/repo/pull/1" },
-      { openPrs: true },
-    ),
+    defaultPublisherAgentExistingIssuePrFlow,
     {
       kind: "use-existing-issue-pr",
       existingPr: { headRefName: "sandcastle/dotfiles-aaa-existing-pr", url: "https://github.com/example/repo/pull/1" },
@@ -779,6 +827,13 @@ test("publish flow reuses existing issue PRs and only creates PRs when needed", 
       shouldCreatePr: false,
     },
   );
+  assert.deepEqual(decidePublishCommandBoundary(defaultPublisherAgentExistingIssuePrFlow, { push: true }), {
+    kind: "use-existing-issue-pr",
+    shouldRunPushBoundary: false,
+    shouldPush: false,
+    shouldCreatePr: false,
+    existingPrUrl: "https://github.com/example/repo/pull/1",
+  });
   assert.deepEqual(
     decidePublishFlow(
       "picastle/dotfiles-aaa-existing-pr",

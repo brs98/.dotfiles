@@ -21,6 +21,7 @@ import {
   assertSafeRecoveryBranchName,
   buildRecoveryPlan,
   classifyPebShowFailure,
+  decidePublishCommandBoundary,
   decidePublishFlow,
   extractIssueIdFromBranch,
   findOpenPrForIssue,
@@ -770,6 +771,7 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
 
   const existingPr = loadExistingOpenPrForIssue(issue.id);
   const publishDecision = decidePublishFlow(issue.branch, existingPr, { openPrs: OPEN_PRS });
+  const commandDecision = decidePublishCommandBoundary(publishDecision, { push: PUSH });
   if (publishDecision.kind === "use-existing-issue-pr") {
     console.log(`  issue already has open PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
     if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
@@ -778,7 +780,7 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     return;
   }
 
-  if (PUSH) {
+  if (commandDecision.shouldPush) {
     runWorktreeReadyHook(issue.worktreePath);
     if (BEFORE_PUSH_COMMAND) {
       console.log(`  before-push: ${BEFORE_PUSH_COMMAND}`);
@@ -799,7 +801,7 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     return;
   }
 
-  if (publishDecision.kind === "skip-pr-creation") {
+  if (!commandDecision.shouldCreatePr && publishDecision.kind === "skip-pr-creation") {
     console.log("PICASTLE_OPEN_PRS=0; skipping PR creation");
     return;
   }
