@@ -7,7 +7,8 @@ import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const INLINE_SKILL_PATTERN = /(^|\s)\/skill:([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?=$|[\s.,;:!?)}\]])/g;
+const INLINE_SKILL_PATTERN =
+  /(^|\s)\/(skill:)?([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?=$|[\s.,;:!?)}\]])/g;
 
 const TOKEN_SEPARATORS = new Set([" ", "\t", "\n", "(", "[", "{"]);
 
@@ -34,12 +35,13 @@ function findInlineSkillNames(
   const missingSkills = new Set<string>();
 
   for (const match of text.matchAll(INLINE_SKILL_PATTERN)) {
-    const name = match[2];
+    const explicitSkillPrefix = match[2];
+    const name = match[3];
     if (!name) continue;
 
     if (findSkillCommand(commands, name)) {
       names.add(name);
-    } else {
+    } else if (explicitSkillPrefix) {
       missingSkills.add(name);
     }
   }
@@ -47,13 +49,40 @@ function findInlineSkillNames(
   return { names: [...names], missingSkills: [...missingSkills] };
 }
 
-function stripInlineSkillMarkers(text: string, commands: PiCommand[]): string {
+export function formatInlineSkillPromptText(text: string, commands: PiCommand[]): string {
+  const markerOnlyPrompt =
+    text
+      .replaceAll(
+        INLINE_SKILL_PATTERN,
+        (
+          match,
+          leadingWhitespace: string,
+          _explicitSkillPrefix: string | undefined,
+          name: string,
+        ) => {
+          if (!findSkillCommand(commands, name)) return match;
+          return leadingWhitespace;
+        },
+      )
+      .trim().length === 0;
+
+  if (markerOnlyPrompt) return "";
+
   return text
-    .replaceAll(INLINE_SKILL_PATTERN, (match, leadingWhitespace: string, name: string) => {
-      if (!findSkillCommand(commands, name)) return match;
-      return leadingWhitespace;
-    })
+    .replaceAll(
+      INLINE_SKILL_PATTERN,
+      (
+        match,
+        leadingWhitespace: string,
+        _explicitSkillPrefix: string | undefined,
+        name: string,
+      ) => {
+        if (!findSkillCommand(commands, name)) return match;
+        return `${leadingWhitespace}${name}`;
+      },
+    )
     .replace(/[ \t]+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
     .trim();
 }
 
@@ -277,7 +306,7 @@ export default function inlineSkills(pi: ExtensionAPI) {
 
     if (loadedSkills.length === 0) return { action: "continue" as const };
 
-    const strippedPrompt = stripInlineSkillMarkers(event.text, commands);
+    const strippedPrompt = formatInlineSkillPromptText(event.text, commands);
     pi.sendMessage(
       {
         customType: "inline-skills",
