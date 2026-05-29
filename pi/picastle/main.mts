@@ -15,7 +15,10 @@ import {
   createAgentSession,
   ModelRegistry,
   SessionManager,
+  type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
+
+import { createReviewCheckTool } from "./review-tools.mts";
 
 type PlannedIssue = { id: string; title: string; branch: string };
 type CompletedIssue = PlannedIssue & { worktreePath: string };
@@ -458,7 +461,8 @@ async function reviewCompletedIssue(
   const stdout = await runPiAgent({
     name: `reviewer-${issue.id}-${pass}`,
     cwd: issue.worktreePath,
-    tools: ["read", "bash"],
+    tools: ["read", "grep", "find", "ls", "review_check"],
+    customTools: [createReviewCheckTool(issue.worktreePath)],
     prompt,
     logFile: join(logsDir, `picastle-${issue.id}-review-${iteration}-${pass}.log`),
   });
@@ -767,6 +771,7 @@ async function runPiAgent(args: {
   name: string;
   cwd: string;
   tools: string[];
+  customTools?: ToolDefinition[];
   prompt: string;
   logFile: string;
 }): Promise<string> {
@@ -777,6 +782,7 @@ async function runPiAgent(args: {
   const { session } = await createAgentSession({
     cwd: args.cwd,
     tools: args.tools,
+    customTools: args.customTools,
     authStorage,
     modelRegistry,
     sessionManager: SessionManager.inMemory(args.cwd),
