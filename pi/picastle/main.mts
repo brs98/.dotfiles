@@ -18,6 +18,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import {
+  assertSafeRecoveryBranchName,
   buildRecoveryPlan,
   classifyPebShowFailure,
   extractIssueIdFromBranch,
@@ -250,6 +251,7 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
   const localBranches = listLocalPicastleBranches();
   const localBranchNames = new Set(localBranches.map((branch) => branch.branch));
   const inputs: RecoveryBranchInput[] = localBranches.map((localBranch) => {
+    assertSafeRecoveryBranchName(localBranch.branch);
     const issueId = extractIssueIdFromBranch(localBranch.branch, knownIssueIds);
     const worktree = worktreeByBranch.get(localBranch.branch);
     const dirty = worktree?.path && existsSync(worktree.path)
@@ -263,6 +265,8 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
     if (!Number.isFinite(ahead)) {
       throw new Error(`invalid git rev-list ahead count for ${localBranch.branch}: ${aheadOutput}`);
     }
+    const openPrUrl = openPrByHead.get(localBranch.branch);
+    const unpushed = openPrUrl ? countUnpushedCommits(localBranch.branch, ahead) : 0;
     const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
     return {
       branch: localBranch.branch,
@@ -271,9 +275,10 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
       issueStatus: issue?.status,
       issueLookup: issue?.lookup,
       ahead,
+      unpushed,
       dirty,
       worktreePath: worktree?.path,
-      openPrUrl: openPrByHead.get(localBranch.branch),
+      openPrUrl,
       commitTime: localBranch.commitTime,
     };
   });
@@ -295,6 +300,34 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
   }
 
   return inputs;
+}
+
+function countUnpushedCommits(branch: string, fallbackWhenNoTracking: number): number {
+  assertSafeRecoveryBranchName(branch);
+  const upstream = run(
+    `git rev-parse --abbrev-ref --symbolic-full-name ${shellQuote(`${branch}@{upstream}`)}`,
+    repoRoot,
+    { allowFailure: true },
+  ).stdout.trim();
+  const candidates = [upstream, `origin/${branch}`].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (!isSafeRecoveryTrackingRef(candidate)) {
+      throw new Error(`unsafe Picastle recovery tracking ref for ${branch}: ${candidate}`);
+    }
+    const exists = run(`git rev-parse --verify --quiet ${shellQuote(candidate)}`, repoRoot, { allowFailure: true }).status === 0;
+    if (!exists) continue;
+    const countOutput = run(`git rev-list --count ${shellQuote(candidate)}..${shellQuote(branch)}`, repoRoot).stdout.trim();
+    const count = Number(countOutput);
+    if (!Number.isFinite(count)) throw new Error(`invalid unpushed count for ${branch}: ${countOutput}`);
+    return count;
+  }
+
+  return Math.max(0, fallbackWhenNoTracking);
+}
+
+function isSafeRecoveryTrackingRef(ref: string): boolean {
+  return /^(?:refs\/remotes\/)?[a-z0-9._-]+\/picastle\/[a-z0-9][a-z0-9._-]*$/.test(ref) && !ref.includes("..") && !ref.includes("@{") && !ref.endsWith(".lock");
 }
 
 function listLocalPicastleBranches(): Array<{ branch: string; commitTime?: number }> {

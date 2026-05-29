@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  assertSafeRecoveryBranchName,
   buildRecoveryPlan,
   classifyPebShowFailure,
   extractIssueIdFromBranch,
@@ -227,6 +228,38 @@ test("keeps lookup failures distinct from confirmed missing pebbles", () => {
   );
 });
 
+test("routes same-branch open PRs with unpushed commits through publish/update", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+        issueId: "dotfiles-yi5",
+        title: "Make runs resumable",
+        issueStatus: "ready_for_agent",
+        issueLookup: { state: "found" },
+        ahead: 3,
+        unpushed: 2,
+        dirty: false,
+        worktreePath: "/tmp/worktrees/dotfiles-yi5-resumable-idempotent-runs",
+        openPrUrl: "https://github.com/example/repo/pull/12",
+      },
+    ],
+    "ready_for_agent",
+  );
+
+  assert.deepEqual(plan.alreadyPublished, []);
+  assert.deepEqual(plan.unpublishedBranches, [
+    {
+      id: "dotfiles-yi5",
+      title: "Make runs resumable",
+      branch: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+      worktreePath: "/tmp/worktrees/dotfiles-yi5-resumable-idempotent-runs",
+    },
+  ]);
+  assert.equal(plan.deferredBranches.length, 0);
+  assert.equal(plan.blockedIssueIds.has("dotfiles-yi5"), true);
+});
+
 test("does not treat open PR branches as already published when pebble lookup is not confirmed", () => {
   const plan = buildRecoveryPlan(
     [
@@ -251,13 +284,12 @@ test("does not treat open PR branches as already published when pebble lookup is
   );
 
   assert.deepEqual(plan.alreadyPublished, []);
-  assert.deepEqual(plan.ignoredBranches.map((branch) => [branch.issueId, branch.reason]), [
-    ["dotfiles-yi5", "pebble lookup failed: database is locked"],
-  ]);
+  assert.deepEqual(plan.ignoredBranches, []);
   assert.deepEqual(plan.deferredBranches.map((branch) => [branch.issueId, branch.reason]), [
+    ["dotfiles-yi5", "pebble lookup failed: database is locked"],
     ["dotfiles-zzz", "pebble was not found"],
   ]);
-  assert.equal(plan.blockedIssueIds.has("dotfiles-yi5"), false);
+  assert.equal(plan.blockedIssueIds.has("dotfiles-yi5"), true);
   assert.equal(plan.blockedIssueIds.has("dotfiles-zzz"), true);
 });
 
@@ -303,6 +335,14 @@ test("parses known issue id discovery output deterministically", () => {
     "my-repo",
   ]);
   assert.deepEqual(parseKnownIssueIdsJson(JSON.stringify([{ id: "b-abc" }, { id: "a-abc" }])), ["a-abc", "b-abc"]);
+});
+
+test("fails closed on unsafe Picastle recovery branch names before command construction", () => {
+  assert.doesNotThrow(() => assertSafeRecoveryBranchName("picastle/dotfiles-yi5-resumable-idempotent-runs"));
+  assert.throws(() => assertSafeRecoveryBranchName("picastle/dotfiles-yi5-fix;echo-owned"), /unsafe Picastle recovery branch name/);
+  assert.throws(() => assertSafeRecoveryBranchName("picastle/dotfiles-yi5-fix with-space"), /unsafe Picastle recovery branch name/);
+  assert.throws(() => assertSafeRecoveryBranchName("picastle/dotfiles-yi5/extra"), /unsafe Picastle recovery branch name/);
+  assert.throws(() => assertSafeRecoveryBranchName("picastle/dotfiles-yi5..fix"), /unsafe Picastle recovery branch name/);
 });
 
 test("fails closed on malformed known issue id discovery JSON", () => {

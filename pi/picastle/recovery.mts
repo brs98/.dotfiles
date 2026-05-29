@@ -13,6 +13,7 @@ export type RecoveryBranchInput = {
   issueStatus?: string;
   issueLookup?: RecoveryIssueLookup;
   ahead: number;
+  unpushed?: number;
   dirty: boolean;
   worktreePath?: string;
   openPrUrl?: string;
@@ -94,10 +95,10 @@ export function buildRecoveryPlan(
     blockedIssueIds: new Set<string>(),
   };
   const activeByIssue = new Map<string, RecoveryBranchDecision[]>();
-  const publishedBranchByIssue = new Map<string, RecoveryBranchInput>();
+  const openPrBranchByIssue = new Map<string, RecoveryBranchInput>();
   for (const branch of branches) {
-    if (branch.issueId && branch.openPrUrl && !branch.dirty && isIssueReadyForRecoveryTransition(branch, readyStatus) && !publishedBranchByIssue.has(branch.issueId)) {
-      publishedBranchByIssue.set(branch.issueId, branch);
+    if (branch.issueId && branch.openPrUrl && isIssueReadyForRecoveryTransition(branch, readyStatus) && !openPrBranchByIssue.has(branch.issueId)) {
+      openPrBranchByIssue.set(branch.issueId, branch);
     }
   }
 
@@ -109,12 +110,13 @@ export function buildRecoveryPlan(
 
     const issueId = branch.issueId;
     const title = branch.title ?? issueId;
+    const unpushed = branch.unpushed ?? 0;
 
-    const hasRecoverableWork = branch.dirty || branch.ahead > 0;
+    const hasRecoverableWork = branch.dirty || branch.ahead > 0 || unpushed > 0;
 
     if (!isIssueLookupConfirmed(branch)) {
       const decision = { ...branch, issueId, reason: recoveryIssueLookupReason(branch.issueLookup) };
-      if (hasRecoverableWork) {
+      if (hasRecoverableWork || branch.openPrUrl) {
         plan.deferredBranches.push(decision);
         plan.blockedIssueIds.add(issueId);
       } else {
@@ -137,17 +139,17 @@ export function buildRecoveryPlan(
       continue;
     }
 
-    if (branch.openPrUrl && !branch.dirty) {
+    if (branch.openPrUrl && !branch.dirty && unpushed === 0) {
       plan.alreadyPublished.push({ id: issueId, title, branch: branch.branch, worktreePath: branch.worktreePath, prUrl: branch.openPrUrl });
       plan.blockedIssueIds.add(issueId);
       continue;
     }
-    const publishedBranch = publishedBranchByIssue.get(issueId);
-    if (publishedBranch) {
+    const openPrBranch = openPrBranchByIssue.get(issueId);
+    if (openPrBranch && openPrBranch.branch !== branch.branch) {
       const decision = {
         ...branch,
         issueId,
-        reason: `issue already has an open PR on ${publishedBranch.branch}; not publishing duplicate`,
+        reason: `issue already has an open PR on ${openPrBranch.branch}; not publishing duplicate`,
       };
       if (hasRecoverableWork) plan.deferredBranches.push(decision);
       else plan.ignoredBranches.push(decision);
@@ -160,7 +162,15 @@ export function buildRecoveryPlan(
       continue;
     }
 
-    const decision = { ...branch, issueId, reason: branch.dirty ? "dirty worktree" : "ahead of base with no open PR" };
+    const decision = {
+      ...branch,
+      issueId,
+      reason: branch.dirty
+        ? "dirty worktree"
+        : branch.openPrUrl && unpushed > 0
+          ? `open PR branch has ${unpushed} unpushed commit(s)`
+          : "ahead of base with no open PR",
+    };
     const active = activeByIssue.get(issueId) ?? [];
     active.push(decision);
     activeByIssue.set(issueId, active);
@@ -197,6 +207,12 @@ export function buildRecoveryPlan(
   plan.ignoredBranches.sort(compareRecoveryDecisions);
 
   return plan;
+}
+
+export function assertSafeRecoveryBranchName(branch: string): void {
+  if (!/^picastle\/[a-z0-9][a-z0-9._-]*$/.test(branch) || branch.includes("..") || branch.includes("@{") || branch.endsWith(".lock")) {
+    throw new Error(`unsafe Picastle recovery branch name: ${branch}`);
+  }
 }
 
 export function parseKnownIssueIdsJson(stdout: string): string[] {
