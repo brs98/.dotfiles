@@ -14,7 +14,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 
-import { createReviewerResourceLoader } from "./review-session.mts";
+import { createReviewerAgentTooling, createReviewerResourceLoader } from "./review-session.mts";
 import { createReviewCheckTool, planReviewCommand } from "./review-tools.mts";
 
 const root = resolve(process.cwd(), "../..");
@@ -41,6 +41,17 @@ test("rejects path-like Pebbles repo and remote options", () => {
   assert.throws(() => planReviewCommand("peb -R /tmp show dotfiles-evh", root), /peb -R path escapes/);
   assert.throws(() => planReviewCommand("peb --repo ../outside show dotfiles-evh", root), /peb --repo path escapes/);
   assert.throws(() => planReviewCommand("peb --remote=../outside show dotfiles-evh", root), /peb --remote path escapes/);
+});
+
+test("validates Pebbles repo and remote options after subcommands", () => {
+  assert.doesNotThrow(() => planReviewCommand("peb list --repo dotfiles --json", root));
+  assert.doesNotThrow(() => planReviewCommand("peb dep list dotfiles-evh --remote origin", root));
+  assert.doesNotThrow(() => planReviewCommand("peb comment list dotfiles-evh -Rdotfiles", root));
+
+  assert.throws(() => planReviewCommand("peb list --repo ../outside", root), /peb --repo path escapes/);
+  assert.throws(() => planReviewCommand("peb dep list dotfiles-evh --remote /tmp", root), /peb --remote path escapes/);
+  assert.throws(() => planReviewCommand("peb comment list dotfiles-evh -R ../outside", root), /peb -R path escapes/);
+  assert.throws(() => planReviewCommand("peb pr --remote", root), /--remote requires a value/);
 });
 
 test("allows git grep pathspec separator", () => {
@@ -77,6 +88,13 @@ test("rejects git helper execution options", () => {
   assert.throws(() => planReviewCommand("git diff --ext", root), /git option: --ext/);
   assert.throws(() => planReviewCommand("git diff --textconv", root), /git option: --textconv/);
   assert.throws(() => planReviewCommand("git diff --textco", root), /git option: --textco/);
+});
+
+test("rejects git signature verification options and long-option abbreviations", () => {
+  assert.throws(() => planReviewCommand("git log --show-signature", root), /git option: --show-signature/);
+  assert.throws(() => planReviewCommand("git log --show-sign", root), /git option: --show-sign/);
+  assert.throws(() => planReviewCommand("git show --show-sig HEAD", root), /git option: --show-sig/);
+  assert.throws(() => planReviewCommand("git blame --show-signat -- pi/picastle/review-tools.mts", root), /git option: --show-signat/);
 });
 
 test("rejects git blame contents files and long-option abbreviations", () => {
@@ -232,6 +250,13 @@ test("custom tool treats signal termination as failure", async () => {
   }
 });
 
+test("reviewer agent tooling is wired to only review_check with extensions disabled", () => {
+  const tooling = createReviewerAgentTooling(root);
+  assert.deepEqual(tooling.tools, ["review_check"]);
+  assert.equal(tooling.disableExtensions, true);
+  assert.deepEqual(tooling.customTools.map((tool) => tool.name), ["review_check"]);
+});
+
 test("reviewer session setup does not load project-local Pi extensions", async () => {
   const repo = mkdtempSync(join(tmpdir(), "picastle-review-extension-"));
   const agentDir = mkdtempSync(join(tmpdir(), "picastle-review-agent-"));
@@ -328,6 +353,23 @@ test("source git status disables configured fsmonitor helpers", async () => {
   }
 });
 
+test("source git log disables configured signature verification helpers", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "picastle-review-signature-"));
+  try {
+    createFakeSignedCommit(repo);
+    writeExecutable(join(repo, ".git", "gpg.sh"), "#!/bin/sh\ntouch \"$PWD/pwned-gpg\"\nexit 1\n");
+    runGit(repo, "config", "log.showSignature", "true");
+    runGit(repo, "config", "gpg.program", ".git/gpg.sh");
+
+    const tool = createReviewCheckTool(repo);
+    await tool.execute("test", { command: "git log -1 --format=%H" } as never, undefined, undefined, {} as never);
+
+    assert.equal(existsSync(join(repo, "pwned-gpg")), false);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test("source git diff disables configured external diff and textconv helpers", async () => {
   const repo = mkdtempSync(join(tmpdir(), "picastle-review-diff-helpers-"));
   try {
@@ -354,6 +396,35 @@ test("source git diff disables configured external diff and textconv helpers", a
 function runGit(cwd: string, ...args: string[]): void {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
+}
+
+function createFakeSignedCommit(repo: string): void {
+  runGit(repo, "init");
+  runGit(repo, "config", "user.name", "Test User");
+  runGit(repo, "config", "user.email", "test@example.com");
+  writeFileSync(join(repo, "tracked.txt"), "original\n");
+  runGit(repo, "add", "tracked.txt");
+  const tree = spawnSync("git", ["write-tree"], { cwd: repo, encoding: "utf8" }).stdout.trim();
+  assert.match(tree, /^[0-9a-f]{40,}$/);
+  writeFileSync(
+    join(repo, "commit.txt"),
+    [
+      `tree ${tree}`,
+      "author Test User <test@example.com> 0 +0000",
+      "committer Test User <test@example.com> 0 +0000",
+      "gpgsig -----BEGIN PGP SIGNATURE-----",
+      " Version: fake",
+      " ",
+      " fake",
+      " -----END PGP SIGNATURE-----",
+      "",
+      "signed-ish",
+      "",
+    ].join("\n"),
+  );
+  const commit = spawnSync("git", ["hash-object", "-t", "commit", "-w", "commit.txt"], { cwd: repo, encoding: "utf8" }).stdout.trim();
+  assert.match(commit, /^[0-9a-f]{40,}$/);
+  runGit(repo, "update-ref", "HEAD", commit);
 }
 
 function writeExecutable(path: string, content: string): void {

@@ -164,6 +164,8 @@ function normalizeGitCommand(argv: string[], cwd: string, root: string): ReviewS
 }
 
 function normalizePebCommand(argv: string[], cwd: string, root: string): ReviewStep {
+  ensurePebRepositoryOptionsAreSafe(argv, cwd, root);
+
   let index = 1;
   while (index < argv.length) {
     const arg = argv[index]!;
@@ -178,6 +180,10 @@ function normalizePebCommand(argv: string[], cwd: string, root: string): ReviewS
       const [option, value] = splitLongOption(arg);
       if (!value) throw new Error(`${option} requires a value`);
       ensurePebRepositoryOptionIsSafe(option, value, cwd, root);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("-R") && arg !== "-R") {
       index += 1;
       continue;
     }
@@ -633,6 +639,28 @@ function realpathForExistingPrefix(path: string): string | undefined {
   }
 }
 
+function ensurePebRepositoryOptionsAreSafe(argv: string[], cwd: string, root: string): void {
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--remote" || arg === "-R" || arg === "--repo") {
+      const value = argv[i + 1];
+      if (!value) throw new Error(`${arg} requires a value`);
+      ensurePebRepositoryOptionIsSafe(arg, value, cwd, root);
+      i++;
+      continue;
+    }
+    if (arg.startsWith("--remote=") || arg.startsWith("--repo=")) {
+      const [option, value] = splitLongOption(arg);
+      if (!value) throw new Error(`${option} requires a value`);
+      ensurePebRepositoryOptionIsSafe(option, value, cwd, root);
+      continue;
+    }
+    if (arg.startsWith("-R") && arg !== "-R") {
+      ensurePebRepositoryOptionIsSafe("-R", arg.slice(2), cwd, root);
+    }
+  }
+}
+
 function ensurePebRepositoryOptionIsSafe(option: string, value: string, cwd: string, root: string): void {
   if (value.startsWith("~") || hasParentDirectorySegment(value) || isAbsolute(value)) {
     throw new Error(`review_check does not allow peb ${option} path escapes: ${value}`);
@@ -671,6 +699,7 @@ function ensureNoGitWriteOptions(argv: string[]): void {
       isGitOptionAbbreviation(arg, "--ext-diff") ||
       isGitOptionAbbreviation(arg, "--textconv") ||
       isGitOptionAbbreviation(arg, "--contents") ||
+      isGitOptionAbbreviation(arg, "--show-signature") ||
       arg === "--no-index" ||
       arg === "--exec" ||
       arg.startsWith("--exec=") ||
@@ -747,6 +776,10 @@ function gitArgv(argv: string[]): string[] {
     "core.hooksPath=/dev/null",
     "-c",
     "diff.external=",
+    "-c",
+    "log.showSignature=false",
+    "-c",
+    "gpg.program=false",
     "-c",
     "credential.helper=",
     ...hardenedArgs.slice(subcommand ? 1 : 0),

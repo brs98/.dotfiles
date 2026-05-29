@@ -1,4 +1,18 @@
-import { DefaultResourceLoader, getAgentDir, SettingsManager } from "@earendil-works/pi-coding-agent";
+import { DefaultResourceLoader, getAgentDir, SettingsManager, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+
+import { createReviewCheckTool } from "./review-tools.mts";
+
+export function createReviewerAgentTooling(cwd: string): {
+  tools: string[];
+  customTools: ToolDefinition[];
+  disableExtensions: true;
+} {
+  return {
+    tools: ["review_check"],
+    customTools: [createReviewCheckTool(cwd)],
+    disableExtensions: true,
+  };
+}
 
 export function createReviewerResourceLoader(options: {
   cwd: string;

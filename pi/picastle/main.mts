@@ -20,8 +20,7 @@ import {
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 
-import { createReviewerResourceLoader } from "./review-session.mts";
-import { createReviewCheckTool } from "./review-tools.mts";
+import { createReviewerAgentTooling, createReviewerResourceLoader } from "./review-session.mts";
 
 type PlannedIssue = { id: string; title: string; branch: string };
 type CompletedIssue = PlannedIssue & { worktreePath: string };
@@ -464,9 +463,7 @@ async function reviewCompletedIssue(
   const stdout = await runPiAgent({
     name: `reviewer-${issue.id}-${pass}`,
     cwd: issue.worktreePath,
-    tools: ["review_check"],
-    customTools: [createReviewCheckTool(issue.worktreePath)],
-    disableExtensions: true,
+    ...createReviewerAgentTooling(issue.worktreePath),
     prompt,
     logFile: join(logsDir, `picastle-${issue.id}-review-${iteration}-${pass}.log`),
   });
