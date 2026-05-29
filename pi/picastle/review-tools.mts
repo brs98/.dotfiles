@@ -217,6 +217,10 @@ function ensureNoGitWriteOptions(argv: string[]): void {
       arg === "--no-index" ||
       arg === "--exec" ||
       arg.startsWith("--exec=") ||
+      arg === "--open-files-in-pager" ||
+      arg.startsWith("--open-files-in-pager=") ||
+      arg === "-O" ||
+      arg.startsWith("-O") ||
       arg === "-o",
   );
   if (forbidden) throw new Error(`review_check does not allow git option: ${forbidden}`);

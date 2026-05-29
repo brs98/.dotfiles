@@ -39,6 +39,13 @@ test("rejects mutating git, gh, and Pebbles commands", () => {
   assert.throws(() => planReviewCommand("peb update dotfiles-evh --status closed", root), /peb subcommand: update/);
 });
 
+test("rejects git grep pager execution options", () => {
+  assert.throws(() => planReviewCommand("git grep --open-files-in-pager=touch needle", root), /git option: --open-files-in-pager=touch/);
+  assert.throws(() => planReviewCommand("git grep --open-files-in-pager touch needle", root), /git option: --open-files-in-pager/);
+  assert.throws(() => planReviewCommand("git grep -Otouch needle", root), /git option: -Otouch/);
+  assert.throws(() => planReviewCommand("git grep -O touch needle", root), /git option: -O/);
+});
+
 test("rejects commands that are not on the review allowlist", () => {
   assert.throws(() => planReviewCommand("touch pwned", root), /does not allow command: touch/);
   assert.throws(() => planReviewCommand("rg --pre rm pattern file", root), /does not allow command: rg/);
