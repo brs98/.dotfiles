@@ -5,13 +5,17 @@ import {
   assertSafeRecoveryBranchName,
   buildRecoveryPlan,
   classifyPebShowFailure,
+  decidePublishFlow,
   extractIssueIdFromBranch,
   findOpenPrForIssue,
+  isRecognizedRecoveryPrHead,
   normalizeOpenPrsJson,
   pebClosureRegistrationSucceeded,
   parseFirstOpenPrUrl,
   parseKnownIssueIdsJson,
   parseOpenPrsByHead,
+  selectRecoveredUnpublishedBranches,
+  selectRecoveryActions,
   validatePlannedIssueSelections,
   type RecoveryBranchInput,
 } from "./recovery.mjs";
@@ -22,6 +26,8 @@ test("extracts pebble ids before realistic branch slugs during recovery", () => 
   assert.equal(extractIssueIdFromBranch("picastle/my-repo-abc-fix"), "my-repo-abc");
   assert.equal(extractIssueIdFromBranch("picastle/my-repo-abc-fix", ["my-repo", "my-repo-abc"]), "my-repo-abc");
   assert.equal(extractIssueIdFromBranch("picastle/web-api-abc-fix", ["web-api", "web-api-abc"]), "web-api-abc");
+  assert.equal(extractIssueIdFromBranch("sandcastle/dotfiles-yi5-resumable-idempotent-runs"), "dotfiles-yi5");
+  assert.equal(extractIssueIdFromBranch("sandcastle/web-api-abc-fix", ["web-api", "web-api-abc"]), "web-api-abc");
 
   const issuesById = new Map([
     ["ricekit-394", { title: "Fix publish recovery", status: "ready_for_agent" }],
@@ -393,12 +399,12 @@ test("finds existing open PRs by pebble id instead of exact branch only", () => 
   const stdout = JSON.stringify([
     { number: 10, headRefName: "picastle/my-repo-abc-other-work", url: "https://github.com/acme/repo/pull/10" },
     { number: 11, headRefName: "picastle/dotfiles-abc-other-work", url: "https://github.com/acme/repo/pull/11" },
-    { number: 12, headRefName: "picastle/dotfiles-yi5-resumable-idempotent-runs", url: "https://github.com/acme/repo/pull/12" },
+    { number: 12, headRefName: "sandcastle/dotfiles-yi5-resumable-idempotent-runs", url: "https://github.com/acme/repo/pull/12" },
   ]);
 
   assert.deepEqual(findOpenPrForIssue(stdout, "dotfiles-yi5"), {
     number: 12,
-    headRefName: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+    headRefName: "sandcastle/dotfiles-yi5-resumable-idempotent-runs",
     url: "https://github.com/acme/repo/pull/12",
   });
   assert.equal(findOpenPrForIssue(stdout, "dotfiles-xyz"), undefined);
@@ -415,6 +421,115 @@ test("prefers exact known target issue id matching before heuristic PR branch ex
     number: 20,
     headRefName: "picastle/web-api-abc-fix",
     url: "https://github.com/acme/repo/pull/20",
+  });
+});
+
+test("recognizes Picastle and legacy Sandcastle PR heads for recovery scans", () => {
+  assert.equal(isRecognizedRecoveryPrHead("picastle/dotfiles-yi5-resumable-idempotent-runs"), true);
+  assert.equal(isRecognizedRecoveryPrHead("sandcastle/dotfiles-yi5-resumable-idempotent-runs"), true);
+  assert.equal(isRecognizedRecoveryPrHead("feature/dotfiles-yi5-resumable-idempotent-runs"), false);
+
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "sandcastle/dotfiles-yi5-resumable-idempotent-runs",
+        issueId: "dotfiles-yi5",
+        title: "Make runs resumable",
+        issueStatus: "ready_for_agent",
+        issueLookup: { state: "found" },
+        ahead: 0,
+        dirty: false,
+        openPrUrl: "https://github.com/example/repo/pull/12",
+      },
+      {
+        branch: "picastle/dotfiles-yi5-local-duplicate",
+        issueId: "dotfiles-yi5",
+        title: "Make runs resumable",
+        issueStatus: "ready_for_agent",
+        issueLookup: { state: "found" },
+        ahead: 2,
+        dirty: false,
+      },
+    ],
+    "ready_for_agent",
+  );
+
+  assert.deepEqual(plan.alreadyPublished.map((issue) => issue.branch), ["sandcastle/dotfiles-yi5-resumable-idempotent-runs"]);
+  assert.deepEqual(plan.unpublishedBranches, []);
+  assert.equal(plan.deferredBranches[0]!.reason, "issue already has an open PR on sandcastle/dotfiles-yi5-resumable-idempotent-runs; not publishing duplicate");
+});
+
+test("plan-only recovery produces no mutating recovery actions", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/dotfiles-aaa-ready-with-pr",
+        issueId: "dotfiles-aaa",
+        title: "Already published",
+        issueStatus: "ready_for_agent",
+        issueLookup: { state: "found" },
+        ahead: 0,
+        dirty: false,
+        openPrUrl: "https://github.com/example/repo/pull/1",
+      },
+      {
+        branch: "picastle/dotfiles-bbb-needs-worktree",
+        issueId: "dotfiles-bbb",
+        title: "Needs publish",
+        issueStatus: "ready_for_agent",
+        issueLookup: { state: "found" },
+        ahead: 1,
+        dirty: false,
+      },
+    ],
+    "ready_for_agent",
+  );
+
+  assert.deepEqual(selectRecoveryActions(plan, { readOnly: true }), []);
+  assert.deepEqual(selectRecoveredUnpublishedBranches(plan, { readOnly: true }), []);
+  assert.deepEqual(selectRecoveryActions(plan, { readOnly: false }), [
+    { kind: "declare-pending-closure", issueId: "dotfiles-aaa", prUrl: "https://github.com/example/repo/pull/1" },
+    { kind: "ensure-unpublished-worktree", issue: plan.unpublishedBranches[0] },
+  ]);
+  assert.deepEqual(selectRecoveredUnpublishedBranches(plan, { readOnly: false }), plan.unpublishedBranches);
+});
+
+test("publish flow reuses existing issue PRs and only creates PRs when needed", () => {
+  assert.deepEqual(
+    decidePublishFlow(
+      "picastle/dotfiles-aaa-new-branch",
+      { headRefName: "sandcastle/dotfiles-aaa-existing-pr", url: "https://github.com/example/repo/pull/1" },
+      { openPrs: true },
+    ),
+    {
+      kind: "use-existing-issue-pr",
+      existingPr: { headRefName: "sandcastle/dotfiles-aaa-existing-pr", url: "https://github.com/example/repo/pull/1" },
+      shouldPush: false,
+      shouldCreatePr: false,
+    },
+  );
+  assert.deepEqual(
+    decidePublishFlow(
+      "picastle/dotfiles-aaa-existing-pr",
+      { headRefName: "picastle/dotfiles-aaa-existing-pr", url: "https://github.com/example/repo/pull/2" },
+      { openPrs: true },
+    ),
+    {
+      kind: "update-existing-branch-pr",
+      existingPr: { headRefName: "picastle/dotfiles-aaa-existing-pr", url: "https://github.com/example/repo/pull/2" },
+      shouldPush: true,
+      shouldCreatePr: false,
+    },
+  );
+  assert.deepEqual(decidePublishFlow("picastle/dotfiles-aaa-new", undefined, { openPrs: true }), {
+    kind: "create-new-pr",
+    shouldPush: true,
+    shouldCreatePr: true,
+  });
+  assert.deepEqual(decidePublishFlow("picastle/dotfiles-aaa-new", undefined, { openPrs: false }), {
+    kind: "skip-pr-creation",
+    shouldPush: true,
+    shouldCreatePr: false,
   });
 });
 

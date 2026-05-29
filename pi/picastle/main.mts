@@ -21,12 +21,15 @@ import {
   assertSafeRecoveryBranchName,
   buildRecoveryPlan,
   classifyPebShowFailure,
+  decidePublishFlow,
   extractIssueIdFromBranch,
   findOpenPrForIssue,
+  isRecognizedRecoveryPrHead,
   normalizeOpenPrsJson,
   pebClosureRegistrationSucceeded,
   parseKnownIssueIdsJson,
   parseOpenPrsByHead,
+  selectRecoveryActions,
   validatePlannedIssueSelections,
   type RecoveryBranchInput,
   type RecoveryIssueLookup,
@@ -236,16 +239,19 @@ function recoverInterruptedRun(options: { readOnly?: boolean } = {}): RecoveryPl
     return { ...plan, unpublishedBranches: [] };
   }
 
-  for (const published of plan.alreadyPublished) {
-    if (declarePendingPebbleClosure(published.id, published.prUrl)) {
-      markIssueInReview(published.id);
+  const unpublishedBranches: CompletedIssue[] = [];
+  for (const action of selectRecoveryActions(plan, options)) {
+    if (action.kind === "declare-pending-closure") {
+      if (declarePendingPebbleClosure(action.issueId, action.prUrl)) {
+        markIssueInReview(action.issueId);
+      }
+    } else {
+      unpublishedBranches.push({
+        ...action.issue,
+        worktreePath: action.issue.worktreePath ?? ensureBranchWorktree(action.issue.branch),
+      });
     }
   }
-
-  const unpublishedBranches = plan.unpublishedBranches.map((issue) => ({
-    ...issue,
-    worktreePath: issue.worktreePath ?? ensureBranchWorktree(issue.branch),
-  }));
 
   return { ...plan, unpublishedBranches };
 }
@@ -306,7 +312,7 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
   });
 
   for (const [head, url] of openPrByHead) {
-    if (!head.startsWith("picastle/") || localBranchNames.has(head)) continue;
+    if (!isRecognizedRecoveryPrHead(head) || localBranchNames.has(head)) continue;
     const issueId = extractIssueIdFromBranch(head, knownIssueIds);
     const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
     inputs.push({
@@ -748,9 +754,10 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
   console.log(`\n==> Publishing approved branch ${issue.id} (${issue.branch})`);
 
   const existingPr = loadExistingOpenPrForIssue(issue.id);
-  if (existingPr && existingPr.headRefName !== issue.branch) {
-    console.log(`  issue already has open PR on ${existingPr.headRefName}: ${existingPr.url}`);
-    if (declarePendingPebbleClosure(issue.id, existingPr.url)) {
+  const publishDecision = decidePublishFlow(issue.branch, existingPr, { openPrs: OPEN_PRS });
+  if (publishDecision.kind === "use-existing-issue-pr") {
+    console.log(`  issue already has open PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+    if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
       markIssueInReview(issue.id);
     }
     return;
@@ -769,15 +776,15 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     console.log("PICASTLE_PUSH=0; skipping git push");
   }
 
-  if (existingPr) {
-    console.log(`  updated existing PR on ${existingPr.headRefName}: ${existingPr.url}`);
-    if (declarePendingPebbleClosure(issue.id, existingPr.url)) {
+  if (publishDecision.kind === "update-existing-branch-pr") {
+    console.log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+    if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
       markIssueInReview(issue.id);
     }
     return;
   }
 
-  if (!OPEN_PRS) {
+  if (publishDecision.kind === "skip-pr-creation") {
     console.log("PICASTLE_OPEN_PRS=0; skipping PR creation");
     return;
   }
@@ -840,9 +847,10 @@ async function publishCompletedIssues(
       console.log(`\n==> Publishing ${issue.id} (${issue.branch})`);
 
       const existingPr = loadExistingOpenPrForIssue(issue.id);
-      if (existingPr && existingPr.headRefName !== issue.branch) {
-        console.log(`  issue already has open PR on ${existingPr.headRefName}: ${existingPr.url}`);
-        if (declarePendingPebbleClosure(issue.id, existingPr.url)) {
+      const publishDecision = decidePublishFlow(issue.branch, existingPr, { openPrs: OPEN_PRS });
+      if (publishDecision.kind === "use-existing-issue-pr") {
+        console.log(`  issue already has open PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+        if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
           markIssueInReview(issue.id);
         }
         continue;
@@ -878,12 +886,12 @@ async function publishCompletedIssues(
       console.log("PICASTLE_PUSH=0; skipping git push");
     }
 
-    if (existingPr) {
-      console.log(`  updated existing PR on ${existingPr.headRefName}: ${existingPr.url}`);
-      if (declarePendingPebbleClosure(issue.id, existingPr.url)) {
+    if (publishDecision.kind === "update-existing-branch-pr") {
+      console.log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+      if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
         markIssueInReview(issue.id);
       }
-    } else if (OPEN_PRS) {
+    } else if (publishDecision.kind === "create-new-pr") {
       const prBody = buildPrBody(issue);
       const bodyFile = join(logsDir, `pr-body-${issue.id}.md`);
       mkdirSync(dirname(bodyFile), { recursive: true });
@@ -1338,7 +1346,7 @@ function parseArgs(args: string[]): {
     else if (arg === "--min-free-gb") parsed.minFreeGb = Number(next());
     else if (arg === "--base") parsed.base = next();
     else if (arg === "--help" || arg === "-h") {
-      console.log(`Usage: picastle [--repo PATH] [--plan-only] [--max-iterations N] [--max-issues N] [--concurrency N] [--min-free-gb N] [--base BRANCH] [--clean-targets] [--no-verify] [--no-push] [--no-pr]\n\nEnvironment: PICASTLE_PEB_REMOTE, PICASTLE_PEB_REPO, PICASTLE_ISSUE_STATUS, PICASTLE_ISSUE_LABEL, PICASTLE_MAX_ISSUES, PICASTLE_PENDING_STATUS, PICASTLE_REVIEW_STATUS, PICASTLE_PLAN_ONLY, PICASTLE_VERIFY, PICASTLE_PUSH, PICASTLE_OPEN_PRS, PICASTLE_PUBLISHER_AGENT, PICASTLE_REVIEW_REPAIR_CYCLES, PICASTLE_REVIEW_CONCURRENCY, PICASTLE_WORKTREE_READY_COMMAND, PICASTLE_BEFORE_PUSH_COMMAND, PICASTLE_CLEAN_TARGETS, PICASTLE_MIN_FREE_GB, PICASTLE_THINKING`);
+      console.log(`Usage: picastle [--repo PATH] [--plan-only] [--max-iterations N] [--max-issues N] [--concurrency N] [--min-free-gb N] [--base BRANCH] [--clean-targets] [--no-verify] [--no-push] [--no-pr]\n\nEnvironment: PICASTLE_PEB_REMOTE, PICASTLE_PEB_REPO, PICASTLE_ISSUE_STATUS, PICASTLE_ISSUE_LABEL, PICASTLE_MAX_ISSUES, PICASTLE_PENDING_STATUS, PICASTLE_REVIEW_STATUS, PICASTLE_PLAN_ONLY, PICASTLE_VERIFY, PICASTLE_PUSH, PICASTLE_OPEN_PRS, PICASTLE_OPEN_PR_SCAN_LIMIT, PICASTLE_PUBLISHER_AGENT, PICASTLE_REVIEW_REPAIR_CYCLES, PICASTLE_REVIEW_CONCURRENCY, PICASTLE_WORKTREE_READY_COMMAND, PICASTLE_BEFORE_PUSH_COMMAND, PICASTLE_CLEAN_TARGETS, PICASTLE_MIN_FREE_GB, PICASTLE_THINKING`);
       process.exit(0);
     } else {
       die(`unknown argument: ${arg}`);

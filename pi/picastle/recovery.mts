@@ -5,6 +5,15 @@ export type RecoveryIssueLookup =
 
 export type OpenPrRecord = { number?: number; headRefName: string; url: string };
 export type PlannedIssueSelection = { id: string; title: string; branch: string };
+export type ExistingOpenPr = { headRefName: string; url: string };
+export type RecoveryAction =
+  | { kind: "declare-pending-closure"; issueId: string; prUrl: string }
+  | { kind: "ensure-unpublished-worktree"; issue: RecoveryIssue };
+export type PublishFlowDecision =
+  | { kind: "use-existing-issue-pr"; existingPr: ExistingOpenPr; shouldPush: false; shouldCreatePr: false }
+  | { kind: "update-existing-branch-pr"; existingPr: ExistingOpenPr; shouldPush: true; shouldCreatePr: false }
+  | { kind: "create-new-pr"; shouldPush: true; shouldCreatePr: true }
+  | { kind: "skip-pr-creation"; shouldPush: true; shouldCreatePr: false };
 
 export type RecoveryBranchInput = {
   branch: string;
@@ -45,8 +54,8 @@ export function extractIssueIdFromBranch(branch: string, knownIssueIds?: Iterabl
   const knownIssueId = knownIssueIds ? extractKnownIssueIdFromBranch(branch, knownIssueIds) : undefined;
   if (knownIssueId) return knownIssueId;
 
-  const prefix = "picastle/";
-  if (!branch.startsWith(prefix)) return undefined;
+  const prefix = recoveryBranchPrefix(branch);
+  if (!prefix) return undefined;
 
   const slug = branch.slice(prefix.length);
   const tokens = slug.split("-");
@@ -64,9 +73,10 @@ export function extractIssueIdFromBranch(branch: string, knownIssueIds?: Iterabl
 }
 
 function extractKnownIssueIdFromBranch(branch: string, knownIssueIds: Iterable<string>): string | undefined {
-  if (!branch.startsWith("picastle/")) return undefined;
+  const prefix = recoveryBranchPrefix(branch);
+  if (!prefix) return undefined;
 
-  const slug = branch.slice("picastle/".length);
+  const slug = branch.slice(prefix.length);
   let bestMatch: string | undefined;
   for (const issueId of knownIssueIds) {
     if (!issueId || !slug.startsWith(`${issueId}-`)) continue;
@@ -264,6 +274,52 @@ export function findOpenPrForIssue(stdout: string, issueId: string): OpenPrRecor
   });
 }
 
+export function selectRecoveryActions(
+  plan: RecoveryPlan,
+  options: { readOnly?: boolean } = {},
+): RecoveryAction[] {
+  if (options.readOnly) return [];
+  return [
+    ...plan.alreadyPublished.map((issue) => ({
+      kind: "declare-pending-closure" as const,
+      issueId: issue.id,
+      prUrl: issue.prUrl,
+    })),
+    ...plan.unpublishedBranches.map((issue) => ({
+      kind: "ensure-unpublished-worktree" as const,
+      issue,
+    })),
+  ];
+}
+
+export function selectRecoveredUnpublishedBranches(
+  plan: RecoveryPlan,
+  options: { readOnly?: boolean } = {},
+): RecoveryIssue[] {
+  return options.readOnly ? [] : plan.unpublishedBranches;
+}
+
+export function decidePublishFlow(
+  branch: string,
+  existingPr: ExistingOpenPr | undefined,
+  options: { openPrs?: boolean } = {},
+): PublishFlowDecision {
+  if (existingPr && existingPr.headRefName !== branch) {
+    return { kind: "use-existing-issue-pr", existingPr, shouldPush: false, shouldCreatePr: false };
+  }
+  if (existingPr) {
+    return { kind: "update-existing-branch-pr", existingPr, shouldPush: true, shouldCreatePr: false };
+  }
+  if (options.openPrs ?? true) {
+    return { kind: "create-new-pr", shouldPush: true, shouldCreatePr: true };
+  }
+  return { kind: "skip-pr-creation", shouldPush: true, shouldCreatePr: false };
+}
+
+export function isRecognizedRecoveryPrHead(branch: string): boolean {
+  return recoveryBranchPrefix(branch) !== undefined;
+}
+
 export function validatePlannedIssueSelections(
   plannedIssues: unknown[],
   candidateIssues: unknown[],
@@ -336,6 +392,12 @@ export function classifyPebShowFailure(output: string): RecoveryIssueLookup {
 
 function looksLikePebbleIssueId(issueId: string): boolean {
   return /-[a-z0-9]{3}$/.test(issueId);
+}
+
+function recoveryBranchPrefix(branch: string): "picastle/" | "sandcastle/" | undefined {
+  if (branch.startsWith("picastle/")) return "picastle/";
+  if (branch.startsWith("sandcastle/")) return "sandcastle/";
+  return undefined;
 }
 
 function readRecordString(value: unknown, key: string): string | undefined {
