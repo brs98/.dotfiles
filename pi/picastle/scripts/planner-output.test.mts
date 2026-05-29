@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   formatPlannerBlockedSummary,
+  parsePlannerContext,
   parsePlannerPlan,
 } from "../planner-output.mjs";
 
@@ -13,6 +14,45 @@ const candidatesWithThird = [
   ...candidates,
   { id: "repo-ghi", title: "chore(api): cleanup", status: "ready_for_agent" },
 ];
+
+// planIssues lives in main.mts, whose top-level daemon loop runs on import.
+// Instead of importing it in tests, cover the shared context parser that planIssues
+// calls before rendering the planner prompt or writing the audit artifact.
+{
+  assert.deepEqual(
+    parsePlannerContext({
+      candidates: [{ id: "repo-no-title", status: "ready_for_agent" }],
+      openPrs: [{ number: "42", headRefName: "sandcastle/repo-no-title-fix", url: null }],
+    }),
+    {
+      candidates: [{ id: "repo-no-title", title: "repo-no-title" }],
+      openPrs: [{ number: "42", headRefName: "sandcastle/repo-no-title-fix" }],
+    },
+  );
+
+  assert.throws(
+    () => parsePlannerContext({ candidates: [{ id: "repo-abc", title: 123 }], openPrs: [] }),
+    /Invalid candidate issue title for repo-abc/,
+  );
+
+  assert.throws(
+    () =>
+      parsePlannerContext({
+        candidates,
+        openPrs: [{ number: { value: 42 }, headRefName: "picastle/repo-abc-stale-token" }],
+      }),
+    /Invalid open PR number for picastle\/repo-abc-stale-token/,
+  );
+
+  assert.throws(
+    () =>
+      parsePlannerContext({
+        candidates,
+        openPrs: [{ headRefName: "picastle/repo-abc-stale-token", url: 42 }],
+      }),
+    /Invalid open PR url for picastle\/repo-abc-stale-token/,
+  );
+}
 
 {
   const decision = parsePlannerPlan(

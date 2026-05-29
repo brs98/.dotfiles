@@ -20,6 +20,7 @@ import {
 import {
   formatPlannerBlockedSummary,
   normalizeBranch,
+  parsePlannerContext,
   parsePlannerPlan,
   type PlannedIssue,
   type PlannerDecision,
@@ -235,13 +236,16 @@ function extractIssueIdFromBranch(branch: string): string | undefined {
 
 async function planIssues(iteration: number): Promise<PlannerDecision> {
   const candidates = loadCandidateIssues();
-  const issuesJson = JSON.stringify(candidates);
 
   const openPrsJson = run(
     `gh pr list --state open --json number,headRefName,url --jq '[.[] | {number, headRefName, url}]'`,
     repoRoot,
   ).stdout;
   const openPrs = parseJsonArray(openPrsJson, "open GitHub PR list");
+  // Fail closed before giving malformed context to the planner or writing an audit
+  // artifact that would imply the context was trustworthy.
+  parsePlannerContext({ candidates, openPrs });
+  const issuesJson = JSON.stringify(candidates);
 
   const prompt = renderPrompt("plan-prompt.md", {
     ISSUES_JSON: issuesJson,

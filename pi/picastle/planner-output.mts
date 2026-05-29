@@ -23,8 +23,18 @@ export type PlannerDecision = {
   hasSyntheticExplanations: boolean;
 };
 
-type CandidateInfo = { id: string; title: string };
-type OpenPr = { number?: number | string; headRefName: string; url?: string };
+export type PlannerCandidateInfo = { id: string; title: string };
+export type PlannerOpenPr = { number?: number | string; headRefName: string; url?: string };
+
+export function parsePlannerContext(options: { candidates: unknown[]; openPrs: unknown[] }): {
+  candidates: PlannerCandidateInfo[];
+  openPrs: PlannerOpenPr[];
+} {
+  return {
+    candidates: options.candidates.map(candidateInfo),
+    openPrs: options.openPrs.map(openPrInfo),
+  };
+}
 
 export function parsePlannerPlan(
   stdout: string,
@@ -38,9 +48,8 @@ export function parsePlannerPlan(
     throw new Error("Planner <plan> JSON must contain an issues array");
   }
 
-  const candidates = options.candidates.map(candidateInfo);
+  const { candidates, openPrs } = parsePlannerContext(options);
   const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
-  const openPrs = options.openPrs.map(openPrInfo);
 
   const seenPlannedIds = new Set<string>();
   const planned = parsed.issues.map((raw: unknown) => {
@@ -188,7 +197,7 @@ function extractSkippedItems(parsed: Record<string, unknown>): unknown[] {
 
 function parseSkippedItem(
   raw: unknown,
-  candidateById: Map<string, CandidateInfo>,
+  candidateById: Map<string, PlannerCandidateInfo>,
 ): PlannerSkippedIssue {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error(`Invalid skipped issue: ${JSON.stringify(raw)}`);
@@ -215,7 +224,7 @@ function parseSkippedItem(
   };
 }
 
-function candidateInfo(candidate: unknown, index: number): CandidateInfo {
+function candidateInfo(candidate: unknown, index: number): PlannerCandidateInfo {
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
     throw new Error(`Invalid candidate issue at index ${index}: ${JSON.stringify(candidate)}`);
   }
@@ -230,7 +239,7 @@ function candidateInfo(candidate: unknown, index: number): CandidateInfo {
   return { id: item.id, title };
 }
 
-function openPrInfo(openPr: unknown, index: number): OpenPr {
+function openPrInfo(openPr: unknown, index: number): PlannerOpenPr {
   if (!openPr || typeof openPr !== "object" || Array.isArray(openPr)) {
     throw new Error(`Invalid open PR record at index ${index}: ${JSON.stringify(openPr)}`);
   }
@@ -248,13 +257,13 @@ function openPrInfo(openPr: unknown, index: number): OpenPr {
     throw new Error(`Invalid open PR url for ${headRefName}: expected a string when present`);
   }
 
-  const result: OpenPr = { headRefName };
+  const result: PlannerOpenPr = { headRefName };
   if (typeof number === "number" || typeof number === "string") result.number = number;
   if (typeof url === "string") result.url = url;
   return result;
 }
 
-function existingPrSkip(candidate: { id: string; title: string }, pr: OpenPr): PlannerSkippedIssue {
+function existingPrSkip(candidate: { id: string; title: string }, pr: PlannerOpenPr): PlannerSkippedIssue {
   const number = stringField(pr.number);
   const url = stringField(pr.url);
   const head = stringField(pr.headRefName);
@@ -278,7 +287,7 @@ function unexplainedSkip(candidate: { id: string; title: string }): PlannerSkipp
   };
 }
 
-function findOpenPrForIssue(id: string, openPrs: OpenPr[]): OpenPr | undefined {
+function findOpenPrForIssue(id: string, openPrs: PlannerOpenPr[]): PlannerOpenPr | undefined {
   const escaped = escapeRegExp(id);
   const branchPattern = new RegExp(`^(?:picastle|sandcastle)/${escaped}-.+`);
   return openPrs.find((pr) => branchPattern.test(stringField(pr.headRefName)));
