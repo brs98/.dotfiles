@@ -68,11 +68,11 @@ export function createReviewCheckTool(root: string): ToolDefinition {
     name: "review_check",
     label: "review_check",
     description:
-      "Run a restricted read-only review command. Git/Pebbles/GitHub inspection commands run in the worktree; build/test checks run in a disposable copy. Mutating commands, shell operators, redirects, commits, pushes, PR creation, and Pebbles writes are rejected.",
+      "Run a restricted read-only review command. Git/Pebbles/GitHub inspection commands run in the worktree; build/test checks run in a disposable copy. Mutating commands, shell operators, redirects, commits, pushes, PR creation, Pebbles writes, and copy-mode paths escaping the disposable copy are rejected.",
     promptSnippet: "Run allowlisted read-only review checks without granting a general shell",
     promptGuidelines: [
       "Use review_check instead of bash for git diff/log/status and project verification commands.",
-      "Do not attempt mutating commands; review_check rejects edits, commits, pushes, PR creation, and Pebbles writes.",
+      "Do not attempt mutating commands or output paths in the real worktree; review_check rejects edits, commits, pushes, PR creation, Pebbles writes, and copy-mode path escapes.",
     ],
     parameters: REVIEW_CHECK_PARAMETERS as any,
     async execute(_toolCallId, params: { command: string }) {
@@ -134,7 +134,10 @@ function normalizeCommand(argv: string[], cwd: string, root: string): ReviewStep
   if (command === "peb") return normalizePebCommand(argv, cwd);
   if (command === "gh") return normalizeGhCommand(argv, cwd);
   if (command === "find") ensureFindIsReadOnly(argv);
-  if (COPY_COMMANDS.has(command)) ensureCopyCommandAllowed(argv);
+  if (COPY_COMMANDS.has(command)) {
+    ensureCopyCommandAllowed(argv);
+    ensureCopyCommandArgsStayInCopy(argv);
+  }
 
   return { argv, cwd, mode: COPY_COMMANDS.has(command) ? "copy" : "source" };
 }
@@ -242,6 +245,27 @@ function ensureCopyCommandAllowed(argv: string[]): void {
 
 function isAllowedPackageScript(script: string): boolean {
   return PACKAGE_SCRIPTS.has(script) || /^(test|lint|build|check|typecheck|type-check)(:|$)/.test(script);
+}
+
+function ensureCopyCommandArgsStayInCopy(argv: string[]): void {
+  const unsafe = argv.find((arg) => argReferencesPathOutsideCopy(arg));
+  if (unsafe) {
+    throw new Error(`review_check copy-mode arguments must stay within the disposable copy: ${unsafe}`);
+  }
+}
+
+function argReferencesPathOutsideCopy(arg: string): boolean {
+  return argValueParts(arg).some((part) => isAbsolute(part) || hasParentPathSegment(part));
+}
+
+function argValueParts(arg: string): string[] {
+  const equalsIndex = arg.indexOf("=");
+  if (equalsIndex === -1) return [arg];
+  return [arg, arg.slice(equalsIndex + 1)].filter(Boolean);
+}
+
+function hasParentPathSegment(value: string): boolean {
+  return value.split(/[\\/]+/).includes("..");
 }
 
 function ensureFindIsReadOnly(argv: string[]): void {

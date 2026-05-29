@@ -46,6 +46,25 @@ test("rejects paths that escape the worktree", () => {
   assert.throws(() => planReviewCommand("git -C /tmp status", root), /escapes the worktree/);
 });
 
+test("rejects disposable-copy checks that target the source worktree", () => {
+  assert.throws(
+    () => planReviewCommand(`python -m pytest --junitxml ${root}/pytest.xml`, root),
+    /copy-mode arguments must stay within the disposable copy/,
+  );
+  assert.throws(
+    () => planReviewCommand(`cargo build --target-dir ${root}/target-review`, root),
+    /copy-mode arguments must stay within the disposable copy/,
+  );
+  assert.throws(
+    () => planReviewCommand(`npm run test -- --output=${root}/review-output.txt`, root),
+    /copy-mode arguments must stay within the disposable copy/,
+  );
+  assert.throws(
+    () => planReviewCommand("pytest --junitxml ../pytest.xml", root),
+    /copy-mode arguments must stay within the disposable copy/,
+  );
+});
+
 test("custom tool executes allowed source inspection", async () => {
   const tool = createReviewCheckTool(root);
   const result = await tool.execute("test", { command: "git status --short" } as never, undefined, undefined, {} as never);

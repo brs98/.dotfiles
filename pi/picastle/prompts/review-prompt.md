@@ -44,7 +44,7 @@ git diff {{BASE_BRANCH}}...HEAD
 
 4. If `{{VERIFY}}` is true, run relevant checks from `AGENTS.md` only through `review_check`. Prefer targeted checks first, but use full checks when the touched surface is broad or ambiguous.
 
-`review_check` rejects mutating git/gh/peb commands and general shell syntax. Standard build/test commands run in a disposable copy rather than the issue worktree. If a needed command is rejected or unavailable, record that in `checks` and explain the validation gap in `summary` or a finding.
+`review_check` rejects mutating git/gh/peb commands, general shell syntax, and copy-mode arguments that use absolute paths or parent-directory traversal. Standard build/test commands run in a disposable copy rather than the issue worktree. If a needed command is rejected or unavailable, record that in `checks` and explain the validation gap in `summary` or a finding.
 
 # OUTPUT
 
