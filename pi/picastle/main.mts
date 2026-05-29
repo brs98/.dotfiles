@@ -690,7 +690,7 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
   console.log(`\n==> Publishing approved branch ${issue.id} (${issue.branch})`);
 
   const existingPr = loadExistingOpenPrForIssue(issue.id);
-  if (existingPr) {
+  if (existingPr && existingPr.headRefName !== issue.branch) {
     console.log(`  issue already has open PR on ${existingPr.headRefName}: ${existingPr.url}`);
     const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr.url)}`), repoRoot, {
       allowFailure: true,
@@ -713,6 +713,18 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     });
   } else {
     console.log("PICASTLE_PUSH=0; skipping git push");
+  }
+
+  if (existingPr) {
+    console.log(`  updated existing PR on ${existingPr.headRefName}: ${existingPr.url}`);
+    const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr.url)}`), repoRoot, {
+      allowFailure: true,
+    });
+    if (closes.status !== 0 && !/already/i.test(closes.stderr + closes.stdout)) {
+      console.warn(`  ⚠ failed to declare pending pebble closure for ${issue.id}: ${closes.stderr || closes.stdout}`);
+    }
+    markIssueInReview(issue.id);
+    return;
   }
 
   if (!OPEN_PRS) {
@@ -781,7 +793,7 @@ async function publishCompletedIssues(
       console.log(`\n==> Publishing ${issue.id} (${issue.branch})`);
 
       const existingPr = loadExistingOpenPrForIssue(issue.id);
-      if (existingPr) {
+      if (existingPr && existingPr.headRefName !== issue.branch) {
         console.log(`  issue already has open PR on ${existingPr.headRefName}: ${existingPr.url}`);
         const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr.url)}`), repoRoot, {
           allowFailure: true,
@@ -823,7 +835,16 @@ async function publishCompletedIssues(
       console.log("PICASTLE_PUSH=0; skipping git push");
     }
 
-    if (OPEN_PRS) {
+    if (existingPr) {
+      console.log(`  updated existing PR on ${existingPr.headRefName}: ${existingPr.url}`);
+      const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr.url)}`), repoRoot, {
+        allowFailure: true,
+      });
+      if (closes.status !== 0 && !/already/i.test(closes.stderr + closes.stdout)) {
+        console.warn(`  ⚠ failed to declare pending pebble closure for ${issue.id}: ${closes.stderr || closes.stdout}`);
+      }
+      markIssueInReview(issue.id);
+    } else if (OPEN_PRS) {
       const prBody = buildPrBody(issue);
       const bodyFile = join(logsDir, `pr-body-${issue.id}.md`);
       mkdirSync(dirname(bodyFile), { recursive: true });

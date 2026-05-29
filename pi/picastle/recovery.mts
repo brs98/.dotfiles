@@ -96,7 +96,7 @@ export function buildRecoveryPlan(
   const activeByIssue = new Map<string, RecoveryBranchDecision[]>();
   const publishedBranchByIssue = new Map<string, RecoveryBranchInput>();
   for (const branch of branches) {
-    if (branch.issueId && branch.openPrUrl && isIssueReadyForRecoveryTransition(branch, readyStatus) && !publishedBranchByIssue.has(branch.issueId)) {
+    if (branch.issueId && branch.openPrUrl && !branch.dirty && isIssueReadyForRecoveryTransition(branch, readyStatus) && !publishedBranchByIssue.has(branch.issueId)) {
       publishedBranchByIssue.set(branch.issueId, branch);
     }
   }
@@ -137,7 +137,7 @@ export function buildRecoveryPlan(
       continue;
     }
 
-    if (branch.openPrUrl) {
+    if (branch.openPrUrl && !branch.dirty) {
       plan.alreadyPublished.push({ id: issueId, title, branch: branch.branch, worktreePath: branch.worktreePath, prUrl: branch.openPrUrl });
       plan.blockedIssueIds.add(issueId);
       continue;
@@ -264,6 +264,7 @@ export function validatePlannedIssueSelections(
   }
 
   const suppressedIssueIds = new Set(options.suppressedIssueIds ?? []);
+  const knownIssueIds = new Set([...candidateIds, ...suppressedIssueIds]);
   const seen = new Set<string>();
   return plannedIssues.map((plannedIssue, index) => {
     const id = readRecordString(plannedIssue, "id");
@@ -276,10 +277,22 @@ export function validatePlannedIssueSelections(
     seen.add(id);
     if (suppressedIssueIds.has(id)) throw new Error(`Planner selected suppressed issue id ${id}`);
     if (!candidateIds.has(id)) throw new Error(`Planner selected non-candidate issue id ${id}`);
+
+    const normalizedBranch = options.normalizeBranch ? options.normalizeBranch(branch, id, title) : branch;
+    const branchIssueId = extractIssueIdFromBranch(normalizedBranch, knownIssueIds);
+    if (!branchIssueId) {
+      throw new Error(`Planner selected branch ${normalizedBranch} for issue ${id}, but branch name does not contain a valid issue id`);
+    }
+    if (suppressedIssueIds.has(branchIssueId)) {
+      throw new Error(`Planner selected branch targets suppressed issue id ${branchIssueId}: ${normalizedBranch}`);
+    }
+    if (branchIssueId !== id) {
+      throw new Error(`Planner selected branch targets issue id ${branchIssueId}, not selected issue id ${id}: ${normalizedBranch}`);
+    }
     return {
       id,
       title,
-      branch: options.normalizeBranch ? options.normalizeBranch(branch, id, title) : branch,
+      branch: normalizedBranch,
     };
   });
 }

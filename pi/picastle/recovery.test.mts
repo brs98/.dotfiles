@@ -166,6 +166,37 @@ test("routes dirty ready worktrees back through implementation before publish", 
   assert.deepEqual(plan.unpublishedBranches, []);
 });
 
+test("resumes dirty ready branches even when they already have an open PR", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+        issueId: "dotfiles-yi5",
+        title: "Make runs resumable",
+        issueStatus: "ready_for_agent",
+        issueLookup: { state: "found" },
+        ahead: 3,
+        dirty: true,
+        worktreePath: "/tmp/worktrees/dotfiles-yi5-resumable-idempotent-runs",
+        openPrUrl: "https://github.com/example/repo/pull/12",
+      },
+    ],
+    "ready_for_agent",
+  );
+
+  assert.deepEqual(plan.alreadyPublished, []);
+  assert.deepEqual(plan.interruptedImplementations, [
+    {
+      id: "dotfiles-yi5",
+      title: "Make runs resumable",
+      branch: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+      worktreePath: "/tmp/worktrees/dotfiles-yi5-resumable-idempotent-runs",
+    },
+  ]);
+  assert.deepEqual(plan.unpublishedBranches, []);
+  assert.equal(plan.blockedIssueIds.has("dotfiles-yi5"), true);
+});
+
 test("keeps lookup failures distinct from confirmed missing pebbles", () => {
   const plan = buildRecoveryPlan(
     [
@@ -363,6 +394,22 @@ test("validates planner selections against filtered candidates", () => {
       { id: "dotfiles-ccc", title: "Not a candidate", branch: "picastle/dotfiles-ccc-missing" },
     ], candidates),
     /non-candidate issue id dotfiles-ccc/,
+  );
+  assert.throws(
+    () => validatePlannedIssueSelections(
+      [{ id: "dotfiles-aaa", title: "Allowed", branch: "picastle/dotfiles-ccc-suppressed" }],
+      candidates,
+      { suppressedIssueIds: ["dotfiles-ccc"] },
+    ),
+    /branch targets suppressed issue id dotfiles-ccc/,
+  );
+  assert.throws(
+    () => validatePlannedIssueSelections(
+      [{ id: "dotfiles-aaa", title: "Allowed", branch: "sandcastle/dotfiles-bbb-other-work" }],
+      candidates,
+      { normalizeBranch: (branch) => branch.replace(/^sandcastle\//, "picastle/") },
+    ),
+    /branch targets issue id dotfiles-bbb, not selected issue id dotfiles-aaa/,
   );
 });
 
