@@ -59,8 +59,14 @@ Runtime files are outside the target repo:
 ```txt
 ~/.cache/picastle/<safe-repo-path>/
   logs/
+    picastle-planner-<iteration>-audit.json
   worktrees/
 ```
+
+Planner audits record selected and skipped candidate issues with categories such
+as `existing_pr`, `dependency`, `overlap_risk`, `missing_context`, and
+`policy_status`. Console output also summarizes those reasons so an empty plan is
+never just `issues: []` without explaining what Picastle considered.
 
 Implementer worktrees may contain untracked `.picastle/pending-*.jsonl` manifests.
 The host fan-in script applies those to Pebbles after each iteration.
@@ -93,6 +99,7 @@ repair/implementer path instead of running branch-controlled code.
 - `PICASTLE_PUBLISHER_AGENT=1` uses the review/repair/publish pipeline for Sandcastle parity
 - `PICASTLE_REVIEW_REPAIR_CYCLES=10` max reviewer ↔ implementer repair loops
 - `PICASTLE_REVIEW_CONCURRENCY=$PICASTLE_CONCURRENCY` parallel review/publish workers
+- `PICASTLE_OPEN_PR_SCAN_LIMIT=1000` bounded `gh pr list` scan used to detect same-repository in-flight Picastle PRs and legacy Sandcastle PR heads; Picastle filters out fork/cross-repo heads and does not pass an unbounded "all PRs" list to recovery or planning
 - `PICASTLE_WORKTREE_READY_COMMAND=` optional once-per-worktree setup command, e.g. `npm install`
 - `PICASTLE_BEFORE_PUSH_COMMAND=` optional command run in the worktree immediately before `git push`
 - `PICASTLE_CLEAN_TARGETS=1` deletes each Picastle worktree's `target/` after its publish/defer path finishes
@@ -119,4 +126,29 @@ write.
 
 ## Resume behavior
 
-At the start of each iteration, Picastle scans its runtime worktrees for local `picastle/<issue>-*` branches that are ahead of the base branch, do not yet have an open PR, and whose pebble is still in the ready queue. Those branches are reviewed/published before planning new work, preventing duplicate branches after an interrupted push/review phase.
+At the start of each iteration, Picastle derives recovery state from Pebbles,
+local `picastle/<issue>-*` branches, registered worktrees, and a bounded,
+same-repository-filtered list of open Picastle/legacy Sandcastle PR heads before
+it asks the planner for new work. Recovery is handled first:
+
+- dirty branches are resumed through implementation only after their Pebble
+  lookup is confirmed and the Pebble is still in the ready queue, so
+  uncommitted work is not lost
+- ahead-of-base ready-queue branches with confirmed lookup/readiness and no open
+  PR are reviewed/published before planning
+- orphan ready-queue local branches are attached to a runtime worktree before
+  publishing
+- clean open-PR branches with no unpushed commits have their Pebbles
+  closure/review state reconciled only after the Pebble lookup succeeds and the
+  Pebble is still in the ready queue
+- dirty open-PR branches with confirmed ready-queue Pebbles are resumed through
+  implementation; clean open-PR branches with unpushed commits are
+  reviewed/published so the existing PR is updated
+- zero-ahead/stale branches are summarized as ignored; duplicate, missing-pebble,
+  lookup-failed, non-ready, and ambiguous/open-PR branches with recoverable work
+  are deferred and block new planning for that Pebble instead of silently
+  creating another branch
+
+If recovery finds resumable local work, Picastle finishes that recovery pass and
+restarts the loop rather than selecting new issues in the same iteration. This
+keeps interrupted implement, review, push, and PR-creation phases idempotent.
