@@ -36,6 +36,7 @@ export type RecoveryBranchInput = {
   issueId?: string;
   title?: string;
   issueStatus?: string;
+  issueLabels?: string[];
   issueLookup?: RecoveryIssueLookup;
   ahead: number;
   unpushed?: number;
@@ -43,6 +44,13 @@ export type RecoveryBranchInput = {
   worktreePath?: string;
   openPrUrl?: string;
   commitTime?: number;
+};
+
+export type RecoveryReadinessPolicy = {
+  status: string;
+  readyLabel?: string;
+  requiredLabel?: string;
+  predicate?: (branch: RecoveryBranchInput) => boolean;
 };
 
 export type RecoveryIssue = {
@@ -110,8 +118,9 @@ function extractKnownIssueIdFromBranch(branch: string, knownIssueIds: Iterable<s
 
 export function buildRecoveryPlan(
   branches: RecoveryBranchInput[],
-  readyStatus: string,
+  readiness: string | RecoveryReadinessPolicy,
 ): RecoveryPlan {
+  const readyPolicy = normalizeRecoveryReadinessPolicy(readiness);
   const plan: RecoveryPlan = {
     interruptedImplementations: [],
     unpublishedBranches: [],
@@ -123,7 +132,7 @@ export function buildRecoveryPlan(
   const activeByIssue = new Map<string, RecoveryBranchDecision[]>();
   const openPrBranchByIssue = new Map<string, RecoveryBranchInput>();
   for (const branch of branches) {
-    if (branch.issueId && branch.openPrUrl && isIssueReadyForRecoveryTransition(branch, readyStatus) && !openPrBranchByIssue.has(branch.issueId)) {
+    if (branch.issueId && branch.openPrUrl && isIssueReadyForRecoveryTransition(branch, readyPolicy) && !openPrBranchByIssue.has(branch.issueId)) {
       openPrBranchByIssue.set(branch.issueId, branch);
     }
   }
@@ -151,10 +160,8 @@ export function buildRecoveryPlan(
       continue;
     }
 
-    if (branch.issueStatus !== readyStatus) {
-      const reason = branch.issueStatus
-        ? `pebble status is ${branch.issueStatus}, not ${readyStatus}`
-        : recoveryIssueLookupReason(branch.issueLookup);
+    if (!isIssueReadyForRecoveryTransition(branch, readyPolicy)) {
+      const reason = recoveryReadinessFailureReason(branch, readyPolicy);
       const decision = { ...branch, issueId, reason };
       if (hasRecoverableWork) {
         plan.deferredBranches.push(decision);
@@ -410,7 +417,7 @@ export function normalizeOpenPrsJson(stdout: string, options: OpenPrParseOptions
 }
 
 export function pebClosureRegistrationSucceeded(result: { status: number; stdout?: string; stderr?: string }): boolean {
-  return result.status === 0 || /\balready\b/i.test(`${result.stdout ?? ""}\n${result.stderr ?? ""}`);
+  return result.status === 0;
 }
 
 export function parseFirstOpenPrUrl(stdout: string, options: OpenPrParseOptions = {}): string | undefined {
@@ -536,8 +543,35 @@ function readGitHubLogin(value: unknown): string | undefined {
   return readString(value) ?? readString(readObject(value)?.login) ?? readString(readObject(value)?.name);
 }
 
-function isIssueReadyForRecoveryTransition(branch: RecoveryBranchInput, readyStatus: string): boolean {
-  return isIssueLookupConfirmed(branch) && branch.issueStatus === readyStatus;
+function normalizeRecoveryReadinessPolicy(readiness: string | RecoveryReadinessPolicy): RecoveryReadinessPolicy {
+  return typeof readiness === "string" ? { status: readiness } : readiness;
+}
+
+function isIssueReadyForRecoveryTransition(branch: RecoveryBranchInput, readyPolicy: RecoveryReadinessPolicy): boolean {
+  if (!isIssueLookupConfirmed(branch)) return false;
+  if (readyPolicy.predicate?.(branch)) return true;
+  if (branch.issueStatus === readyPolicy.status && hasRequiredRecoveryLabel(branch, readyPolicy.requiredLabel)) return true;
+  return Boolean(
+    readyPolicy.readyLabel &&
+      branch.issueStatus === "open" &&
+      branch.issueLabels?.includes(readyPolicy.readyLabel) &&
+      hasRequiredRecoveryLabel(branch, readyPolicy.requiredLabel),
+  );
+}
+
+function recoveryReadinessFailureReason(branch: RecoveryBranchInput, readyPolicy: RecoveryReadinessPolicy): string {
+  if (!branch.issueStatus) return recoveryIssueLookupReason(branch.issueLookup);
+  if (readyPolicy.requiredLabel && !branch.issueLabels?.includes(readyPolicy.requiredLabel)) {
+    return `pebble is missing required label ${readyPolicy.requiredLabel}`;
+  }
+  if (branch.issueStatus === "open" && readyPolicy.readyLabel && !branch.issueLabels?.includes(readyPolicy.readyLabel)) {
+    return `pebble status is open without ready label ${readyPolicy.readyLabel}`;
+  }
+  return `pebble status is ${branch.issueStatus}, not ${readyPolicy.status}`;
+}
+
+function hasRequiredRecoveryLabel(branch: RecoveryBranchInput, requiredLabel: string | undefined): boolean {
+  return !requiredLabel || Boolean(branch.issueLabels?.includes(requiredLabel));
 }
 
 function isIssueLookupConfirmed(branch: RecoveryBranchInput): boolean {

@@ -240,7 +240,11 @@ function recoverInterruptedRun(options: { readOnly?: boolean } = {}): RecoveryPl
   }
 
   const branchInputs = collectRecoveryBranches();
-  const plan = buildRecoveryPlan(branchInputs, ISSUE_STATUS);
+  const plan = buildRecoveryPlan(branchInputs, {
+    status: ISSUE_STATUS,
+    readyLabel: queuePolicy.policyReadyLabel,
+    requiredLabel: ISSUE_LABEL || undefined,
+  });
   logRecoveryPlan(plan);
 
   if (options.readOnly) {
@@ -281,7 +285,7 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
   const worktrees = collectWorktreeEntries();
   const worktreeByBranch = new Map(worktrees.filter((entry) => entry.branch).map((entry) => [entry.branch!, entry]));
   const openPrByHead = loadOpenPrsByHead();
-  const issueCache = new Map<string, { title?: string; status?: string; lookup: RecoveryIssueLookup } | undefined>();
+  const issueCache = new Map<string, { title?: string; status?: string; labels?: string[]; lookup: RecoveryIssueLookup } | undefined>();
   const knownIssueIds = loadKnownIssueIdsForRecovery();
 
   const localBranches = listLocalPicastleBranches();
@@ -309,6 +313,7 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
       issueId,
       title: issue?.title,
       issueStatus: issue?.status,
+      issueLabels: issue?.labels,
       issueLookup: issue?.lookup,
       ahead,
       unpushed,
@@ -328,6 +333,7 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
       issueId,
       title: issue?.title,
       issueStatus: issue?.status,
+      issueLabels: issue?.labels,
       issueLookup: issue?.lookup,
       ahead: 0,
       dirty: false,
@@ -433,8 +439,8 @@ function loadKnownIssueIdsForRecovery(): string[] {
 
 function readIssueForRecovery(
   issueId: string,
-  cache: Map<string, { title?: string; status?: string; lookup: RecoveryIssueLookup } | undefined>,
-): { title?: string; status?: string; lookup: RecoveryIssueLookup } | undefined {
+  cache: Map<string, { title?: string; status?: string; labels?: string[]; lookup: RecoveryIssueLookup } | undefined>,
+): { title?: string; status?: string; labels?: string[]; lookup: RecoveryIssueLookup } | undefined {
   if (cache.has(issueId)) return cache.get(issueId);
   const show = run(pebCommand(`show ${shellQuote(issueId)} --json`), repoRoot, { allowFailure: true });
   if (show.status !== 0) {
@@ -444,8 +450,8 @@ function readIssueForRecovery(
     return result;
   }
   try {
-    const issue = JSON.parse(show.stdout).data as { title?: string; status?: string };
-    const result = { ...issue, lookup: { state: "found" } as const };
+    const issue = JSON.parse(show.stdout).data as { title?: string; status?: string; labels?: unknown };
+    const result = { ...issue, labels: normalizeIssueLabels(issue.labels), lookup: { state: "found" } as const };
     cache.set(issueId, result);
     return result;
   } catch (error) {
@@ -458,6 +464,20 @@ function readIssueForRecovery(
     cache.set(issueId, result);
     return result;
   }
+}
+
+function normalizeIssueLabels(labels: unknown): string[] {
+  if (!Array.isArray(labels)) return [];
+  const names = new Set<string>();
+  for (const label of labels) {
+    if (typeof label === "string" && label.length > 0) {
+      names.add(label);
+    } else if (label && typeof label === "object") {
+      const name = (label as { name?: unknown }).name;
+      if (typeof name === "string" && name.length > 0) names.add(name);
+    }
+  }
+  return [...names];
 }
 
 function logRecoveryPlan(plan: RecoveryPlan): void {

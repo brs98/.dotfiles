@@ -352,6 +352,53 @@ test("does not treat open PR branches as already published when pebble lookup is
   assert.equal(plan.blockedIssueIds.has("dotfiles-zzz"), true);
 });
 
+test("recovery treats legacy open issues with the policy ready label as ready", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/dotfiles-aaa-existing-pr",
+        issueId: "dotfiles-aaa",
+        title: "Legacy label queue issue",
+        issueStatus: "open",
+        issueLabels: ["ready-for-agent"],
+        issueLookup: { state: "found" },
+        ahead: 0,
+        dirty: false,
+        openPrUrl: "https://github.com/example/repo/pull/42",
+      },
+    ],
+    { status: "ready_for_agent", readyLabel: "ready-for-agent" },
+  );
+
+  assert.deepEqual(plan.alreadyPublished.map((issue) => issue.id), ["dotfiles-aaa"]);
+  assert.deepEqual(plan.deferredBranches, []);
+  assert.equal(plan.blockedIssueIds.has("dotfiles-aaa"), true);
+});
+
+test("recovery does not treat open issues without the policy ready label as ready", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/dotfiles-aaa-existing-pr",
+        issueId: "dotfiles-aaa",
+        title: "Legacy label queue issue",
+        issueStatus: "open",
+        issueLabels: ["other-label"],
+        issueLookup: { state: "found" },
+        ahead: 1,
+        dirty: false,
+        openPrUrl: "https://github.com/example/repo/pull/42",
+      },
+    ],
+    { status: "ready_for_agent", readyLabel: "ready-for-agent" },
+  );
+
+  assert.deepEqual(plan.alreadyPublished, []);
+  assert.deepEqual(plan.deferredBranches.map((branch) => [branch.issueId, branch.reason]), [
+    ["dotfiles-aaa", "pebble status is open without ready label ready-for-agent"],
+  ]);
+});
+
 test("does not reconcile open PR branches for non-ready pebbles", () => {
   const plan = buildRecoveryPlan(
     [
@@ -659,6 +706,116 @@ exit 1
   assert.match(output, /published: dotfiles-aaa sandcastle\/dotfiles-aaa-clean → https:\/\/github\.com\/acme\/repo\/pull\/5/);
   assert.match(output, /No unblocked issues to work on\. Exiting\./);
   assert.doesNotMatch(readFileSync(pebLog, "utf8"), /\b(?:closes add|update)\b/);
+});
+
+test("runtime plan-only recovery treats open policy-label queue issues as ready", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-legacy-label-recovery-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  writeFileSync(join(repo, "pebbles-policy.json"), JSON.stringify({ groups: [{ name: "state", labels: ["ready-for-agent", "in-review"] }] }));
+  execFileSync("git", ["add", "README.md", "pebbles-policy.json"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+
+  const gh = join(fakeBin, "gh");
+  writeFileSync(
+    gh,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then
+  printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "pr list" ]]; then
+  cat <<'JSON'
+[
+  {"number":42,"headRefName":"picastle/dotfiles-aaa-existing-pr","url":"https://github.com/acme/repo/pull/42","isCrossRepository":false,"headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"repo"}}
+]
+JSON
+  exit 0
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(gh, 0o755);
+
+  const peb = join(fakeBin, "peb");
+  writeFileSync(
+    peb,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then
+  printf '%s\n' '{"data":[{"id":"dotfiles-aaa"}]}'
+  exit 0
+fi
+if [[ "$1 $2" == "show dotfiles-aaa" ]]; then
+  printf '%s\n' '{"data":{"title":"Legacy label ready","status":"open","labels":["ready-for-agent"]}}'
+  exit 0
+fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(peb, 0o755);
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--plan-only", "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+    },
+  });
+
+  assert.match(output, /published: dotfiles-aaa picastle\/dotfiles-aaa-existing-pr → https:\/\/github\.com\/acme\/repo\/pull\/42/);
+  assert.doesNotMatch(readFileSync(pebLog, "utf8"), /\b(?:closes add|update)\b/);
+});
+
+test("rejects PICASTLE_TEST_AGENT_OUTPUT outside the node test context", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-test-agent-output-"));
+  const repo = join(tempRoot, "repo");
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+
+  const result = spawnSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "0"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_TEST_AGENT_OUTPUT: "<plan>{}</plan>",
+      NODE_TEST_CONTEXT: "",
+    },
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /PICASTLE_TEST_AGENT_OUTPUT is only available to the node:test harness/);
 });
 
 test("mutable recovery declares existing PR closures and updates existing PR branches without creating duplicate PRs", () => {
@@ -1195,10 +1352,11 @@ test("publish flow reuses existing issue PRs and only creates PRs when needed", 
   });
 });
 
-test("recognizes successful and already-existing peb closure registration", () => {
+test("recognizes only zero-exit peb closure registration as success", () => {
   assert.equal(pebClosureRegistrationSucceeded({ status: 0, stdout: "", stderr: "" }), true);
-  assert.equal(pebClosureRegistrationSucceeded({ status: 1, stdout: "closure already exists", stderr: "" }), true);
-  assert.equal(pebClosureRegistrationSucceeded({ status: 1, stdout: "", stderr: "already-existing closure" }), true);
+  assert.equal(pebClosureRegistrationSucceeded({ status: 0, stdout: "already registered", stderr: "" }), true);
+  assert.equal(pebClosureRegistrationSucceeded({ status: 1, stdout: "closure already exists", stderr: "" }), false);
+  assert.equal(pebClosureRegistrationSucceeded({ status: 1, stdout: "", stderr: "already-existing closure" }), false);
   assert.equal(pebClosureRegistrationSucceeded({ status: 1, stdout: "", stderr: "PR does not exist" }), false);
 });
 
