@@ -163,7 +163,7 @@ export function buildRecoveryPlan(
     if (!isIssueReadyForRecoveryTransition(branch, readyPolicy)) {
       const reason = recoveryReadinessFailureReason(branch, readyPolicy);
       const decision = { ...branch, issueId, reason };
-      if (hasRecoverableWork) {
+      if (hasRecoverableWork || branch.openPrUrl) {
         plan.deferredBranches.push(decision);
         plan.blockedIssueIds.add(issueId);
       } else {

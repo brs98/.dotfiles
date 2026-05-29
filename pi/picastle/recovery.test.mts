@@ -399,6 +399,32 @@ test("recovery does not treat open issues without the policy ready label as read
   ]);
 });
 
+test("recovery defers ready-label open PR branches that lack the required Picastle issue label", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/dotfiles-aaa-existing-pr",
+        issueId: "dotfiles-aaa",
+        title: "Legacy label queue issue",
+        issueStatus: "open",
+        issueLabels: ["ready-for-agent"],
+        issueLookup: { state: "found" },
+        ahead: 0,
+        dirty: false,
+        openPrUrl: "https://github.com/example/repo/pull/42",
+      },
+    ],
+    { status: "ready_for_agent", readyLabel: "ready-for-agent", requiredLabel: "automation" },
+  );
+
+  assert.deepEqual(plan.alreadyPublished, []);
+  assert.deepEqual(selectRecoveryActions(plan), []);
+  assert.deepEqual(plan.deferredBranches.map((branch) => [branch.issueId, branch.reason]), [
+    ["dotfiles-aaa", "pebble is missing required label automation"],
+  ]);
+  assert.equal(plan.blockedIssueIds.has("dotfiles-aaa"), true);
+});
+
 test("does not reconcile open PR branches for non-ready pebbles", () => {
   const plan = buildRecoveryPlan(
     [
@@ -426,11 +452,10 @@ test("does not reconcile open PR branches for non-ready pebbles", () => {
   );
 
   assert.deepEqual(plan.alreadyPublished, []);
-  assert.deepEqual(plan.ignoredBranches.map((branch) => [branch.issueId, branch.reason]), [
-    ["dotfiles-yi5", "pebble status is in_review, not ready_for_agent"],
-  ]);
-  assert.deepEqual(plan.deferredBranches.map((branch) => [branch.issueId, branch.reason]), [
-    ["dotfiles-yi5", "pebble status is in_review, not ready_for_agent"],
+  assert.deepEqual(plan.ignoredBranches, []);
+  assert.deepEqual(plan.deferredBranches.map((branch) => [branch.branch, branch.reason]), [
+    ["picastle/dotfiles-yi5-local-duplicate", "pebble status is in_review, not ready_for_agent"],
+    ["picastle/dotfiles-yi5-resumable-idempotent-runs", "pebble status is in_review, not ready_for_agent"],
   ]);
   assert.deepEqual(plan.unpublishedBranches, []);
 });
@@ -705,6 +730,7 @@ exit 1
   assert.match(output, /PICASTLE_PLAN_ONLY=1; recovery scan is read-only\/log-only\./);
   assert.match(output, /published: dotfiles-aaa sandcastle\/dotfiles-aaa-clean → https:\/\/github\.com\/acme\/repo\/pull\/5/);
   assert.match(output, /No unblocked issues to work on\. Exiting\./);
+  assert.match(readFileSync(ghLog, "utf8"), /pr list --state open --limit 1000 --json/);
   assert.doesNotMatch(readFileSync(pebLog, "utf8"), /\b(?:closes add|update)\b/);
 });
 
@@ -763,7 +789,7 @@ if [[ "$1" == "list" ]]; then
   exit 0
 fi
 if [[ "$1 $2" == "show dotfiles-aaa" ]]; then
-  printf '%s\n' '{"data":{"title":"Legacy label ready","status":"open","labels":["ready-for-agent"]}}'
+  printf '%s\n' '{"data":{"title":"Legacy label ready","status":"open","labels":[{"name":"ready-for-agent"}]}}'
   exit 0
 fi
 echo "unexpected peb invocation: $*" >&2
@@ -788,6 +814,187 @@ exit 1
 
   assert.match(output, /published: dotfiles-aaa picastle\/dotfiles-aaa-existing-pr → https:\/\/github\.com\/acme\/repo\/pull\/42/);
   assert.doesNotMatch(readFileSync(pebLog, "utf8"), /\b(?:closes add|update)\b/);
+});
+
+test("mutable recovery defers ready-label open PR branches missing PICASTLE_ISSUE_LABEL without mutating pebbles", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-required-label-recovery-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  writeFileSync(join(repo, "pebbles-policy.json"), JSON.stringify({ groups: [{ name: "state", labels: ["ready-for-agent", "in-review"] }] }));
+  execFileSync("git", ["add", "README.md", "pebbles-policy.json"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+
+  const gh = join(fakeBin, "gh");
+  writeFileSync(
+    gh,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then
+  printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "pr list" ]]; then
+  cat <<'JSON'
+[
+  {"number":42,"headRefName":"picastle/dotfiles-aaa-existing-pr","url":"https://github.com/acme/repo/pull/42","isCrossRepository":false,"headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"repo"}}
+]
+JSON
+  exit 0
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(gh, 0o755);
+
+  const peb = join(fakeBin, "peb");
+  writeFileSync(
+    peb,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then
+  printf '%s\n' '{"data":[]}'
+  exit 0
+fi
+if [[ "$1 $2" == "show dotfiles-aaa" ]]; then
+  printf '%s\n' '{"data":{"title":"Needs automation label","status":"open","labels":[{"name":"ready-for-agent"}]}}'
+  exit 0
+fi
+if [[ "$1 $2" == "closes add" || "$1" == "update" ]]; then
+  echo "peb mutation should not be called for missing required label" >&2
+  exit 2
+fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(peb, 0o755);
+
+  const result = spawnSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_ISSUE_LABEL: "automation",
+      PICASTLE_TEST_AGENT_OUTPUT: '<plan>{"issues":[]}</plan>',
+    },
+  });
+  const output = `${result.stdout}\n${result.stderr}`;
+
+  assert.equal(result.status, 0);
+  assert.match(output, /defer: dotfiles-aaa picastle\/dotfiles-aaa-existing-pr: pebble is missing required label automation/);
+  assert.doesNotMatch(output, /published: dotfiles-aaa/);
+  const pebTrace = readFileSync(pebLog, "utf8");
+  assert.doesNotMatch(pebTrace, /\b(?:closes add|update)\b/);
+});
+
+test("runtime planning includes legacy ready-label open issues with required label filtering and custom PR scan limit", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-legacy-label-planning-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  writeFileSync(join(repo, "pebbles-policy.json"), JSON.stringify({ groups: [{ name: "state", labels: ["ready-for-agent", "in-review"] }] }));
+  execFileSync("git", ["add", "README.md", "pebbles-policy.json"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+
+  const gh = join(fakeBin, "gh");
+  writeFileSync(
+    gh,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then
+  printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "pr list" ]]; then
+  printf '%s\n' '[]'
+  exit 0
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(gh, 0o755);
+
+  const peb = join(fakeBin, "peb");
+  writeFileSync(
+    peb,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$*" == "list --json" ]]; then
+  printf '%s\n' '{"data":[{"id":"dotfiles-aaa"},{"id":"dotfiles-bbb"}]}'
+  exit 0
+fi
+if [[ "$*" == "list --status ready_for_agent --label automation --json" ]]; then
+  printf '%s\n' '{"data":[{"id":"dotfiles-aaa","title":"Ready status issue","description":"","status":"ready_for_agent","labels":["automation"],"comments":[],"dependencies":[]}]}'
+  exit 0
+fi
+if [[ "$*" == "list --status open --label ready-for-agent --label automation --json" ]]; then
+  printf '%s\n' '{"data":[{"id":"dotfiles-aaa","title":"Ready status issue duplicate","description":"","status":"open","labels":["ready-for-agent","automation"],"comments":[],"dependencies":[]},{"id":"dotfiles-bbb","title":"Legacy label issue","description":"","status":"open","labels":[{"name":"ready-for-agent"},{"name":"automation"}],"comments":[],"dependencies":[]}]}'
+  exit 0
+fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(peb, 0o755);
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--plan-only", "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_ISSUE_LABEL: "automation",
+      PICASTLE_OPEN_PR_SCAN_LIMIT: "77",
+      PICASTLE_TEST_AGENT_OUTPUT: '<plan>{"issues":[{"id":"dotfiles-aaa","title":"Ready status issue","branch":"picastle/dotfiles-aaa-ready-status"},{"id":"dotfiles-bbb","title":"Legacy label issue","branch":"picastle/dotfiles-bbb-legacy-label"}]}</plan>',
+    },
+  });
+
+  assert.match(output, /Planning complete\. 2 issue\(s\) selected:/);
+  assert.match(output, /dotfiles-bbb: Legacy label issue → picastle\/dotfiles-bbb-legacy-label/);
+  const pebTrace = readFileSync(pebLog, "utf8");
+  assert.match(pebTrace, /list --status ready_for_agent --label automation --json/);
+  assert.match(pebTrace, /list --status open --label ready-for-agent --label automation --json/);
+  assert.match(readFileSync(ghLog, "utf8"), /pr list --state open --limit 77 --json/);
 });
 
 test("rejects PICASTLE_TEST_AGENT_OUTPUT outside the node test context", () => {
@@ -1303,8 +1510,8 @@ test("plan-only recovery produces no mutating recovery actions", () => {
   assert.deepEqual(selectRecoveredUnpublishedBranches(plan, { readOnly: false }), plan.unpublishedBranches);
 });
 
-// Keep the pure publish-flow boundary locked down alongside the fake-agent
-// runtime coverage above so both publisher paths agree on duplicate-PR avoidance.
+// Keep the pure publish-flow boundary locked down alongside the runtime
+// publisher coverage above so both publish paths agree on duplicate-PR avoidance.
 test("publish flow reuses existing issue PRs and only creates PRs when needed", () => {
   const defaultPublisherAgentExistingIssuePrFlow = decidePublishFlow(
     "picastle/dotfiles-aaa-new-branch",

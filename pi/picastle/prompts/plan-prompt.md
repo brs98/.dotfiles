@@ -1,10 +1,10 @@
 # ISSUES
 
-Here are the pebbles issues selected by Picastle:
+Here are the pebbles issues selected by Picastle. Treat this JSON as the authoritative candidate set. Picastle built it as a de-duplicated OR query:
 
-- status: `{{ISSUE_STATUS}}`
-- policy ready label: `{{POLICY_READY_LABEL}}`
-- extra label filter: `{{ISSUE_LABEL}}`
+- issues with status `{{ISSUE_STATUS}}`
+- OR, when configured, open issues with policy ready label `{{POLICY_READY_LABEL}}`
+- AND, for both paths, extra label filter `{{ISSUE_LABEL}}` when it is not `<none>`
 
 <issues-json>
 {{ISSUES_JSON}}
@@ -30,7 +30,7 @@ Issue IDs must be preserved exactly.
 
 ## 1. Filter out issues that already have an open PR
 
-For each candidate issue X, check whether any supplied PR `headRefName` is a Picastle/Sandcastle branch for that exact issue: `picastle/X-<slug>` or `sandcastle/X-<slug>`. Match only against the known candidate issue IDs in `<issues-json>` and prefer the longest exact issue-id prefix before the slug. For example, when both `web-api` and `web-api-abc` are known, `picastle/web-api-abc-fix` belongs to `web-api-abc`, not `web-api`. If such a PR exists, the issue is already in flight and must not be planned. Do not infer that unrelated PRs are absent; the PR input is intentionally bounded to Picastle/Sandcastle heads.
+For each candidate issue X, check whether any supplied PR `headRefName` is a Picastle/Sandcastle branch for that exact issue: `picastle/X-<slug>` or `sandcastle/X-<slug>`. Prefer the longest exact issue-id prefix before the slug across the candidate IDs and issue IDs implied by the supplied open PR heads. For example, when `web-api-abc` is known, `picastle/web-api-abc-fix` belongs to `web-api-abc`, not to a shorter `web-api` prefix. Do not filter a candidate merely because a PR head has a longer, non-candidate issue-id-shaped prefix that starts with the candidate ID. If an exact PR exists for the candidate, the issue is already in flight and must not be planned. Do not infer that unrelated PRs are absent; the PR input is intentionally bounded to Picastle/Sandcastle heads.
 
 ## 2. Build a dependency graph
 
