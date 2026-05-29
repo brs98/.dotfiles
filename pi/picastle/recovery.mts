@@ -12,7 +12,7 @@ export type OpenPrRecord = {
   headRepositoryOwner?: string;
   headRepositoryName?: string;
 };
-export type OpenPrParseOptions = { currentRepository?: RepositoryIdentity };
+export type OpenPrParseOptions = { currentRepository?: RepositoryIdentity; knownIssueIds?: Iterable<string> };
 export type PlannedIssueSelection = { id: string; title: string; branch: string };
 export type ExistingOpenPr = { headRefName: string; url: string };
 export type RecoveryAction =
@@ -283,7 +283,11 @@ export function parseOpenPrsByHead(stdout: string, options: OpenPrParseOptions =
 }
 
 export function findOpenPrForIssue(stdout: string, issueId: string, options: OpenPrParseOptions = {}): OpenPrRecord | undefined {
+  const knownIssueIds = options.knownIssueIds ? new Set(options.knownIssueIds) : undefined;
+  knownIssueIds?.add(issueId);
+
   return parseRecognizedRecoveryPrRecords(stdout, options).find((pr) => {
+    if (knownIssueIds) return extractIssueIdFromBranch(pr.headRefName, knownIssueIds) === issueId;
     if (looksLikePebbleIssueId(issueId) && extractIssueIdFromBranch(pr.headRefName, [issueId]) === issueId) {
       return true;
     }

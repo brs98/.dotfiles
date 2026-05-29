@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -527,13 +527,16 @@ test("finds existing open PRs by pebble id instead of exact branch only", () => 
   assert.equal(findOpenPrForIssue(stdout, "my-repo"), undefined);
 });
 
-test("prefers exact known target issue id matching before heuristic PR branch extraction", () => {
+test("prefers longest known issue id matching before heuristic PR branch extraction", () => {
   const stdout = JSON.stringify([
     { number: 20, headRefName: "picastle/web-api-abc-fix", url: "https://github.com/acme/repo/pull/20" },
   ]);
+  const knownIssueIds = ["web-api", "web-api-abc"];
 
   assert.equal(extractIssueIdFromBranch("picastle/web-api-abc-fix"), "web-api");
-  assert.deepEqual(findOpenPrForIssue(stdout, "web-api-abc"), {
+  assert.equal(extractIssueIdFromBranch("picastle/web-api-abc-fix", knownIssueIds), "web-api-abc");
+  assert.equal(findOpenPrForIssue(stdout, "web-api", { knownIssueIds }), undefined);
+  assert.deepEqual(findOpenPrForIssue(stdout, "web-api-abc", { knownIssueIds }), {
     number: 20,
     headRefName: "picastle/web-api-abc-fix",
     url: "https://github.com/acme/repo/pull/20",
@@ -772,6 +775,210 @@ exit 1
   assert.match(pebTrace, /update dotfiles-bbb --status in_review/);
 });
 
+test("default publisher-agent publish path reuses existing issue PR without duplicate PR creation", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-agent-publish-existing-pr-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-aaa-new-work"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "change.txt"), "publish me\n");
+  execFileSync("git", ["add", "change.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "change\n\nCloses: dotfiles-aaa"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+  execFileSync("git", ["checkout", "main"], { cwd: repo, encoding: "utf8" });
+
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+
+  const gh = join(fakeBin, "gh");
+  writeFileSync(
+    gh,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then
+  printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "pr list" ]]; then
+  count_file="$GH_LOG.pr-list-count"
+  count=0
+  [[ -f "$count_file" ]] && count=$(<"$count_file")
+  count=$((count + 1))
+  printf '%s\n' "$count" > "$count_file"
+  if [[ "$count" == "1" ]]; then
+    printf '%s\n' '[]'
+  else
+    cat <<'JSON'
+[
+  {"number":30,"headRefName":"sandcastle/dotfiles-aaa-existing-pr","url":"https://github.com/acme/repo/pull/30","isCrossRepository":false,"headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"repo"}}
+]
+JSON
+  fi
+  exit 0
+fi
+if [[ "$1 $2" == "pr create" ]]; then
+  echo "gh pr create should not be called when an issue already has an open PR" >&2
+  exit 2
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(gh, 0o755);
+
+  const peb = join(fakeBin, "peb");
+  writeFileSync(
+    peb,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then
+  printf '%s\n' '{"data":[{"id":"dotfiles-aaa"}]}'
+  exit 0
+fi
+if [[ "$1 $2" == "show dotfiles-aaa" ]]; then
+  printf '%s\n' '{"data":{"title":"Reuse existing PR","status":"ready_for_agent"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "closes add" ]]; then
+  printf '%s\n' 'ok'
+  exit 0
+fi
+if [[ "$1" == "update" ]]; then
+  printf '%s\n' 'ok'
+  exit 0
+fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(peb, 0o755);
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_FAKE_AGENT_OUTPUT: '<review>{"status":"approved","summary":"ready","findings":[],"checks":[]}</review>',
+    },
+  });
+
+  assert.match(output, /Review\/repair loop handling 1 completed branch\(es\)/);
+  assert.match(output, /issue already has open PR on sandcastle\/dotfiles-aaa-existing-pr: https:\/\/github\.com\/acme\/repo\/pull\/30/);
+  assert.doesNotMatch(readFileSync(ghLog, "utf8"), /\bpr create\b/);
+  const pebTrace = readFileSync(pebLog, "utf8");
+  assert.match(pebTrace, /closes add dotfiles-aaa --pr https:\/\/github\.com\/acme\/repo\/pull\/30/);
+  assert.match(pebTrace, /update dotfiles-aaa --status in_review/);
+});
+
+test("runtime recovery fails closed on malformed open PR discovery without mutating pebbles", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-broken-pr-discovery-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  writeFileSync(pebLog, "");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+
+  const gh = join(fakeBin, "gh");
+  writeFileSync(
+    gh,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then
+  printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "pr list" ]]; then
+  printf '%s\n' 'not json'
+  exit 0
+fi
+if [[ "$1 $2" == "pr create" ]]; then
+  echo "gh pr create should not be called after broken PR discovery" >&2
+  exit 2
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(gh, 0o755);
+
+  const peb = join(fakeBin, "peb");
+  writeFileSync(
+    peb,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then
+  printf '%s\n' '{"data":[{"id":"dotfiles-aaa"}]}'
+  exit 0
+fi
+if [[ "$1" == "show" ]]; then
+  printf '%s\n' '{"data":{"title":"Issue","status":"ready_for_agent"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "closes add" || "$1" == "update" ]]; then
+  echo "peb mutation should not be called after broken PR discovery" >&2
+  exit 2
+fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(peb, 0o755);
+
+  const result = spawnSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_FAKE_AGENT_OUTPUT: '<review>{"status":"approved","summary":"ready","findings":[],"checks":[]}</review>',
+    },
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /failed to parse gh pr list JSON/);
+  assert.doesNotMatch(readFileSync(ghLog, "utf8"), /\bpr create\b/);
+  assert.doesNotMatch(readFileSync(pebLog, "utf8"), /\b(?:closes add|update)\b/);
+});
+
 test("plan-only recovery produces no mutating recovery actions", () => {
   const plan = buildRecoveryPlan(
     [
@@ -807,11 +1014,8 @@ test("plan-only recovery produces no mutating recovery actions", () => {
   assert.deepEqual(selectRecoveredUnpublishedBranches(plan, { readOnly: false }), plan.unpublishedBranches);
 });
 
-// The publisher-agent path requires a live Pi SDK reviewer session before it
-// reaches publishApprovedIssue. That path and the direct path share
-// decidePublishFlow; the integration test above exercises the direct command
-// boundary, while this helper test locks the publisher-agent command decision
-// that must not create a duplicate PR for an existing issue PR.
+// Keep the pure publish-flow boundary locked down alongside the fake-agent
+// runtime coverage above so both publisher paths agree on duplicate-PR avoidance.
 test("publish flow reuses existing issue PRs and only creates PRs when needed", () => {
   const defaultPublisherAgentExistingIssuePrFlow = decidePublishFlow(
     "picastle/dotfiles-aaa-new-branch",

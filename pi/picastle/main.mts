@@ -100,9 +100,10 @@ const OPEN_PRS = envBool("PICASTLE_OPEN_PRS", !cli.noPr);
 const PUBLISHER_AGENT = envBool("PICASTLE_PUBLISHER_AGENT", true);
 const REVIEW_REPAIR_CYCLES = envInt("PICASTLE_REVIEW_REPAIR_CYCLES", 10);
 const REVIEW_CONCURRENCY = envInt("PICASTLE_REVIEW_CONCURRENCY", CONCURRENCY);
+const FAKE_AGENT_OUTPUT = process.env.PICASTLE_FAKE_AGENT_OUTPUT;
 // gh pr list defaults to 30; no-cap Picastle runs can exceed that. Use a high,
-// bounded same-repository scan, then pass only Picastle and legacy Sandcastle
-// PR heads to recovery/planning. This is not an unbounded "all PRs" query.
+// bounded scan, then locally filter to same-repository Picastle and legacy
+// Sandcastle PR heads before recovery/planning. This is not an unbounded "all PRs" query.
 const OPEN_PR_SCAN_LIMIT = envInt("PICASTLE_OPEN_PR_SCAN_LIMIT", 1000);
 const OPEN_PR_JSON_FIELDS = "number,headRefName,url,isCrossRepository,headRepository,headRepositoryOwner";
 const WORKTREE_READY_COMMAND = env("PICASTLE_WORKTREE_READY_COMMAND", "");
@@ -406,11 +407,12 @@ function loadOpenPrsByHead(): Map<string, string> {
 }
 
 function loadExistingOpenPrForIssue(issueId: string): { headRefName: string; url: string } | undefined {
+  const knownIssueIds = loadKnownIssueIdsForRecovery();
   const result = run(
     `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${OPEN_PR_JSON_FIELDS}`,
     repoRoot,
   );
-  return findOpenPrForIssue(result.stdout, issueId, { currentRepository: loadRepositoryIdentity() });
+  return findOpenPrForIssue(result.stdout, issueId, { currentRepository: loadRepositoryIdentity(), knownIssueIds });
 }
 
 function loadKnownIssueIdsForRecovery(): string[] {
@@ -1034,6 +1036,12 @@ async function runPiAgent(args: {
   checkMinFreeSpace(`${args.name} before agent`);
   mkdirSync(dirname(args.logFile), { recursive: true });
   writeFileSync(args.logFile, `# ${args.name}\n# cwd: ${args.cwd}\n\n`);
+
+  if (FAKE_AGENT_OUTPUT !== undefined) {
+    append(args.logFile, FAKE_AGENT_OUTPUT + "\n");
+    process.stdout.write(FAKE_AGENT_OUTPUT + "\n");
+    return FAKE_AGENT_OUTPUT;
+  }
 
   const { session } = await createAgentSession({
     cwd: args.cwd,
