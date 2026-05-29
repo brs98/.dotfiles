@@ -99,9 +99,9 @@ const OPEN_PRS = envBool("PICASTLE_OPEN_PRS", !cli.noPr);
 const PUBLISHER_AGENT = envBool("PICASTLE_PUBLISHER_AGENT", true);
 const REVIEW_REPAIR_CYCLES = envInt("PICASTLE_REVIEW_REPAIR_CYCLES", 10);
 const REVIEW_CONCURRENCY = envInt("PICASTLE_REVIEW_CONCURRENCY", CONCURRENCY);
-// gh pr list defaults to 30; no-cap Picastle runs can exceed that. Use a high
-// bounded scan so recovery/planning usually sees in-flight Picastle PRs without
-// implying this enumerates an unbounded repository PR history.
+// gh pr list defaults to 30; no-cap Picastle runs can exceed that. Use a high,
+// bounded same-repository scan, then pass only Picastle and legacy Sandcastle
+// PR heads to recovery/planning. This is not an unbounded "all PRs" query.
 const OPEN_PR_SCAN_LIMIT = envInt("PICASTLE_OPEN_PR_SCAN_LIMIT", 1000);
 const OPEN_PR_JSON_FIELDS = "number,headRefName,url,isCrossRepository,headRepository,headRepositoryOwner";
 const WORKTREE_READY_COMMAND = env("PICASTLE_WORKTREE_READY_COMMAND", "");

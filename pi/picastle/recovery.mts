@@ -271,11 +271,11 @@ export function parseKnownIssueIdsJson(stdout: string): string[] {
 }
 
 export function parseOpenPrsByHead(stdout: string, options: OpenPrParseOptions = {}): Map<string, string> {
-  return new Map(parseOpenPrRecords(stdout, options).map((pr) => [pr.headRefName, pr.url]));
+  return new Map(parseRecognizedRecoveryPrRecords(stdout, options).map((pr) => [pr.headRefName, pr.url]));
 }
 
 export function findOpenPrForIssue(stdout: string, issueId: string, options: OpenPrParseOptions = {}): OpenPrRecord | undefined {
-  return parseOpenPrRecords(stdout, options).find((pr) => {
+  return parseRecognizedRecoveryPrRecords(stdout, options).find((pr) => {
     if (looksLikePebbleIssueId(issueId) && extractIssueIdFromBranch(pr.headRefName, [issueId]) === issueId) {
       return true;
     }
@@ -380,7 +380,7 @@ export function validatePlannedIssueSelections(
 }
 
 export function normalizeOpenPrsJson(stdout: string, options: OpenPrParseOptions = {}): string {
-  return JSON.stringify(parseOpenPrRecords(stdout, options));
+  return JSON.stringify(parseRecognizedRecoveryPrRecords(stdout, options));
 }
 
 export function pebClosureRegistrationSucceeded(result: { status: number; stdout?: string; stderr?: string }): boolean {
@@ -413,6 +413,10 @@ function readRecordString(value: unknown, key: string): string | undefined {
   if (!value || typeof value !== "object") return undefined;
   const field = (value as Record<string, unknown>)[key];
   return typeof field === "string" && field.length > 0 ? field : undefined;
+}
+
+function parseRecognizedRecoveryPrRecords(stdout: string, options: OpenPrParseOptions = {}): OpenPrRecord[] {
+  return parseOpenPrRecords(stdout, options).filter((pr) => isRecognizedRecoveryPrHead(pr.headRefName));
 }
 
 function parseOpenPrRecords(stdout: string, options: OpenPrParseOptions = {}): OpenPrRecord[] {

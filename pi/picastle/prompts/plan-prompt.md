@@ -10,7 +10,9 @@ Here are the pebbles issues selected by Picastle:
 {{ISSUES_JSON}}
 </issues-json>
 
-Here are the open GitHub PRs:
+Here are the bounded open GitHub PR inputs Picastle found. This JSON is not an
+unbounded list of all open PRs; it contains same-repository Picastle heads and
+legacy Sandcastle heads only.
 
 <open-prs-json>
 {{OPEN_PRS_JSON}}
@@ -28,7 +30,7 @@ Issue IDs must be preserved exactly.
 
 ## 1. Filter out issues that already have an open PR
 
-For each candidate issue X, check whether any PR `headRefName` equals `picastle/X-<anything>` or `sandcastle/X-<anything>`. If so, the issue is already in flight and must not be planned.
+For each candidate issue X, check whether any supplied PR `headRefName` equals `picastle/X-<anything>` or `sandcastle/X-<anything>`. If so, the issue is already in flight and must not be planned. Do not infer that unrelated PRs are absent; the PR input is intentionally bounded to Picastle/Sandcastle heads.
 
 ## 2. Build a dependency graph
 
