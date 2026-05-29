@@ -60,6 +60,12 @@ test("rejects git helper execution options", () => {
   assert.throws(() => planReviewCommand("git diff --textco", root), /git option: --textco/);
 });
 
+test("rejects git describe because dirty and broken modes refresh the index", () => {
+  assert.throws(() => planReviewCommand("git describe", root), /git subcommand: describe/);
+  assert.throws(() => planReviewCommand("git describe --dirty --always", root), /git subcommand: describe/);
+  assert.throws(() => planReviewCommand("git describe --broken", root), /git subcommand: describe/);
+});
+
 test("rejects commands that are not on the review allowlist", () => {
   assert.throws(() => planReviewCommand("touch pwned", root), /does not allow command: touch/);
   assert.throws(() => planReviewCommand("rg --pre rm pattern file", root), /does not allow command: rg/);

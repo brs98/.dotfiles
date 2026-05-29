@@ -37,7 +37,6 @@ const READ_ONLY_GIT_SUBCOMMANDS = new Set([
   "grep",
   "blame",
   "branch",
-  "describe",
   "merge-base",
 ]);
 const READ_ONLY_PEB_SUBCOMMANDS = new Set(["show", "list", "pr"]);
