@@ -8,6 +8,7 @@ import {
   extractIssueIdFromBranch,
   findOpenPrForIssue,
   normalizeOpenPrsJson,
+  pebClosureRegistrationSucceeded,
   parseFirstOpenPrUrl,
   parseKnownIssueIdsJson,
   parseOpenPrsByHead,
@@ -345,6 +346,22 @@ test("fails closed on unsafe Picastle recovery branch names before command const
   assert.throws(() => assertSafeRecoveryBranchName("picastle/dotfiles-yi5..fix"), /unsafe Picastle recovery branch name/);
 });
 
+test("fails closed on unsafe planner-selected branch names before worktree creation", () => {
+  const candidates = [{ id: "dotfiles-aaa", title: "Allowed" }];
+  for (const branch of [
+    "picastle/dotfiles-aaa-fix;echo-owned",
+    "picastle/dotfiles-aaa-fix with-space",
+    "picastle/dotfiles-aaa/extra",
+    "picastle/dotfiles-aaa..fix",
+    "picastle/dotfiles-aaa-fix.lock",
+  ]) {
+    assert.throws(
+      () => validatePlannedIssueSelections([{ id: "dotfiles-aaa", title: "Allowed", branch }], candidates),
+      /unsafe Picastle recovery branch name/,
+    );
+  }
+});
+
 test("fails closed on malformed known issue id discovery JSON", () => {
   assert.throws(() => parseKnownIssueIdsJson(""), /empty output/);
   assert.throws(() => parseKnownIssueIdsJson("not json"), /failed to parse peb issue id query JSON/);
@@ -399,6 +416,13 @@ test("prefers exact known target issue id matching before heuristic PR branch ex
     headRefName: "picastle/web-api-abc-fix",
     url: "https://github.com/acme/repo/pull/20",
   });
+});
+
+test("recognizes successful and already-existing peb closure registration", () => {
+  assert.equal(pebClosureRegistrationSucceeded({ status: 0, stdout: "", stderr: "" }), true);
+  assert.equal(pebClosureRegistrationSucceeded({ status: 1, stdout: "closure already exists", stderr: "" }), true);
+  assert.equal(pebClosureRegistrationSucceeded({ status: 1, stdout: "", stderr: "already-existing closure" }), true);
+  assert.equal(pebClosureRegistrationSucceeded({ status: 1, stdout: "", stderr: "PR does not exist" }), false);
 });
 
 test("validates planner selections against filtered candidates", () => {

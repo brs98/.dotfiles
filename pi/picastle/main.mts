@@ -24,6 +24,7 @@ import {
   extractIssueIdFromBranch,
   findOpenPrForIssue,
   normalizeOpenPrsJson,
+  pebClosureRegistrationSucceeded,
   parseKnownIssueIdsJson,
   parseOpenPrsByHead,
   validatePlannedIssueSelections,
@@ -126,8 +127,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   checkMinFreeSpace(`iteration ${iteration} start`);
   console.log(`\n=== Picastle iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
 
-  const recovery = recoverInterruptedRun();
-  if (recovery.interruptedImplementations.length > 0) {
+  const recovery = recoverInterruptedRun({ readOnly: PLAN_ONLY });
+  if (!PLAN_ONLY && recovery.interruptedImplementations.length > 0) {
     console.log("Recovery has interrupted implementation work; resuming before planning new work.");
     const settled = await runWithConcurrency(recovery.interruptedImplementations, CONCURRENCY, (issue) =>
       implementIssue(issue, iteration),
@@ -144,7 +145,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     continue;
   }
 
-  if (recovery.unpublishedBranches.length > 0) {
+  if (!PLAN_ONLY && recovery.unpublishedBranches.length > 0) {
     console.log("Recovery has unpublished local branches; reviewing/publishing before planning new work.");
     if (PUBLISHER_AGENT) {
       await publishCompletedIssuesWithAgent(recovery.unpublishedBranches, iteration);
@@ -202,6 +203,10 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 console.log("\nPicastle done.");
 
 function runPendingFanIn(): void {
+  if (PLAN_ONLY) {
+    console.log("PICASTLE_PLAN_ONLY=1; skipping fan-in.");
+    return;
+  }
   const fanIn = run(`bash ${shellQuote(join(scriptRoot, "scripts", "apply-pending-issues.sh"))}`, repoRoot, {
     stdio: "inherit",
     allowFailure: true,
@@ -214,23 +219,27 @@ function runPendingFanIn(): void {
   }
 }
 
-function recoverInterruptedRun(): RecoveryPlan & { unpublishedBranches: CompletedIssue[] } {
-  const prune = run("git worktree prune --verbose", repoRoot, { allowFailure: true });
-  if (prune.status !== 0) console.warn(`  ⚠ git worktree prune failed: ${prune.stderr || prune.stdout}`);
-  else if (prune.stdout.trim()) console.log(`Recovery pruned stale worktree metadata:\n${prune.stdout.trim()}`);
+function recoverInterruptedRun(options: { readOnly?: boolean } = {}): RecoveryPlan & { unpublishedBranches: CompletedIssue[] } {
+  if (options.readOnly) {
+    console.log("PICASTLE_PLAN_ONLY=1; recovery scan is read-only/log-only.");
+  } else {
+    const prune = run("git worktree prune --verbose", repoRoot, { allowFailure: true });
+    if (prune.status !== 0) console.warn(`  ⚠ git worktree prune failed: ${prune.stderr || prune.stdout}`);
+    else if (prune.stdout.trim()) console.log(`Recovery pruned stale worktree metadata:\n${prune.stdout.trim()}`);
+  }
 
   const branchInputs = collectRecoveryBranches();
   const plan = buildRecoveryPlan(branchInputs, ISSUE_STATUS);
   logRecoveryPlan(plan);
 
+  if (options.readOnly) {
+    return { ...plan, unpublishedBranches: [] };
+  }
+
   for (const published of plan.alreadyPublished) {
-    const closes = run(pebCommand(`closes add ${shellQuote(published.id)} --pr ${shellQuote(published.prUrl)}`), repoRoot, {
-      allowFailure: true,
-    });
-    if (closes.status !== 0 && !/already/i.test(closes.stderr + closes.stdout)) {
-      console.warn(`  ⚠ failed to declare pending pebble closure for ${published.id}: ${closes.stderr || closes.stdout}`);
+    if (declarePendingPebbleClosure(published.id, published.prUrl)) {
+      markIssueInReview(published.id);
     }
-    markIssueInReview(published.id);
   }
 
   const unpublishedBranches = plan.unpublishedBranches.map((issue) => ({
@@ -239,6 +248,19 @@ function recoverInterruptedRun(): RecoveryPlan & { unpublishedBranches: Complete
   }));
 
   return { ...plan, unpublishedBranches };
+}
+
+function declarePendingPebbleClosure(issueId: string, prRef: string): boolean {
+  if (PLAN_ONLY) {
+    console.log(`PICASTLE_PLAN_ONLY=1; skipping peb closes add for ${issueId}.`);
+    return false;
+  }
+  const closes = run(pebCommand(`closes add ${shellQuote(issueId)} --pr ${shellQuote(prRef)}`), repoRoot, {
+    allowFailure: true,
+  });
+  if (pebClosureRegistrationSucceeded(closes)) return true;
+  console.warn(`  ⚠ failed to declare pending pebble closure for ${issueId}: ${closes.stderr || closes.stdout}`);
+  return false;
 }
 
 function collectRecoveryBranches(): RecoveryBranchInput[] {
@@ -533,6 +555,7 @@ async function implementIssue(
   issue: PlannedIssue,
   iteration: number,
 ): Promise<CompletedIssue | undefined> {
+  assertMutableMode("run implementer");
   const worktreePath = ensureIssueWorktree(issue);
   let keepArtifactsForPublish = false;
 
@@ -584,6 +607,7 @@ async function publishCompletedIssuesWithAgent(
   completed: CompletedIssue[],
   iteration: number,
 ): Promise<void> {
+  assertMutableMode("review/publish completed issues");
   console.log(
     `\n==> Review/repair loop handling ${completed.length} completed branch(es) with concurrency ${REVIEW_CONCURRENCY}`,
   );
@@ -720,18 +744,15 @@ async function repairFromReview(
 }
 
 async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
+  assertMutableMode("publish approved issue");
   console.log(`\n==> Publishing approved branch ${issue.id} (${issue.branch})`);
 
   const existingPr = loadExistingOpenPrForIssue(issue.id);
   if (existingPr && existingPr.headRefName !== issue.branch) {
     console.log(`  issue already has open PR on ${existingPr.headRefName}: ${existingPr.url}`);
-    const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr.url)}`), repoRoot, {
-      allowFailure: true,
-    });
-    if (closes.status !== 0 && !/already/i.test(closes.stderr + closes.stdout)) {
-      console.warn(`  ⚠ failed to declare pending pebble closure for ${issue.id}: ${closes.stderr || closes.stdout}`);
+    if (declarePendingPebbleClosure(issue.id, existingPr.url)) {
+      markIssueInReview(issue.id);
     }
-    markIssueInReview(issue.id);
     return;
   }
 
@@ -750,13 +771,9 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
 
   if (existingPr) {
     console.log(`  updated existing PR on ${existingPr.headRefName}: ${existingPr.url}`);
-    const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr.url)}`), repoRoot, {
-      allowFailure: true,
-    });
-    if (closes.status !== 0 && !/already/i.test(closes.stderr + closes.stdout)) {
-      console.warn(`  ⚠ failed to declare pending pebble closure for ${issue.id}: ${closes.stderr || closes.stdout}`);
+    if (declarePendingPebbleClosure(issue.id, existingPr.url)) {
+      markIssueInReview(issue.id);
     }
-    markIssueInReview(issue.id);
     return;
   }
 
@@ -781,13 +798,9 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     return;
   }
 
-  const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(prRef)}`), repoRoot, {
-    allowFailure: true,
-  });
-  if (closes.status !== 0) {
-    console.warn(`  ⚠ failed to declare pending pebble closure for ${issue.id}: ${closes.stderr || closes.stdout}`);
+  if (declarePendingPebbleClosure(issue.id, prRef)) {
+    markIssueInReview(issue.id);
   }
-  markIssueInReview(issue.id);
 }
 
 function normalizeReviewResult(value: unknown): ReviewResult {
@@ -821,6 +834,7 @@ async function publishCompletedIssues(
   completed: CompletedIssue[],
   iteration: number,
 ): Promise<void> {
+  assertMutableMode("publish completed issues");
   for (const issue of completed) {
     try {
       console.log(`\n==> Publishing ${issue.id} (${issue.branch})`);
@@ -828,13 +842,9 @@ async function publishCompletedIssues(
       const existingPr = loadExistingOpenPrForIssue(issue.id);
       if (existingPr && existingPr.headRefName !== issue.branch) {
         console.log(`  issue already has open PR on ${existingPr.headRefName}: ${existingPr.url}`);
-        const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr.url)}`), repoRoot, {
-          allowFailure: true,
-        });
-        if (closes.status !== 0 && !/already/i.test(closes.stderr + closes.stdout)) {
-          console.warn(`  ⚠ failed to declare pending pebble closure for ${issue.id}: ${closes.stderr || closes.stdout}`);
+        if (declarePendingPebbleClosure(issue.id, existingPr.url)) {
+          markIssueInReview(issue.id);
         }
-        markIssueInReview(issue.id);
         continue;
       }
 
@@ -870,13 +880,9 @@ async function publishCompletedIssues(
 
     if (existingPr) {
       console.log(`  updated existing PR on ${existingPr.headRefName}: ${existingPr.url}`);
-      const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr.url)}`), repoRoot, {
-        allowFailure: true,
-      });
-      if (closes.status !== 0 && !/already/i.test(closes.stderr + closes.stdout)) {
-        console.warn(`  ⚠ failed to declare pending pebble closure for ${issue.id}: ${closes.stderr || closes.stdout}`);
+      if (declarePendingPebbleClosure(issue.id, existingPr.url)) {
+        markIssueInReview(issue.id);
       }
-      markIssueInReview(issue.id);
     } else if (OPEN_PRS) {
       const prBody = buildPrBody(issue);
       const bodyFile = join(logsDir, `pr-body-${issue.id}.md`);
@@ -890,13 +896,9 @@ async function publishCompletedIssues(
       process.stderr.write(prCreate.stderr);
       const prRef = extractPrRef(prCreate.stdout) || extractPrRef(prCreate.stderr);
       if (prRef) {
-        const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(prRef)}`), repoRoot, {
-          allowFailure: true,
-        });
-        if (closes.status !== 0) {
-          console.warn(`  ⚠ failed to declare pending pebble closure for ${issue.id}: ${closes.stderr || closes.stdout}`);
+        if (declarePendingPebbleClosure(issue.id, prRef)) {
+          markIssueInReview(issue.id);
         }
-        markIssueInReview(issue.id);
       } else {
         console.warn(`  ⚠ could not detect PR URL/number for ${issue.id}; skipping peb closes add`);
       }
@@ -911,6 +913,10 @@ async function publishCompletedIssues(
 
 
 function markIssueInReview(issueId: string): void {
+  if (PLAN_ONLY) {
+    console.log(`PICASTLE_PLAN_ONLY=1; skipping mark ${issueId} ${REVIEW_STATUS}.`);
+    return;
+  }
   if (!REVIEW_STATUS) return;
   const result = run(pebCommand(`update ${shellQuote(issueId)} --status ${shellQuote(REVIEW_STATUS)}`), repoRoot, {
     allowFailure: true,
@@ -1044,6 +1050,8 @@ function ensureIssueWorktree(issue: PlannedIssue): string {
 }
 
 function ensureBranchWorktree(branch: string): string {
+  assertMutableMode("create or attach worktree");
+  assertSafeRecoveryBranchName(branch);
   const existing = collectWorktreeEntries().find((entry) => entry.branch === branch && existsSync(entry.path));
   if (existing) return existing.path;
 
@@ -1090,6 +1098,10 @@ function runWorktreeReadyHook(worktreePath: string): void {
   run(WORKTREE_READY_COMMAND, worktreePath, { stdio: "inherit" });
   mkdirSync(dirname(marker), { recursive: true });
   writeFileSync(marker, new Date().toISOString());
+}
+
+function assertMutableMode(action: string): void {
+  if (PLAN_ONLY) throw new Error(`PICASTLE_PLAN_ONLY=1; refusing to ${action}`);
 }
 
 function renderPrompt(fileName: string, values: Record<string, string>): string {

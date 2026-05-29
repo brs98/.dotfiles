@@ -295,6 +295,7 @@ export function validatePlannedIssueSelections(
     if (!candidateIds.has(id)) throw new Error(`Planner selected non-candidate issue id ${id}`);
 
     const normalizedBranch = options.normalizeBranch ? options.normalizeBranch(branch, id, title) : branch;
+    assertSafeRecoveryBranchName(normalizedBranch);
     const branchIssueId = extractIssueIdFromBranch(normalizedBranch, knownIssueIds);
     if (!branchIssueId) {
       throw new Error(`Planner selected branch ${normalizedBranch} for issue ${id}, but branch name does not contain a valid issue id`);
@@ -315,6 +316,10 @@ export function validatePlannedIssueSelections(
 
 export function normalizeOpenPrsJson(stdout: string): string {
   return JSON.stringify(parseOpenPrRecords(stdout));
+}
+
+export function pebClosureRegistrationSucceeded(result: { status: number; stdout?: string; stderr?: string }): boolean {
+  return result.status === 0 || /\balready\b/i.test(`${result.stdout ?? ""}\n${result.stderr ?? ""}`);
 }
 
 export function parseFirstOpenPrUrl(stdout: string): string | undefined {
