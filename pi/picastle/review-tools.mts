@@ -1,11 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 
-type ReviewCommandMode = "source" | "copy";
+type ReviewCommandMode = "source";
 type ReviewStep = { argv: string[]; cwd: string; mode: ReviewCommandMode };
 
 export type ReviewCommandPlan = {
@@ -20,7 +18,7 @@ const REVIEW_CHECK_PARAMETERS = {
     command: {
       type: "string",
       description:
-        "Single read-only review command to run. Mutating git/gh/peb commands and shell redirection are rejected.",
+        "Single read-only review command to run. Mutating git/gh/peb commands, shell redirection, and project-code execution are rejected.",
     },
   },
   required: ["command"],
@@ -28,7 +26,6 @@ const REVIEW_CHECK_PARAMETERS = {
 };
 
 const SOURCE_COMMANDS = new Set(["git", "peb", "gh", "grep", "find", "ls", "pwd", "cat", "head", "tail", "wc"]);
-const COPY_COMMANDS = new Set(["npm", "pnpm", "yarn", "bun", "deno", "cargo", "go", "pytest", "python", "python3"]);
 const READ_ONLY_GIT_SUBCOMMANDS = new Set([
   "status",
   "diff",
@@ -50,29 +47,17 @@ const ALLOWED_PEB_NESTED_SUBCOMMANDS = new Map([
   ["closure", new Set(["show"])],
 ]);
 const READ_ONLY_GH_SUBCOMMANDS = new Map([["pr", new Set(["list", "view", "diff", "checks"])]]);
-const PACKAGE_SCRIPTS = new Set([
-  "test",
-  "tests",
-  "lint",
-  "build",
-  "check",
-  "typecheck",
-  "type-check",
-  "fmt:check",
-  "format:check",
-]);
-
 export function createReviewCheckTool(root: string): ToolDefinition {
   const reviewRoot = resolve(root);
   return defineTool({
     name: "review_check",
     label: "review_check",
     description:
-      "Run a restricted read-only review command. Git/Pebbles/GitHub inspection commands run in the worktree; build/test checks run in a disposable copy. Mutating commands, shell operators, redirects, commits, pushes, PR creation, Pebbles writes, and copy-mode paths escaping the disposable copy are rejected.",
+      "Run a restricted read-only review command for source inspection. Project-code execution (package scripts, test runners, compilers, and build tools), mutating commands, shell operators, redirects, commits, pushes, PR creation, and Pebbles writes are rejected.",
     promptSnippet: "Run allowlisted read-only review checks without granting a general shell",
     promptGuidelines: [
-      "Use review_check instead of bash for git diff/log/status and project verification commands.",
-      "Do not attempt mutating commands or output paths in the real worktree; review_check rejects edits, commits, pushes, PR creation, Pebbles writes, and copy-mode path escapes.",
+      "Use review_check instead of bash for git diff/log/status and other read-only source inspection commands.",
+      "Do not attempt package scripts, test runners, compilers, mutating commands, or output paths; review_check rejects project-code execution, edits, commits, pushes, PR creation, and Pebbles writes.",
     ],
     parameters: REVIEW_CHECK_PARAMETERS as any,
     async execute(_toolCallId, params: { command: string }) {
@@ -117,16 +102,12 @@ export function planReviewCommand(command: string, root: string): ReviewCommandP
   }
 
   if (steps.length === 0) throw new Error("review_check command must include a command to run");
-  const mode = steps.some((step) => step.mode === "copy") ? "copy" : "source";
-  if (mode === "copy" && steps.some((step) => step.mode === "source" && step.argv[0] === "git")) {
-    throw new Error("review_check does not allow mixing git inspection with disposable-copy checks");
-  }
-  return { command, mode, steps };
+  return { command, mode: "source", steps };
 }
 
 function normalizeCommand(argv: string[], cwd: string, root: string): ReviewStep {
   const command = argv[0]!;
-  if (!SOURCE_COMMANDS.has(command) && !COPY_COMMANDS.has(command)) {
+  if (!SOURCE_COMMANDS.has(command)) {
     throw new Error(`review_check does not allow command: ${command}`);
   }
 
@@ -134,12 +115,8 @@ function normalizeCommand(argv: string[], cwd: string, root: string): ReviewStep
   if (command === "peb") return normalizePebCommand(argv, cwd);
   if (command === "gh") return normalizeGhCommand(argv, cwd);
   if (command === "find") ensureFindIsReadOnly(argv);
-  if (COPY_COMMANDS.has(command)) {
-    ensureCopyCommandAllowed(argv);
-    ensureCopyCommandArgsStayInCopy(argv);
-  }
 
-  return { argv, cwd, mode: COPY_COMMANDS.has(command) ? "copy" : "source" };
+  return { argv, cwd, mode: "source" };
 }
 
 function normalizeGitCommand(argv: string[], cwd: string, root: string): ReviewStep {
@@ -206,71 +183,19 @@ function normalizeGhCommand(argv: string[], cwd: string): ReviewStep {
   return { argv, cwd, mode: "source" };
 }
 
-function ensureCopyCommandAllowed(argv: string[]): void {
-  const [command, subcommand, script] = argv;
-  if (command === "npm") {
-    if (subcommand === "test") return;
-    if (subcommand === "run" && script && isAllowedPackageScript(script)) return;
-    throw new Error(`review_check only allows npm test or npm run ${[...PACKAGE_SCRIPTS].join("|")}`);
-  }
-  if (command === "pnpm" || command === "yarn") {
-    if (subcommand && isAllowedPackageScript(subcommand)) return;
-    if (subcommand === "run" && script && isAllowedPackageScript(script)) return;
-    throw new Error(`review_check only allows ${command} review scripts such as test, lint, build, or typecheck`);
-  }
-  if (command === "bun") {
-    if (subcommand === "test") return;
-    if (subcommand === "run" && script && isAllowedPackageScript(script)) return;
-    throw new Error("review_check only allows bun test or bun run review scripts");
-  }
-  if (command === "deno") {
-    if (subcommand === "test" || subcommand === "check" || subcommand === "lint") return;
-    throw new Error("review_check only allows deno test, deno check, or deno lint");
-  }
-  if (command === "cargo") {
-    if (subcommand === "fmt" && !argv.includes("--check")) {
-      throw new Error("review_check only allows cargo fmt when --check is present");
-    }
-    if (["test", "check", "clippy", "fmt", "build"].includes(subcommand ?? "")) return;
-    throw new Error("review_check only allows cargo test/check/clippy/fmt --check/build");
-  }
-  if (command === "go") {
-    if (subcommand === "test" || subcommand === "vet") return;
-    throw new Error("review_check only allows go test or go vet");
-  }
-  if (command === "pytest") return;
-  if ((command === "python" || command === "python3") && subcommand === "-m" && script === "pytest") return;
-  throw new Error(`review_check does not allow command: ${command}`);
-}
-
-function isAllowedPackageScript(script: string): boolean {
-  return PACKAGE_SCRIPTS.has(script) || /^(test|lint|build|check|typecheck|type-check)(:|$)/.test(script);
-}
-
-function ensureCopyCommandArgsStayInCopy(argv: string[]): void {
-  const unsafe = argv.find((arg) => argReferencesPathOutsideCopy(arg));
-  if (unsafe) {
-    throw new Error(`review_check copy-mode arguments must stay within the disposable copy: ${unsafe}`);
-  }
-}
-
-function argReferencesPathOutsideCopy(arg: string): boolean {
-  return argValueParts(arg).some((part) => isAbsolute(part) || hasParentPathSegment(part));
-}
-
-function argValueParts(arg: string): string[] {
-  const equalsIndex = arg.indexOf("=");
-  if (equalsIndex === -1) return [arg];
-  return [arg, arg.slice(equalsIndex + 1)].filter(Boolean);
-}
-
-function hasParentPathSegment(value: string): boolean {
-  return value.split(/[\\/]+/).includes("..");
-}
-
 function ensureFindIsReadOnly(argv: string[]): void {
-  const forbidden = new Set(["-exec", "-execdir", "-ok", "-okdir", "-delete", "-fls", "-fprint", "-fprintf"]);
-  const found = argv.find((arg) => forbidden.has(arg));
+  const forbiddenWriteActions = new Set([
+    "-delete",
+    "-exec",
+    "-execdir",
+    "-fls",
+    "-fprint",
+    "-fprint0",
+    "-fprintf",
+    "-ok",
+    "-okdir",
+  ]);
+  const found = argv.find((arg) => forbiddenWriteActions.has(arg));
   if (found) throw new Error(`review_check does not allow find action: ${found}`);
 }
 
@@ -297,39 +222,24 @@ function ensureNoGitWriteOptions(argv: string[]): void {
   if (forbidden) throw new Error(`review_check does not allow git option: ${forbidden}`);
 }
 
-function executeReviewCommandPlan(plan: ReviewCommandPlan, root: string): { status: number; stdout: string; stderr: string } {
-  if (plan.mode === "source") return executeSteps(plan.steps, root, root);
-
-  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-review-"));
-  const scratchRoot = join(tempRoot, "repo");
-  try {
-    const guardBin = join(tempRoot, "bin");
-    createReviewGuardBin(guardBin);
-    copyWorktree(root, scratchRoot);
-    return executeSteps(plan.steps, root, scratchRoot, guardBin);
-  } finally {
-    rmSync(tempRoot, { recursive: true, force: true });
-  }
+function executeReviewCommandPlan(plan: ReviewCommandPlan, _root: string): { status: number; stdout: string; stderr: string } {
+  return executeSteps(plan.steps);
 }
 
 function executeSteps(
   steps: ReviewStep[],
-  sourceRoot: string,
-  executionRoot: string,
-  guardBin?: string,
 ): { status: number; stdout: string; stderr: string } {
   let stdout = "";
   let stderr = "";
 
   for (const step of steps) {
-    const cwd = mapCwd(step.cwd, sourceRoot, executionRoot);
     const argv = step.argv[0] === "git" ? gitArgv(step.argv) : step.argv;
     const result = spawnSync(argv[0]!, argv.slice(1), {
-      cwd,
+      cwd: step.cwd,
       encoding: "utf8",
       maxBuffer: 1024 * 1024 * 20,
       timeout: 10 * 60 * 1000,
-      env: reviewCommandEnv(guardBin),
+      env: reviewCommandEnv(),
     });
     stdout += result.stdout ?? "";
     stderr += result.stderr ?? "";
@@ -344,69 +254,15 @@ function gitArgv(argv: string[]): string[] {
   return ["git", "-c", "core.pager=cat", "-c", "diff.external=", ...argv.slice(1)];
 }
 
-function reviewCommandEnv(guardBin?: string): NodeJS.ProcessEnv {
+function reviewCommandEnv(): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    PATH: guardBin ? `${guardBin}${process.env.PATH ? `:${process.env.PATH}` : ""}` : process.env.PATH,
     GIT_TERMINAL_PROMPT: "0",
     GIT_OPTIONAL_LOCKS: "0",
     GIT_PAGER: "cat",
     GIT_EXTERNAL_DIFF: "",
     GH_PROMPT_DISABLED: "1",
   };
-}
-
-function createReviewGuardBin(guardBin: string): void {
-  mkdirSync(guardBin, { recursive: true });
-  writeExecutable(
-    join(guardBin, "peb"),
-    `#!/usr/bin/env bash\necho "review_check blocks Pebbles during disposable-copy checks" >&2\nexit 126\n`,
-  );
-  writeExecutable(
-    join(guardBin, "gh"),
-    `#!/usr/bin/env bash\necho "review_check blocks gh during disposable-copy checks" >&2\nexit 126\n`,
-  );
-
-  const gitPath = resolveExecutable("git");
-  writeExecutable(
-    join(guardBin, "git"),
-    `#!/usr/bin/env bash\nset -euo pipefail\nargs=("$@")\nwhile [[ \${#args[@]} -gt 0 ]]; do\n  case "\${args[0]}" in\n    -c) args=("\${args[@]:2}") ;;\n    -C) args=("\${args[@]:2}") ;;\n    --no-pager) args=("\${args[@]:1}") ;;\n    -*) echo "review_check blocks git global option during disposable-copy checks: \${args[0]}" >&2; exit 126 ;;\n    *) break ;;\n  esac\ndone\ncase "\${args[0]:-}" in\n  add|am|apply|bisect|checkout|cherry-pick|clean|clone|commit|fetch|init|merge|mv|pull|push|rebase|remote|reset|restore|revert|rm|stash|submodule|switch|tag|worktree)\n    echo "review_check blocks mutating git during disposable-copy checks: \${args[0]}" >&2\n    exit 126\n    ;;\nesac\nexec ${shSingleQuote(gitPath)} "$@"\n`,
-  );
-}
-
-function writeExecutable(path: string, content: string): void {
-  writeFileSync(path, content);
-  chmodSync(path, 0o755);
-}
-
-function resolveExecutable(name: string): string {
-  const result = spawnSync("/usr/bin/env", ["which", name], { encoding: "utf8" });
-  const path = result.stdout.trim();
-  if (!path) throw new Error(`review_check could not locate required executable: ${name}`);
-  return path;
-}
-
-function shSingleQuote(value: string): string {
-  return `'${value.replace(/'/g, `'"'"'`)}'`;
-}
-
-function copyWorktree(sourceRoot: string, scratchRoot: string): void {
-  const resolvedRoot = resolve(sourceRoot);
-  cpSync(resolvedRoot, scratchRoot, {
-    recursive: true,
-    dereference: false,
-    filter(source) {
-      const rel = relative(resolvedRoot, source);
-      if (!rel) return true;
-      const [first] = rel.split(sep);
-      return ![".git", ".picastle", "target", ".next", "coverage"].includes(first ?? "");
-    },
-  });
-}
-
-function mapCwd(cwd: string, sourceRoot: string, executionRoot: string): string {
-  const rel = relative(resolve(sourceRoot), resolve(cwd));
-  return rel ? join(executionRoot, rel) : executionRoot;
 }
 
 function resolveReviewPath(root: string, cwd: string, path: string): string {

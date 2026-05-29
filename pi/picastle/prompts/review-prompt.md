@@ -42,9 +42,9 @@ git diff {{BASE_BRANCH}}...HEAD
    - code quality / architecture issues
    - docs or UX copy mismatches, if relevant
 
-4. If `{{VERIFY}}` is true, run relevant checks from `AGENTS.md` only through `review_check`. Prefer targeted checks first, but use full checks when the touched surface is broad or ambiguous.
+4. If `{{VERIFY}}` is true, run relevant read-only source inspection checks from `AGENTS.md` only through `review_check`. Do not run package scripts, test runners, compilers, or build tools; reviewers do not have a sandbox for executing branch-controlled project code. If validation requires executable checks, record that gap in `checks` and explain it in `summary` or a finding.
 
-`review_check` rejects mutating git/gh/peb commands, general shell syntax, and copy-mode arguments that use absolute paths or parent-directory traversal. Standard build/test commands run in a disposable copy rather than the issue worktree. If a needed command is rejected or unavailable, record that in `checks` and explain the validation gap in `summary` or a finding.
+`review_check` rejects mutating git/gh/peb commands, project-code execution, general shell syntax, redirects, commits, pushes, PR creation, and Pebbles writes.
 
 # OUTPUT
 
@@ -53,13 +53,13 @@ Output exactly one JSON object wrapped in `<review>` tags.
 Approved:
 
 <review>
-{"status":"approved","summary":"Looks ready.","findings":[],"checks":["cd ui && npm run test"]}
+{"status":"approved","summary":"Looks ready.","findings":[],"checks":["git diff --stat {{BASE_BRANCH}}...HEAD"]}
 </review>
 
 Changes requested:
 
 <review>
-{"status":"changes_requested","summary":"Needs a regression test.","findings":[{"severity":"blocking","file":"ui/src/example.test.tsx","summary":"Missing coverage for stale updater refresh.","recommendation":"Add a test that advances timers past the stale threshold and asserts check_for_update is invoked."}],"checks":["cd ui && npm run test"]}
+{"status":"changes_requested","summary":"Needs a regression test. Could not execute npm tests because reviewer tools do not run branch-controlled code.","findings":[{"severity":"blocking","file":"ui/src/example.test.tsx","summary":"Missing coverage for stale updater refresh.","recommendation":"Add a test that advances timers past the stale threshold and asserts check_for_update is invoked."}],"checks":["git diff {{BASE_BRANCH}}...HEAD","not run: cd ui && npm run test (project-code execution rejected)"]}
 </review>
 
 Blocked:

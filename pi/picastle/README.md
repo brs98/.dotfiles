@@ -67,9 +67,11 @@ The host fan-in script applies those to Pebbles after each iteration.
 
 Reviewer agents are granted only read tools plus `review_check`, a restricted
 allowlisted command runner. They do not receive `bash`, `edit`, or `write`.
-`review_check` allows git/Pebbles/GitHub inspection commands, rejects commits,
-pushes, PR creation, Pebbles writes, redirects, and general shell syntax, and
-runs standard build/test checks in a disposable copy of the issue worktree.
+`review_check` allows git/Pebbles/GitHub inspection commands and rejects
+project-code execution (package scripts, test runners, compilers, and build
+tools), commits, pushes, PR creation, Pebbles writes, redirects, and general
+shell syntax. Reviewers record any executable-check validation gap for the
+repair/implementer path instead of running branch-controlled code.
 
 ## Useful knobs
 

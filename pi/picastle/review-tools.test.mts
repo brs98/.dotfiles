@@ -15,11 +15,11 @@ test("allows read-only git inspection commands", () => {
   assert.deepEqual(plan.steps[0]?.argv, ["git", "diff", "--stat", "main...HEAD"]);
 });
 
-test("allows cd before disposable package checks", () => {
-  const plan = planReviewCommand("cd pi/picastle && npm run typecheck", root);
-  assert.equal(plan.mode, "copy");
+test("allows cd before read-only source checks", () => {
+  const plan = planReviewCommand("cd pi/picastle && find . -maxdepth 1 -type f -print", root);
+  assert.equal(plan.mode, "source");
   assert.match(plan.steps[0]?.cwd ?? "", /pi[\/]picastle$/);
-  assert.deepEqual(plan.steps[0]?.argv, ["npm", "run", "typecheck"]);
+  assert.deepEqual(plan.steps[0]?.argv, ["find", ".", "-maxdepth", "1", "-type", "f", "-print"]);
 });
 
 test("allows read-only Pebbles inspection with remote args", () => {
@@ -41,32 +41,45 @@ test("rejects mutating git, gh, and Pebbles commands", () => {
 
 test("rejects commands that are not on the review allowlist", () => {
   assert.throws(() => planReviewCommand("touch pwned", root), /does not allow command: touch/);
-  assert.throws(() => planReviewCommand("npm install", root), /only allows npm test/);
   assert.throws(() => planReviewCommand("rg --pre rm pattern file", root), /does not allow command: rg/);
 });
+
+const projectCodeExecutionCommands = [
+  "npm test",
+  "npm run typecheck",
+  "pnpm test",
+  "yarn run lint",
+  "bun test",
+  "deno test",
+  "cargo test",
+  "go test ./...",
+  "pytest",
+  "python -m pytest",
+];
+
+for (const command of projectCodeExecutionCommands) {
+  test(`rejects project-code execution: ${command}`, () => {
+    const executable = command.split(" ")[0]!;
+    assert.throws(() => planReviewCommand(command, root), new RegExp(`does not allow command: ${executable}`));
+  });
+}
 
 test("rejects paths that escape the worktree", () => {
   assert.throws(() => planReviewCommand("cd .. && npm test", root), /escapes the worktree/);
   assert.throws(() => planReviewCommand("git -C /tmp status", root), /escapes the worktree/);
 });
 
-test("rejects disposable-copy checks that target the source worktree", () => {
-  assert.throws(
-    () => planReviewCommand(`python -m pytest --junitxml ${root}/pytest.xml`, root),
-    /copy-mode arguments must stay within the disposable copy/,
-  );
-  assert.throws(
-    () => planReviewCommand(`cargo build --target-dir ${root}/target-review`, root),
-    /copy-mode arguments must stay within the disposable copy/,
-  );
-  assert.throws(
-    () => planReviewCommand(`npm run test -- --output=${root}/review-output.txt`, root),
-    /copy-mode arguments must stay within the disposable copy/,
-  );
-  assert.throws(
-    () => planReviewCommand("pytest --junitxml ../pytest.xml", root),
-    /copy-mode arguments must stay within the disposable copy/,
-  );
+test("rejects write-capable find actions", () => {
+  assert.throws(() => planReviewCommand("find . -delete", root), /find action: -delete/);
+  assert.throws(() => planReviewCommand("find . -exec rm {} ;", root), /shell operator/);
+  assert.throws(() => planReviewCommand("find . -exec rm {} +", root), /find action: -exec/);
+  assert.throws(() => planReviewCommand("find . -execdir rm {} +", root), /find action: -execdir/);
+  assert.throws(() => planReviewCommand("find . -ok rm {} +", root), /find action: -ok/);
+  assert.throws(() => planReviewCommand("find . -okdir rm {} +", root), /find action: -okdir/);
+  assert.throws(() => planReviewCommand("find . -fls out.txt", root), /find action: -fls/);
+  assert.throws(() => planReviewCommand("find . -fprint out.txt", root), /find action: -fprint/);
+  assert.throws(() => planReviewCommand("find . -fprint0 out.txt", root), /find action: -fprint0/);
+  assert.throws(() => planReviewCommand("find . -fprintf out.txt %p", root), /find action: -fprintf/);
 });
 
 test("custom tool executes allowed source inspection", async () => {
