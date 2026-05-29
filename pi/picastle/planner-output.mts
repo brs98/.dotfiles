@@ -41,14 +41,31 @@ export function parsePlannerPlan(
   const candidates = options.candidates.map(candidateInfo).filter((candidate) => candidate.id);
   const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
 
-  const planned = parsed.issues.map((issue: Partial<PlannedIssue>) => {
-    if (!issue.id || !issue.title || !issue.branch) {
+  const seenPlannedIds = new Set<string>();
+  const planned = parsed.issues.map((raw: unknown) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new Error(`Invalid planned issue: ${JSON.stringify(raw)}`);
+    }
+
+    const issue = raw as Partial<PlannedIssue>;
+    const id = stringField(issue.id);
+    const title = stringField(issue.title);
+    const branch = stringField(issue.branch);
+    if (!id || !title || !branch) {
       throw new Error(`Invalid planned issue: ${JSON.stringify(issue)}`);
     }
+    if (seenPlannedIds.has(id)) {
+      throw new Error(`Planner returned duplicate planned issue id: ${id}`);
+    }
+    if (!candidateById.has(id)) {
+      throw new Error(`Planner returned planned issue id not present in candidates: ${id}`);
+    }
+    seenPlannedIds.add(id);
+
     return {
-      id: String(issue.id),
-      title: String(issue.title),
-      branch: normalizeBranch(String(issue.branch), String(issue.id), String(issue.title)),
+      id,
+      title,
+      branch: normalizeBranch(branch, id, title),
     };
   });
   const issues = options.maxIssues && options.maxIssues > 0 ? planned.slice(0, options.maxIssues) : planned;
@@ -58,7 +75,11 @@ export function parsePlannerPlan(
   const skippedById = new Map<string, PlannerSkippedIssue>();
   for (const raw of extractSkippedItems(parsed)) {
     const skipped = parseSkippedItem(raw, candidateById);
-    if (!skipped || plannedIds.has(skipped.id)) continue;
+    if (!skipped) continue;
+    if (!candidateById.has(skipped.id)) {
+      throw new Error(`Planner returned skipped issue id not present in candidates: ${skipped.id}`);
+    }
+    if (plannedIds.has(skipped.id)) continue;
     skippedById.set(skipped.id, skipped);
   }
 

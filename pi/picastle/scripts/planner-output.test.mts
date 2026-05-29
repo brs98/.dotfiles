@@ -9,6 +9,10 @@ const candidates = [
   { id: "repo-abc", title: "fix(auth): stale token", status: "ready_for_agent" },
   { id: "repo-def", title: "feat(ui): new panel", status: "ready_for_agent" },
 ];
+const candidatesWithThird = [
+  ...candidates,
+  { id: "repo-ghi", title: "chore(api): cleanup", status: "ready_for_agent" },
+];
 
 {
   const decision = parsePlannerPlan(
@@ -50,6 +54,99 @@ const candidates = [
   assert.equal(decision.skipped.length, 1);
   assert.equal(decision.skipped[0]?.category, "overlap_risk");
   assert.deepEqual(decision.skipped[0]?.blockers, ["PR #42"]);
+}
+
+{
+  assert.throws(
+    () => parsePlannerPlan("no plan here", { candidates, openPrs: [] }),
+    /Planner did not produce a <plan> block/,
+  );
+  assert.throws(
+    () => parsePlannerPlan("<plan>{not json}</plan>", { candidates, openPrs: [] }),
+    SyntaxError,
+  );
+  assert.throws(
+    () => parsePlannerPlan('<plan>{"skipped": []}</plan>', { candidates, openPrs: [] }),
+    /issues array/,
+  );
+}
+
+{
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        `<plan>{"issues":[
+          {"id":"repo-abc","title":"fix(auth): stale token","branch":"picastle/repo-abc-token"},
+          {"id":"repo-abc","title":"fix(auth): stale token again","branch":"picastle/repo-abc-token-again"}
+        ]}</plan>`,
+        { candidates, openPrs: [] },
+      ),
+    /duplicate planned issue id: repo-abc/,
+  );
+
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        '<plan>{"issues":[{"id":"repo-zzz","title":"unknown","branch":"picastle/repo-zzz-unknown"}]}</plan>',
+        { candidates, openPrs: [] },
+      ),
+    /not present in candidates: repo-zzz/,
+  );
+
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        '<plan>{"issues":[],"skipped":[{"id":"repo-zzz","title":"unknown","category":"other","reason":"hallucinated"}]}</plan>',
+        { candidates, openPrs: [] },
+      ),
+    /not present in candidates: repo-zzz/,
+  );
+
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        '<plan>{"issues":[{"id":"repo-abc","title":"fix(auth): stale token"}]}</plan>',
+        { candidates, openPrs: [] },
+      ),
+    /Invalid planned issue/,
+  );
+}
+
+{
+  const decision = parsePlannerPlan(
+    `<plan>{
+      "issues": [],
+      "skipped": [null, {"title":"missing id","category":"dependency","reason":"no candidate id"}]
+    }</plan>`,
+    { candidates: candidates.slice(0, 1), openPrs: [] },
+  );
+
+  assert.equal(decision.skipped.length, 1);
+  assert.equal(decision.skipped[0]?.id, "repo-abc");
+  assert.equal(decision.skipped[0]?.category, "missing_context");
+  assert.equal(decision.hasSyntheticExplanations, true);
+}
+
+{
+  const decision = parsePlannerPlan(
+    `<plan>{
+      "issues": [
+        {"id":"repo-abc","title":"fix(auth): stale token","branch":"picastle/repo-abc-token"},
+        {"id":"repo-def","title":"feat(ui): new panel","branch":"picastle/repo-def-panel"}
+      ],
+      "skipped": [{"id":"repo-ghi","title":"chore(api): cleanup","category":"policy_status","reason":"deferred by policy","blockers":[]}]
+    }</plan>`,
+    { candidates: candidatesWithThird, openPrs: [], maxIssues: 1 },
+  );
+
+  assert.deepEqual(decision.issues, [
+    { id: "repo-abc", title: "fix(auth): stale token", branch: "picastle/repo-abc-token" },
+  ]);
+  assert.equal(decision.skipped.length, 2);
+  assert.equal(decision.skipped.find((issue) => issue.id === "repo-def")?.category, "policy_status");
+  assert.match(decision.skipped.find((issue) => issue.id === "repo-def")?.reason ?? "", /PICASTLE_MAX_ISSUES=1/);
+  assert.equal(decision.skipped.find((issue) => issue.id === "repo-ghi")?.reason, "deferred by policy");
+  assert.equal(decision.hasSyntheticExplanations, true);
 }
 
 console.log("planner-output tests passed");
