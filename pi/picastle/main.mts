@@ -17,7 +17,15 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 
-type PlannedIssue = { id: string; title: string; branch: string };
+import {
+  formatPlannerBlockedSummary,
+  normalizeBranch,
+  parsePlannerContext,
+  parsePlannerPlan,
+  type PlannedIssue,
+  type PlannerDecision,
+} from "./planner-output.mjs";
+
 type CompletedIssue = PlannedIssue & { worktreePath: string };
 type ReviewStatus = "approved" | "changes_requested" | "blocked";
 type ReviewFinding = {
@@ -117,7 +125,9 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     }
   }
 
-  const issues = await planIssues(iteration);
+  const plan = await planIssues(iteration);
+  const issues = plan.issues;
+  for (const line of formatPlannerBlockedSummary(plan)) console.log(line);
   if (issues.length === 0) {
     console.log("No unblocked issues to work on. Exiting.");
     break;
@@ -224,18 +234,22 @@ function extractIssueIdFromBranch(branch: string): string | undefined {
   return branch.match(/^picastle\/([a-z0-9_]+-[a-z0-9]{3,})-/)?.[1];
 }
 
-async function planIssues(iteration: number): Promise<PlannedIssue[]> {
+async function planIssues(iteration: number): Promise<PlannerDecision> {
   const candidates = loadCandidateIssues();
-  const issuesJson = JSON.stringify(candidates);
 
   const openPrsJson = run(
     `gh pr list --state open --json number,headRefName,url --jq '[.[] | {number, headRefName, url}]'`,
     repoRoot,
   ).stdout;
+  const openPrs = parseJsonArray(openPrsJson, "open GitHub PR list");
+  // Fail closed before giving malformed context to the planner or writing an audit
+  // artifact that would imply the context was trustworthy.
+  parsePlannerContext({ candidates, openPrs });
+  const issuesJson = JSON.stringify(candidates);
 
   const prompt = renderPrompt("plan-prompt.md", {
     ISSUES_JSON: issuesJson,
-    OPEN_PRS_JSON: openPrsJson.trim() || "[]",
+    OPEN_PRS_JSON: JSON.stringify(openPrs),
     ISSUE_LABEL: ISSUE_LABEL || "<none>",
     ISSUE_STATUS,
     POLICY_READY_LABEL: queuePolicy.policyReadyLabel ?? "<none>",
@@ -251,28 +265,21 @@ async function planIssues(iteration: number): Promise<PlannedIssue[]> {
     logFile: join(logsDir, `picastle-planner-${iteration}.log`),
   });
 
-  const match = stdout.match(/<plan>([\s\S]*?)<\/plan>/);
-  if (!match) {
-    throw new Error(`Planner did not produce a <plan> block. See ${join(logsDir, `picastle-planner-${iteration}.log`)}`);
-  }
-
-  const parsed = JSON.parse(match[1]!);
-  if (!parsed || !Array.isArray(parsed.issues)) {
-    throw new Error("Planner <plan> JSON must contain an issues array");
-  }
-
-  const planned = parsed.issues.map((issue: Partial<PlannedIssue>) => {
-    if (!issue.id || !issue.title || !issue.branch) {
-      throw new Error(`Invalid planned issue: ${JSON.stringify(issue)}`);
+  let plan: PlannerDecision;
+  try {
+    plan = parsePlannerPlan(stdout, { candidates, openPrs, maxIssues: MAX_ISSUES });
+  } catch (error) {
+    if (error instanceof Error && error.message === "Planner did not produce a <plan> block") {
+      throw new Error(`Planner did not produce a <plan> block. See ${join(logsDir, `picastle-planner-${iteration}.log`)}`);
     }
-    return {
-      id: String(issue.id),
-      title: String(issue.title),
-      branch: normalizeBranch(String(issue.branch), String(issue.id), String(issue.title)),
-    };
-  });
+    throw error;
+  }
 
-  return MAX_ISSUES > 0 ? planned.slice(0, MAX_ISSUES) : planned;
+  writeFileSync(
+    join(logsDir, `picastle-planner-${iteration}-audit.json`),
+    JSON.stringify({ iteration, generatedAt: new Date().toISOString(), candidates, openPrs, ...plan }, null, 2) + "\n",
+  );
+  return plan;
 }
 
 function loadCandidateIssues(): unknown[] {
@@ -312,10 +319,22 @@ function loadCandidateIssues(): unknown[] {
 function readIssues(command: string): unknown[] {
   const result = run(command, repoRoot, { allowFailure: true });
   if (result.status !== 0) {
-    console.warn(`  ⚠ peb issue query failed: ${result.stderr || result.stdout}`);
-    return [];
+    throw new Error(`Pebbles issue query failed: ${result.stderr || result.stdout}`);
   }
-  return JSON.parse(result.stdout || "[]");
+  return parseJsonArray(result.stdout, "Pebbles issue query result");
+}
+
+function parseJsonArray(input: string, description: string): unknown[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(input);
+  } catch (error) {
+    throw new Error(`Failed to parse ${description}: ${formatError(error)}`);
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error(`${description} must be a JSON array`);
+  }
+  return parsed;
 }
 
 async function implementIssue(
@@ -809,7 +828,7 @@ async function runPiAgent(args: {
 }
 
 function ensureIssueWorktree(issue: PlannedIssue): string {
-  const branch = normalizeBranch(issue.branch, issue.id, issue.title);
+  const branch = normalizeBranch(issue.branch, issue.id);
   const worktreeName = branch.replace(/^picastle\//, "").replace(/[^a-zA-Z0-9._-]/g, "-");
   const worktreePath = join(worktreesDir, worktreeName);
 
@@ -901,21 +920,6 @@ function deriveQueuePolicy(policy: PebblesPolicy | undefined): QueuePolicy {
 
 function normalizePolicyStatus(value: string): string {
   return value.trim().toLowerCase().replace(/-/g, "_");
-}
-
-function normalizeBranch(branch: string, id: string, title: string): string {
-  if (branch.startsWith("picastle/")) return branch;
-  if (branch.startsWith("sandcastle/")) return branch.replace(/^sandcastle\//, "picastle/");
-  return `picastle/${id}-${slugify(title)}`;
-}
-
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/^[a-z]+\([^)]+\):\s*/, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "issue";
 }
 
 function prTitle(issue: PlannedIssue): string {
