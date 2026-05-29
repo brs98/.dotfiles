@@ -3,7 +3,16 @@ export type RecoveryIssueLookup =
   | { state: "not_found"; message?: string }
   | { state: "failed"; message: string };
 
-export type OpenPrRecord = { number?: number; headRefName: string; url: string };
+export type RepositoryIdentity = { owner: string; name: string };
+export type OpenPrRecord = {
+  number?: number;
+  headRefName: string;
+  url: string;
+  isCrossRepository?: boolean;
+  headRepositoryOwner?: string;
+  headRepositoryName?: string;
+};
+export type OpenPrParseOptions = { currentRepository?: RepositoryIdentity };
 export type PlannedIssueSelection = { id: string; title: string; branch: string };
 export type ExistingOpenPr = { headRefName: string; url: string };
 export type RecoveryAction =
@@ -261,12 +270,12 @@ export function parseKnownIssueIdsJson(stdout: string): string[] {
   return [...ids].sort((a, b) => b.length - a.length || a.localeCompare(b));
 }
 
-export function parseOpenPrsByHead(stdout: string): Map<string, string> {
-  return new Map(parseOpenPrRecords(stdout).map((pr) => [pr.headRefName, pr.url]));
+export function parseOpenPrsByHead(stdout: string, options: OpenPrParseOptions = {}): Map<string, string> {
+  return new Map(parseOpenPrRecords(stdout, options).map((pr) => [pr.headRefName, pr.url]));
 }
 
-export function findOpenPrForIssue(stdout: string, issueId: string): OpenPrRecord | undefined {
-  return parseOpenPrRecords(stdout).find((pr) => {
+export function findOpenPrForIssue(stdout: string, issueId: string, options: OpenPrParseOptions = {}): OpenPrRecord | undefined {
+  return parseOpenPrRecords(stdout, options).find((pr) => {
     if (looksLikePebbleIssueId(issueId) && extractIssueIdFromBranch(pr.headRefName, [issueId]) === issueId) {
       return true;
     }
@@ -370,16 +379,16 @@ export function validatePlannedIssueSelections(
   });
 }
 
-export function normalizeOpenPrsJson(stdout: string): string {
-  return JSON.stringify(parseOpenPrRecords(stdout));
+export function normalizeOpenPrsJson(stdout: string, options: OpenPrParseOptions = {}): string {
+  return JSON.stringify(parseOpenPrRecords(stdout, options));
 }
 
 export function pebClosureRegistrationSucceeded(result: { status: number; stdout?: string; stderr?: string }): boolean {
   return result.status === 0 || /\balready\b/i.test(`${result.stdout ?? ""}\n${result.stderr ?? ""}`);
 }
 
-export function parseFirstOpenPrUrl(stdout: string): string | undefined {
-  return parseOpenPrRecords(stdout)[0]?.url;
+export function parseFirstOpenPrUrl(stdout: string, options: OpenPrParseOptions = {}): string | undefined {
+  return parseOpenPrRecords(stdout, options)[0]?.url;
 }
 
 export function classifyPebShowFailure(output: string): RecoveryIssueLookup {
@@ -406,7 +415,7 @@ function readRecordString(value: unknown, key: string): string | undefined {
   return typeof field === "string" && field.length > 0 ? field : undefined;
 }
 
-function parseOpenPrRecords(stdout: string): OpenPrRecord[] {
+function parseOpenPrRecords(stdout: string, options: OpenPrParseOptions = {}): OpenPrRecord[] {
   const trimmed = stdout.trim();
   if (!trimmed) {
     throw new Error("failed to parse gh pr list JSON: empty output");
@@ -420,7 +429,7 @@ function parseOpenPrRecords(stdout: string): OpenPrRecord[] {
   if (!Array.isArray(parsed)) {
     throw new Error("failed to parse gh pr list JSON: expected an array");
   }
-  return parsed.map((item, index) => {
+  const records = parsed.map((item, index) => {
     if (!item || typeof item !== "object") {
       throw new Error(`failed to parse gh pr list JSON: entry ${index} is not an object`);
     }
@@ -436,8 +445,65 @@ function parseOpenPrRecords(stdout: string): OpenPrRecord[] {
       ...(Number.isFinite(number) ? { number } : {}),
       headRefName: record.headRefName,
       url: record.url,
+      ...(typeof record.isCrossRepository === "boolean" ? { isCrossRepository: record.isCrossRepository } : {}),
+      ...extractHeadRepositoryIdentity(record),
     };
   });
+
+  if (!options.currentRepository) return records;
+  return records.filter((record, index) => shouldConsiderSameRepositoryPr(record, options.currentRepository!, index));
+}
+
+function extractHeadRepositoryIdentity(record: Record<string, unknown>): Pick<OpenPrRecord, "headRepositoryOwner" | "headRepositoryName"> {
+  const repository = readObject(record.headRepository);
+  const nameWithOwner = readString(repository?.nameWithOwner);
+  const slashIndex = nameWithOwner?.indexOf("/") ?? -1;
+  const owner = readGitHubLogin(record.headRepositoryOwner) ?? readGitHubLogin(repository?.owner) ?? (slashIndex > 0 ? nameWithOwner!.slice(0, slashIndex) : undefined);
+  const name = readString(record.headRepositoryName) ?? readString(repository?.name) ?? (slashIndex > 0 ? nameWithOwner!.slice(slashIndex + 1) : undefined);
+  return {
+    ...(owner ? { headRepositoryOwner: owner } : {}),
+    ...(name ? { headRepositoryName: name } : {}),
+  };
+}
+
+function shouldConsiderSameRepositoryPr(record: OpenPrRecord, currentRepository: RepositoryIdentity, index: number): boolean {
+  const hasRepositoryIdentity = Boolean(record.headRepositoryOwner && record.headRepositoryName);
+  const identityMatches = hasRepositoryIdentity
+    ? repositoryPartEquals(record.headRepositoryOwner!, currentRepository.owner) && repositoryPartEquals(record.headRepositoryName!, currentRepository.name)
+    : undefined;
+
+  if (record.isCrossRepository === true) {
+    if (identityMatches === true) {
+      throw new Error(`failed to parse gh pr list JSON: entry ${index} has contradictory cross-repository identity`);
+    }
+    return false;
+  }
+
+  if (record.isCrossRepository === false) {
+    if (identityMatches === false) {
+      throw new Error(`failed to parse gh pr list JSON: entry ${index} has contradictory same-repository identity`);
+    }
+    return true;
+  }
+
+  if (identityMatches !== undefined) return identityMatches;
+  throw new Error(`failed to parse gh pr list JSON: entry ${index} is missing PR head repository identity`);
+}
+
+function repositoryPartEquals(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase();
+}
+
+function readObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" ? value as Record<string, unknown> : undefined;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function readGitHubLogin(value: unknown): string | undefined {
+  return readString(value) ?? readString(readObject(value)?.login) ?? readString(readObject(value)?.name);
 }
 
 function isIssueReadyForRecoveryTransition(branch: RecoveryBranchInput, readyStatus: string): boolean {

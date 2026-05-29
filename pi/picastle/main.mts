@@ -34,6 +34,7 @@ import {
   type RecoveryBranchInput,
   type RecoveryIssueLookup,
   type RecoveryPlan,
+  type RepositoryIdentity,
 } from "./recovery.mjs";
 
 type PlannedIssue = { id: string; title: string; branch: string };
@@ -102,6 +103,7 @@ const REVIEW_CONCURRENCY = envInt("PICASTLE_REVIEW_CONCURRENCY", CONCURRENCY);
 // bounded scan so recovery/planning usually sees in-flight Picastle PRs without
 // implying this enumerates an unbounded repository PR history.
 const OPEN_PR_SCAN_LIMIT = envInt("PICASTLE_OPEN_PR_SCAN_LIMIT", 1000);
+const OPEN_PR_JSON_FIELDS = "number,headRefName,url,isCrossRepository,headRepository,headRepositoryOwner";
 const WORKTREE_READY_COMMAND = env("PICASTLE_WORKTREE_READY_COMMAND", "");
 const BEFORE_PUSH_COMMAND = env("PICASTLE_BEFORE_PUSH_COMMAND", "");
 const THINKING = process.env.PICASTLE_THINKING as
@@ -115,6 +117,7 @@ const THINKING = process.env.PICASTLE_THINKING as
 const CLEAN_TARGETS = envBool("PICASTLE_CLEAN_TARGETS", cli.cleanTargets ?? false);
 const MIN_FREE_GB = envNonNegativeNumber("PICASTLE_MIN_FREE_GB", cli.minFreeGb ?? 0);
 const BYTES_PER_GIB = 1024 ** 3;
+let cachedRepositoryIdentity: RepositoryIdentity | undefined;
 
 const authStorage = AuthStorage.create();
 const modelRegistry = ModelRegistry.create(authStorage);
@@ -382,20 +385,31 @@ function collectWorktreeEntries(): Array<{ path: string; branch?: string }> {
     .filter((entry) => entry.path);
 }
 
+function loadRepositoryIdentity(): RepositoryIdentity {
+  if (cachedRepositoryIdentity) return cachedRepositoryIdentity;
+  const result = run("gh repo view --json name,owner", repoRoot);
+  const parsed = JSON.parse(result.stdout) as { name?: unknown; owner?: { login?: unknown } };
+  if (typeof parsed.name !== "string" || parsed.name.length === 0 || typeof parsed.owner?.login !== "string" || parsed.owner.login.length === 0) {
+    throw new Error("failed to parse gh repo identity JSON: expected name and owner.login");
+  }
+  cachedRepositoryIdentity = { owner: parsed.owner.login, name: parsed.name };
+  return cachedRepositoryIdentity;
+}
+
 function loadOpenPrsByHead(): Map<string, string> {
   const result = run(
-    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json headRefName,url`,
+    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${OPEN_PR_JSON_FIELDS}`,
     repoRoot,
   );
-  return parseOpenPrsByHead(result.stdout);
+  return parseOpenPrsByHead(result.stdout, { currentRepository: loadRepositoryIdentity() });
 }
 
 function loadExistingOpenPrForIssue(issueId: string): { headRefName: string; url: string } | undefined {
   const result = run(
-    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json headRefName,url`,
+    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${OPEN_PR_JSON_FIELDS}`,
     repoRoot,
   );
-  return findOpenPrForIssue(result.stdout, issueId);
+  return findOpenPrForIssue(result.stdout, issueId, { currentRepository: loadRepositoryIdentity() });
 }
 
 function loadKnownIssueIdsForRecovery(): string[] {
@@ -473,9 +487,10 @@ async function planIssues(iteration: number, suppressedIssueIds: Set<string>): P
 
   const openPrsJson = normalizeOpenPrsJson(
     run(
-      `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json number,headRefName,url`,
+      `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${OPEN_PR_JSON_FIELDS}`,
       repoRoot,
     ).stdout,
+    { currentRepository: loadRepositoryIdentity() },
   );
 
   const prompt = renderPrompt("plan-prompt.md", {

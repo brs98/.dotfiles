@@ -83,7 +83,7 @@ The host fan-in script applies those to Pebbles after each iteration.
 - `PICASTLE_PUBLISHER_AGENT=1` uses the review/repair/publish pipeline for Sandcastle parity
 - `PICASTLE_REVIEW_REPAIR_CYCLES=10` max reviewer ↔ implementer repair loops
 - `PICASTLE_REVIEW_CONCURRENCY=$PICASTLE_CONCURRENCY` parallel review/publish workers
-- `PICASTLE_OPEN_PR_SCAN_LIMIT=1000` bounded `gh pr list` scan used to detect in-flight Picastle PRs; it is intentionally high but not an unbounded "all PRs" query
+- `PICASTLE_OPEN_PR_SCAN_LIMIT=1000` bounded `gh pr list` scan used to detect in-flight Picastle PRs and legacy Sandcastle PR heads; it is intentionally high but not an unbounded "all PRs" query
 - `PICASTLE_WORKTREE_READY_COMMAND=` optional once-per-worktree setup command, e.g. `npm install`
 - `PICASTLE_BEFORE_PUSH_COMMAND=` optional command run in the worktree immediately before `git push`
 - `PICASTLE_CLEAN_TARGETS=1` deletes each Picastle worktree's `target/` after its publish/defer path finishes
@@ -118,8 +118,12 @@ it asks the planner for new work. Recovery is handled first:
   work is not lost
 - ahead-of-base branches with no open PR are reviewed/published before planning
 - orphan local branches are attached to a runtime worktree before publishing
-- branches with open PRs have their Pebbles closure/review state reconciled only
-  after the pebble lookup succeeds and the pebble is still in the ready queue
+- clean open-PR branches with no unpushed commits have their Pebbles
+  closure/review state reconciled only after the pebble lookup succeeds and the
+  pebble is still in the ready queue
+- dirty open-PR branches are resumed through implementation; clean open-PR
+  branches with unpushed commits are reviewed/published so the existing PR is
+  updated
 - zero-ahead/stale branches are summarized as ignored; duplicate, missing-pebble,
   lookup-failed, and non-ready branches with recoverable work are deferred and
   block new planning for that pebble instead of silently creating another branch

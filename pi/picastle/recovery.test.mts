@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   assertSafeRecoveryBranchName,
@@ -395,6 +400,61 @@ test("parses open PR discovery output for recovery and publish probes", () => {
   assert.equal(normalizeOpenPrsJson(stdout), stdout);
 });
 
+test("filters open PR discovery to same-repository heads when repository identity is supplied", () => {
+  const currentRepository = { owner: "acme", name: "repo" };
+  const stdout = JSON.stringify([
+    {
+      number: 11,
+      headRefName: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+      url: "https://github.com/acme/repo/pull/11",
+      isCrossRepository: true,
+      headRepositoryOwner: { login: "fork" },
+      headRepository: { name: "repo" },
+    },
+    {
+      number: 12,
+      headRefName: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+      url: "https://github.com/acme/repo/pull/12",
+      isCrossRepository: false,
+      headRepositoryOwner: { login: "acme" },
+      headRepository: { name: "repo" },
+    },
+    {
+      number: 13,
+      headRefName: "picastle/dotfiles-bbb-other",
+      url: "https://github.com/acme/repo/pull/13",
+      headRepository: { nameWithOwner: "other/repo" },
+    },
+  ]);
+
+  assert.deepEqual([...parseOpenPrsByHead(stdout, { currentRepository }).entries()], [
+    ["picastle/dotfiles-yi5-resumable-idempotent-runs", "https://github.com/acme/repo/pull/12"],
+  ]);
+  assert.deepEqual(findOpenPrForIssue(stdout, "dotfiles-yi5", { currentRepository }), {
+    number: 12,
+    headRefName: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+    url: "https://github.com/acme/repo/pull/12",
+    isCrossRepository: false,
+    headRepositoryOwner: "acme",
+    headRepositoryName: "repo",
+  });
+});
+
+test("fails closed on ambiguous open PR head repository identity", () => {
+  const stdout = JSON.stringify([
+    {
+      number: 12,
+      headRefName: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+      url: "https://github.com/acme/repo/pull/12",
+    },
+  ]);
+
+  assert.throws(
+    () => parseOpenPrsByHead(stdout, { currentRepository: { owner: "acme", name: "repo" } }),
+    /missing PR head repository identity/,
+  );
+});
+
 test("finds existing open PRs by pebble id instead of exact branch only", () => {
   const stdout = JSON.stringify([
     { number: 10, headRefName: "picastle/my-repo-abc-other-work", url: "https://github.com/acme/repo/pull/10" },
@@ -457,6 +517,89 @@ test("recognizes Picastle and legacy Sandcastle PR heads for recovery scans", ()
   assert.deepEqual(plan.alreadyPublished.map((issue) => issue.branch), ["sandcastle/dotfiles-yi5-resumable-idempotent-runs"]);
   assert.deepEqual(plan.unpublishedBranches, []);
   assert.equal(plan.deferredBranches[0]!.reason, "issue already has an open PR on sandcastle/dotfiles-yi5-resumable-idempotent-runs; not publishing duplicate");
+});
+
+test("plan-only runtime recovery scan is read-only and recognizes legacy Sandcastle same-repo PRs", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-plan-only-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+  const gh = join(fakeBin, "gh");
+  writeFileSync(
+    gh,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then
+  printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "pr list" ]]; then
+  cat <<'JSON'
+[
+  {"number":4,"headRefName":"sandcastle/dotfiles-aaa-clean","url":"https://github.com/acme/repo/pull/4","isCrossRepository":true,"headRepositoryOwner":{"login":"fork"},"headRepository":{"name":"repo"}},
+  {"number":5,"headRefName":"sandcastle/dotfiles-aaa-clean","url":"https://github.com/acme/repo/pull/5","isCrossRepository":false,"headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"repo"}}
+]
+JSON
+  exit 0
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(gh, 0o755);
+
+  const peb = join(fakeBin, "peb");
+  writeFileSync(
+    peb,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$*" == *"show dotfiles-aaa"* ]]; then
+  printf '%s\n' '{"data":{"title":"Already published","status":"ready_for_agent"}}'
+  exit 0
+fi
+if [[ "$1" == "list" || "$*" == *" list "* ]]; then
+  printf '%s\n' '{"data":[]}'
+  exit 0
+fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(peb, 0o755);
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--plan-only", "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+    },
+  });
+
+  assert.match(output, /PICASTLE_PLAN_ONLY=1; recovery scan is read-only\/log-only\./);
+  assert.match(output, /published: dotfiles-aaa sandcastle\/dotfiles-aaa-clean → https:\/\/github\.com\/acme\/repo\/pull\/5/);
+  assert.match(output, /No unblocked issues to work on\. Exiting\./);
+  assert.doesNotMatch(readFileSync(pebLog, "utf8"), /\b(?:closes add|update)\b/);
 });
 
 test("plan-only recovery produces no mutating recovery actions", () => {
