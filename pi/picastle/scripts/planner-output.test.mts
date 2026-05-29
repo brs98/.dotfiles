@@ -172,6 +172,21 @@ const candidatesWithThird = [
       ),
     /blockers for repo-abc: must be an array/,
   );
+
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        `<plan>{
+          "issues": [],
+          "skipped": [
+            {"id":"repo-abc","reason":"first explanation"},
+            {"id":"repo-abc","reason":"second explanation"}
+          ]
+        }</plan>`,
+        { candidates, openPrs: [] },
+      ),
+    /duplicate skipped issue id: repo-abc/,
+  );
 }
 
 {
@@ -185,6 +200,28 @@ const candidatesWithThird = [
         { candidates, openPrs: [] },
       ),
     /in both issues and skipped: repo-abc/,
+  );
+}
+
+{
+  assert.throws(
+    () => parsePlannerPlan('<plan>{"issues": []}</plan>', { candidates: [null], openPrs: [] }),
+    /Invalid candidate issue at index 0/,
+  );
+
+  assert.throws(
+    () => parsePlannerPlan('<plan>{"issues": []}</plan>', { candidates: [{ title: "missing id" }], openPrs: [] }),
+    /Invalid candidate issue id at index 0/,
+  );
+
+  assert.throws(
+    () => parsePlannerPlan('<plan>{"issues": []}</plan>', { candidates, openPrs: [null] }),
+    /Invalid open PR record at index 0/,
+  );
+
+  assert.throws(
+    () => parsePlannerPlan('<plan>{"issues": []}</plan>', { candidates, openPrs: [{ number: 42, url: "https://github.com/acme/repo/pull/42" }] }),
+    /Invalid open PR headRefName at index 0/,
   );
 }
 

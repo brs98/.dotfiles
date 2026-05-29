@@ -315,20 +315,22 @@ function loadCandidateIssues(): unknown[] {
 function readIssues(command: string): unknown[] {
   const result = run(command, repoRoot, { allowFailure: true });
   if (result.status !== 0) {
-    console.warn(`  ⚠ peb issue query failed: ${result.stderr || result.stdout}`);
-    return [];
+    throw new Error(`Pebbles issue query failed: ${result.stderr || result.stdout}`);
   }
-  return JSON.parse(result.stdout || "[]");
+  return parseJsonArray(result.stdout, "Pebbles issue query result");
 }
 
 function parseJsonArray(input: string, description: string): unknown[] {
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(input || "[]");
-    if (Array.isArray(parsed)) return parsed;
+    parsed = JSON.parse(input);
   } catch (error) {
-    console.warn(`  ⚠ failed to parse ${description}: ${formatError(error)}`);
+    throw new Error(`Failed to parse ${description}: ${formatError(error)}`);
   }
-  return [];
+  if (!Array.isArray(parsed)) {
+    throw new Error(`${description} must be a JSON array`);
+  }
+  return parsed;
 }
 
 async function implementIssue(
@@ -822,7 +824,7 @@ async function runPiAgent(args: {
 }
 
 function ensureIssueWorktree(issue: PlannedIssue): string {
-  const branch = normalizeBranch(issue.branch, issue.id, issue.title);
+  const branch = normalizeBranch(issue.branch, issue.id);
   const worktreeName = branch.replace(/^picastle\//, "").replace(/[^a-zA-Z0-9._-]/g, "-");
   const worktreePath = join(worktreesDir, worktreeName);
 

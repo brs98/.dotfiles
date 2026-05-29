@@ -23,12 +23,12 @@ export type PlannerDecision = {
   hasSyntheticExplanations: boolean;
 };
 
-type Candidate = Record<string, unknown>;
-type OpenPr = { number?: unknown; headRefName?: unknown; url?: unknown };
+type CandidateInfo = { id: string; title: string };
+type OpenPr = { number?: number | string; headRefName: string; url?: string };
 
 export function parsePlannerPlan(
   stdout: string,
-  options: { candidates: unknown[]; openPrs: OpenPr[]; maxIssues?: number },
+  options: { candidates: unknown[]; openPrs: unknown[]; maxIssues?: number },
 ): PlannerDecision {
   const match = stdout.match(/<plan>([\s\S]*?)<\/plan>/);
   if (!match) throw new Error("Planner did not produce a <plan> block");
@@ -38,8 +38,9 @@ export function parsePlannerPlan(
     throw new Error("Planner <plan> JSON must contain an issues array");
   }
 
-  const candidates = options.candidates.map(candidateInfo).filter((candidate) => candidate.id);
+  const candidates = options.candidates.map(candidateInfo);
   const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+  const openPrs = options.openPrs.map(openPrInfo);
 
   const seenPlannedIds = new Set<string>();
   const planned = parsed.issues.map((raw: unknown) => {
@@ -65,7 +66,7 @@ export function parsePlannerPlan(
     return {
       id,
       title,
-      branch: normalizeBranch(branch, id, title),
+      branch: normalizeBranch(branch, id),
     };
   });
   const issues = options.maxIssues && options.maxIssues > 0 ? planned.slice(0, options.maxIssues) : planned;
@@ -74,8 +75,13 @@ export function parsePlannerPlan(
 
   let hasSyntheticExplanations = planned.length !== issues.length;
   const skippedById = new Map<string, PlannerSkippedIssue>();
+  const seenSkippedIds = new Set<string>();
   for (const raw of extractSkippedItems(parsed)) {
     const skipped = parseSkippedItem(raw, candidateById);
+    if (seenSkippedIds.has(skipped.id)) {
+      throw new Error(`Planner returned duplicate skipped issue id: ${skipped.id}`);
+    }
+    seenSkippedIds.add(skipped.id);
     if (!candidateById.has(skipped.id)) {
       throw new Error(`Planner returned skipped issue id not present in candidates: ${skipped.id}`);
     }
@@ -97,7 +103,7 @@ export function parsePlannerPlan(
 
   for (const candidate of candidates) {
     if (plannedIds.has(candidate.id) || skippedById.has(candidate.id)) continue;
-    const openPr = findOpenPrForIssue(candidate.id, options.openPrs);
+    const openPr = findOpenPrForIssue(candidate.id, openPrs);
     skippedById.set(candidate.id, openPr ? existingPrSkip(candidate, openPr) : unexplainedSkip(candidate));
     hasSyntheticExplanations = true;
   }
@@ -146,7 +152,7 @@ export function formatPlannerBlockedSummary(decision: PlannerDecision): string[]
   return lines;
 }
 
-export function normalizeBranch(branch: string, id: string, _title: string): string {
+export function normalizeBranch(branch: string, id: string): string {
   let normalized: string;
   if (branch.startsWith("picastle/")) {
     normalized = branch;
@@ -182,7 +188,7 @@ function extractSkippedItems(parsed: Record<string, unknown>): unknown[] {
 
 function parseSkippedItem(
   raw: unknown,
-  candidateById: Map<string, { id: string; title: string }>,
+  candidateById: Map<string, CandidateInfo>,
 ): PlannerSkippedIssue {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error(`Invalid skipped issue: ${JSON.stringify(raw)}`);
@@ -209,11 +215,43 @@ function parseSkippedItem(
   };
 }
 
-function candidateInfo(candidate: unknown): { id: string; title: string } {
-  if (!candidate || typeof candidate !== "object") return { id: "", title: "" };
-  const item = candidate as Candidate;
-  const id = stringField(item.id);
-  return { id, title: stringField(item.title) || id };
+function candidateInfo(candidate: unknown, index: number): CandidateInfo {
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    throw new Error(`Invalid candidate issue at index ${index}: ${JSON.stringify(candidate)}`);
+  }
+  const item = candidate as Record<string, unknown>;
+  if (typeof item.id !== "string" || item.id.length === 0) {
+    throw new Error(`Invalid candidate issue id at index ${index}: expected a non-empty string`);
+  }
+  if (item.title !== undefined && item.title !== null && typeof item.title !== "string") {
+    throw new Error(`Invalid candidate issue title for ${item.id}: expected a string when present`);
+  }
+  const title = typeof item.title === "string" && item.title ? item.title : item.id;
+  return { id: item.id, title };
+}
+
+function openPrInfo(openPr: unknown, index: number): OpenPr {
+  if (!openPr || typeof openPr !== "object" || Array.isArray(openPr)) {
+    throw new Error(`Invalid open PR record at index ${index}: ${JSON.stringify(openPr)}`);
+  }
+  const item = openPr as Record<string, unknown>;
+  const headRefName = item.headRefName;
+  const number = item.number;
+  const url = item.url;
+  if (typeof headRefName !== "string" || headRefName.length === 0) {
+    throw new Error(`Invalid open PR headRefName at index ${index}: expected a non-empty string`);
+  }
+  if (number !== undefined && typeof number !== "number" && typeof number !== "string") {
+    throw new Error(`Invalid open PR number for ${headRefName}: expected a number or string when present`);
+  }
+  if (url !== undefined && url !== null && typeof url !== "string") {
+    throw new Error(`Invalid open PR url for ${headRefName}: expected a string when present`);
+  }
+
+  const result: OpenPr = { headRefName };
+  if (typeof number === "number" || typeof number === "string") result.number = number;
+  if (typeof url === "string") result.url = url;
+  return result;
 }
 
 function existingPrSkip(candidate: { id: string; title: string }, pr: OpenPr): PlannerSkippedIssue {
