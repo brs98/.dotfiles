@@ -25,6 +25,7 @@ import {
   decidePublishFlow,
   extractIssueIdFromBranch,
   extractIssueIdFromOpenPrHead,
+  filterCandidateIssuesWithoutOpenPrs,
   findOpenPrForIssue,
   isRecognizedRecoveryPrHead,
   normalizeOpenPrsJson,
@@ -511,16 +512,22 @@ function logRecoveryPlan(plan: RecoveryPlan): void {
 }
 
 async function planIssues(iteration: number, suppressedIssueIds: Set<string>): Promise<PlannedIssue[]> {
-  const candidates = loadCandidateIssues(suppressedIssueIds);
+  const allKnownIssueIds = loadKnownIssueIdsForRecovery();
+  const openPrsStdout = run(
+    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${OPEN_PR_JSON_FIELDS}`,
+    repoRoot,
+  ).stdout;
+  const currentRepository = loadRepositoryIdentity();
+  const candidates = filterCandidateIssuesWithoutOpenPrs(loadCandidateIssues(suppressedIssueIds), openPrsStdout, {
+    currentRepository,
+    knownIssueIds: allKnownIssueIds,
+  });
   const issuesJson = JSON.stringify(candidates);
 
-  const openPrsJson = normalizeOpenPrsJson(
-    run(
-      `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${OPEN_PR_JSON_FIELDS}`,
-      repoRoot,
-    ).stdout,
-    { currentRepository: loadRepositoryIdentity() },
-  );
+  const openPrsJson = normalizeOpenPrsJson(openPrsStdout, {
+    currentRepository,
+    knownIssueIds: allKnownIssueIds,
+  });
 
   const prompt = renderPrompt("plan-prompt.md", {
     ISSUES_JSON: issuesJson,

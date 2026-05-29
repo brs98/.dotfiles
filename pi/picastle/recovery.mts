@@ -11,6 +11,7 @@ export type OpenPrRecord = {
   isCrossRepository?: boolean;
   headRepositoryOwner?: string;
   headRepositoryName?: string;
+  issueId?: string;
 };
 export type OpenPrParseOptions = { currentRepository?: RepositoryIdentity; knownIssueIds?: Iterable<string> };
 export type PlannedIssueSelection = { id: string; title: string; branch: string };
@@ -417,7 +418,34 @@ export function validatePlannedIssueSelections(
 }
 
 export function normalizeOpenPrsJson(stdout: string, options: OpenPrParseOptions = {}): string {
-  return JSON.stringify(parseRecognizedRecoveryPrRecords(stdout, options));
+  return JSON.stringify(parseRecognizedRecoveryPrRecords(stdout, options).map((pr) => enrichOpenPrRecordWithIssueId(pr, options.knownIssueIds)));
+}
+
+export function filterCandidateIssuesWithoutOpenPrs(
+  candidateIssues: unknown[],
+  openPrsStdout: string,
+  options: OpenPrParseOptions = {},
+): unknown[] {
+  const candidateIds = new Set<string>();
+  for (const [index, candidate] of candidateIssues.entries()) {
+    const id = readRecordString(candidate, "id");
+    if (!id) throw new Error(`Candidate issue at index ${index} is missing id`);
+    candidateIds.add(id);
+  }
+
+  const knownIssueIds = new Set(options.knownIssueIds ?? []);
+  for (const id of candidateIds) knownIssueIds.add(id);
+
+  const openPrIssueIds = new Set<string>();
+  for (const pr of parseRecognizedRecoveryPrRecords(openPrsStdout, options)) {
+    const issueId = resolveOpenPrIssueId(pr.headRefName, knownIssueIds);
+    if (issueId) openPrIssueIds.add(issueId);
+  }
+
+  return candidateIssues.filter((candidate) => {
+    const id = readRecordString(candidate, "id");
+    return Boolean(id) && !openPrIssueIds.has(id);
+  });
 }
 
 export function pebClosureRegistrationSucceeded(result: { status: number; stdout?: string; stderr?: string }): boolean {
@@ -438,6 +466,16 @@ export function classifyPebShowFailure(output: string): RecoveryIssueLookup {
 
 function looksLikePebbleIssueId(issueId: string): boolean {
   return /-[a-z0-9]{3}$/.test(issueId);
+}
+
+function enrichOpenPrRecordWithIssueId(pr: OpenPrRecord, knownIssueIds?: Iterable<string>): OpenPrRecord {
+  const issueId = resolveOpenPrIssueId(pr.headRefName, knownIssueIds);
+  return issueId ? { ...pr, issueId } : pr;
+}
+
+function resolveOpenPrIssueId(headRefName: string, knownIssueIds?: Iterable<string>): string | undefined {
+  if (!knownIssueIds) return undefined;
+  return extractIssueIdFromOpenPrHead(headRefName, knownIssueIds);
 }
 
 function recoveryBranchPrefix(branch: string): "picastle/" | "sandcastle/" | undefined {

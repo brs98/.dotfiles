@@ -14,6 +14,7 @@ import {
   decidePublishFlow,
   extractIssueIdFromBranch,
   extractIssueIdFromOpenPrHead,
+  filterCandidateIssuesWithoutOpenPrs,
   findOpenPrForIssue,
   isRecognizedRecoveryPrHead,
   normalizeOpenPrsJson,
@@ -616,6 +617,43 @@ test("open PR issue matching does not fabricate longer unknown ids and prefers l
     headRefName: "picastle/web-api-abc-fix",
     url: "https://github.com/acme/repo/pull/20",
   });
+});
+
+test("planner inputs resolve open PR issue ids from all known pebbles before filtering candidates", () => {
+  const stdout = JSON.stringify([
+    { number: 20, headRefName: "picastle/web-api-abc-fix", url: "https://github.com/acme/repo/pull/20" },
+  ]);
+  const knownIssueIds = ["web-api", "web-api-abc"];
+
+  assert.deepEqual(JSON.parse(normalizeOpenPrsJson(stdout, { knownIssueIds })), [
+    {
+      number: 20,
+      headRefName: "picastle/web-api-abc-fix",
+      url: "https://github.com/acme/repo/pull/20",
+      issueId: "web-api-abc",
+    },
+  ]);
+
+  assert.deepEqual(
+    filterCandidateIssuesWithoutOpenPrs(
+      [{ id: "web-api", title: "Candidate short id" }],
+      stdout,
+      { knownIssueIds },
+    ),
+    [{ id: "web-api", title: "Candidate short id" }],
+  );
+
+  assert.deepEqual(
+    filterCandidateIssuesWithoutOpenPrs(
+      [
+        { id: "web-api", title: "Candidate short id" },
+        { id: "web-api-abc", title: "Candidate with existing PR" },
+      ],
+      stdout,
+      { knownIssueIds },
+    ),
+    [{ id: "web-api", title: "Candidate short id" }],
+  );
 });
 
 test("open PR issue matching keeps known shorter ids for three-token action slugs", () => {
