@@ -81,6 +81,9 @@ const OPEN_PRS = envBool("PICASTLE_OPEN_PRS", !cli.noPr);
 const PUBLISHER_AGENT = envBool("PICASTLE_PUBLISHER_AGENT", true);
 const REVIEW_REPAIR_CYCLES = envInt("PICASTLE_REVIEW_REPAIR_CYCLES", 10);
 const REVIEW_CONCURRENCY = envInt("PICASTLE_REVIEW_CONCURRENCY", CONCURRENCY);
+// gh pr list defaults to 30; no-cap Picastle runs can exceed that and must still
+// see every existing PR before recovery/planning selects work.
+const OPEN_PR_SCAN_LIMIT = envInt("PICASTLE_OPEN_PR_SCAN_LIMIT", 1000);
 const WORKTREE_READY_COMMAND = env("PICASTLE_WORKTREE_READY_COMMAND", "");
 const BEFORE_PUSH_COMMAND = env("PICASTLE_BEFORE_PUSH_COMMAND", "");
 const THINKING = process.env.PICASTLE_THINKING as
@@ -302,7 +305,7 @@ function collectWorktreeEntries(): Array<{ path: string; branch?: string }> {
 
 function loadOpenPrsByHead(): Map<string, string> {
   const result = run(
-    `gh pr list --state open --json headRefName,url --jq '.[] | [.headRefName, .url] | @tsv'`,
+    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json headRefName,url --jq '.[] | [.headRefName, .url] | @tsv'`,
     repoRoot,
     { allowFailure: true },
   );
@@ -373,7 +376,7 @@ async function planIssues(iteration: number, suppressedIssueIds: Set<string>): P
   const issuesJson = JSON.stringify(candidates);
 
   const openPrsJson = run(
-    `gh pr list --state open --json number,headRefName,url --jq '[.[] | {number, headRefName, url}]'`,
+    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json number,headRefName,url --jq '[.[] | {number, headRefName, url}]'`,
     repoRoot,
   ).stdout;
 

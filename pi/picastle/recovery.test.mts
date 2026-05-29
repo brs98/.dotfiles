@@ -42,6 +42,47 @@ test("recovers one canonical unpublished branch per ready pebble", () => {
   assert.equal(plan.blockedIssueIds.has("ricekit-394"), true);
 });
 
+test("does not publish duplicate local branches when the issue already has an open PR", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/ricekit-394-fix-local",
+        issueId: "ricekit-394",
+        title: "Fix publish recovery",
+        issueStatus: "ready_for_agent",
+        ahead: 2,
+        dirty: false,
+        commitTime: 20,
+      },
+      {
+        branch: "picastle/ricekit-394-fix-published",
+        issueId: "ricekit-394",
+        title: "Fix publish recovery",
+        issueStatus: "ready_for_agent",
+        ahead: 3,
+        dirty: false,
+        openPrUrl: "https://github.com/example/repo/pull/42",
+        commitTime: 10,
+      },
+    ],
+    "ready_for_agent",
+  );
+
+  assert.deepEqual(plan.unpublishedBranches, []);
+  assert.deepEqual(plan.alreadyPublished, [
+    {
+      id: "ricekit-394",
+      title: "Fix publish recovery",
+      branch: "picastle/ricekit-394-fix-published",
+      worktreePath: undefined,
+      prUrl: "https://github.com/example/repo/pull/42",
+    },
+  ]);
+  assert.equal(plan.deferredBranches.length, 1);
+  assert.match(plan.deferredBranches[0]!.reason, /already has an open PR/);
+  assert.equal(plan.blockedIssueIds.has("ricekit-394"), true);
+});
+
 test("routes dirty ready worktrees back through implementation before publish", () => {
   const plan = buildRecoveryPlan(
     [

@@ -44,6 +44,12 @@ export function buildRecoveryPlan(
     blockedIssueIds: new Set<string>(),
   };
   const activeByIssue = new Map<string, RecoveryBranchDecision[]>();
+  const publishedBranchByIssue = new Map<string, RecoveryBranchInput>();
+  for (const branch of branches) {
+    if (branch.issueId && branch.openPrUrl && !publishedBranchByIssue.has(branch.issueId)) {
+      publishedBranchByIssue.set(branch.issueId, branch);
+    }
+  }
 
   for (const branch of branches) {
     if (!branch.issueId) {
@@ -61,6 +67,19 @@ export function buildRecoveryPlan(
     }
 
     const hasRecoverableWork = branch.dirty || branch.ahead > 0;
+    const publishedBranch = publishedBranchByIssue.get(issueId);
+    if (publishedBranch) {
+      const decision = {
+        ...branch,
+        issueId,
+        reason: `issue already has an open PR on ${publishedBranch.branch}; not publishing duplicate`,
+      };
+      if (hasRecoverableWork) plan.deferredBranches.push(decision);
+      else plan.ignoredBranches.push(decision);
+      plan.blockedIssueIds.add(issueId);
+      continue;
+    }
+
     if (branch.issueStatus !== readyStatus) {
       const reason = branch.issueStatus
         ? `pebble status is ${branch.issueStatus}, not ${readyStatus}`
