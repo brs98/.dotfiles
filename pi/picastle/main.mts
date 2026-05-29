@@ -100,7 +100,10 @@ const OPEN_PRS = envBool("PICASTLE_OPEN_PRS", !cli.noPr);
 const PUBLISHER_AGENT = envBool("PICASTLE_PUBLISHER_AGENT", true);
 const REVIEW_REPAIR_CYCLES = envInt("PICASTLE_REVIEW_REPAIR_CYCLES", 10);
 const REVIEW_CONCURRENCY = envInt("PICASTLE_REVIEW_CONCURRENCY", CONCURRENCY);
-const FAKE_AGENT_OUTPUT = process.env.PICASTLE_FAKE_AGENT_OUTPUT;
+const TEST_AGENT_OUTPUT = process.env.PICASTLE_TEST_AGENT_OUTPUT;
+if (TEST_AGENT_OUTPUT !== undefined && !process.env.NODE_TEST_CONTEXT) {
+  throw new Error("PICASTLE_TEST_AGENT_OUTPUT is only available to the node:test harness");
+}
 // gh pr list defaults to 30; no-cap Picastle runs can exceed that. Use a high,
 // bounded scan, then locally filter to same-repository Picastle and legacy
 // Sandcastle PR heads before recovery/planning. This is not an unbounded "all PRs" query.
@@ -1037,10 +1040,10 @@ async function runPiAgent(args: {
   mkdirSync(dirname(args.logFile), { recursive: true });
   writeFileSync(args.logFile, `# ${args.name}\n# cwd: ${args.cwd}\n\n`);
 
-  if (FAKE_AGENT_OUTPUT !== undefined) {
-    append(args.logFile, FAKE_AGENT_OUTPUT + "\n");
-    process.stdout.write(FAKE_AGENT_OUTPUT + "\n");
-    return FAKE_AGENT_OUTPUT;
+  if (TEST_AGENT_OUTPUT !== undefined) {
+    append(args.logFile, TEST_AGENT_OUTPUT + "\n");
+    process.stdout.write(TEST_AGENT_OUTPUT + "\n");
+    return TEST_AGENT_OUTPUT;
   }
 
   const { session } = await createAgentSession({

@@ -878,7 +878,7 @@ exit 1
       XDG_CACHE_HOME: join(tempRoot, "cache"),
       PICASTLE_PEB_REMOTE: "",
       PICASTLE_PEB_REPO: "",
-      PICASTLE_FAKE_AGENT_OUTPUT: '<review>{"status":"approved","summary":"ready","findings":[],"checks":[]}</review>',
+      PICASTLE_TEST_AGENT_OUTPUT: '<review>{"status":"approved","summary":"ready","findings":[],"checks":[]}</review>',
     },
   });
 
@@ -888,6 +888,138 @@ exit 1
   const pebTrace = readFileSync(pebLog, "utf8");
   assert.match(pebTrace, /closes add dotfiles-aaa --pr https:\/\/github\.com\/acme\/repo\/pull\/30/);
   assert.match(pebTrace, /update dotfiles-aaa --status in_review/);
+});
+
+test("runtime recovery and publisher prefer longest known issue id before branch slug", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-longest-issue-runtime-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+
+  execFileSync("git", ["checkout", "-b", "picastle/web-api-short-work"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "web-api.txt"), "publish web-api\n");
+  execFileSync("git", ["add", "web-api.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "web api\n\nCloses: web-api"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+  execFileSync("git", ["checkout", "main"], { cwd: repo, encoding: "utf8" });
+
+  execFileSync("git", ["checkout", "-b", "picastle/web-api-abc-new-work"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "web-api-abc.txt"), "duplicate candidate\n");
+  execFileSync("git", ["add", "web-api-abc.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "web api abc\n\nCloses: web-api-abc"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+  execFileSync("git", ["checkout", "main"], { cwd: repo, encoding: "utf8" });
+
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+
+  const gh = join(fakeBin, "gh");
+  writeFileSync(
+    gh,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then
+  printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "pr list" ]]; then
+  cat <<'JSON'
+[
+  {"number":50,"headRefName":"picastle/web-api-abc-fix","url":"https://github.com/acme/repo/pull/50","isCrossRepository":false,"headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"repo"}}
+]
+JSON
+  exit 0
+fi
+if [[ "$1 $2" == "pr create" ]]; then
+  if [[ " $* " == *" --head picastle/web-api-abc-new-work "* ]]; then
+    echo "duplicate PR should not be created for web-api-abc" >&2
+    exit 2
+  fi
+  if [[ " $* " == *" --head picastle/web-api-short-work "* ]]; then
+    printf '%s\n' 'https://github.com/acme/repo/pull/51'
+    exit 0
+  fi
+  echo "unexpected gh pr create invocation: $*" >&2
+  exit 2
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(gh, 0o755);
+
+  const peb = join(fakeBin, "peb");
+  writeFileSync(
+    peb,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then
+  printf '%s\n' '{"data":[{"id":"web-api"},{"id":"web-api-abc"}]}'
+  exit 0
+fi
+if [[ "$1" == "show" ]]; then
+  case "$2" in
+    web-api) printf '%s\n' '{"data":{"title":"Publish web API","status":"ready_for_agent"}}'; exit 0 ;;
+    web-api-abc) printf '%s\n' '{"data":{"title":"Existing web API ABC PR","status":"ready_for_agent"}}'; exit 0 ;;
+  esac
+fi
+if [[ "$1 $2" == "closes add" ]]; then
+  printf '%s\n' 'ok'
+  exit 0
+fi
+if [[ "$1" == "update" ]]; then
+  printf '%s\n' 'ok'
+  exit 0
+fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(peb, 0o755);
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_PUSH: "0",
+      PICASTLE_TEST_AGENT_OUTPUT: '<review>{"status":"approved","summary":"ready","findings":[],"checks":[]}</review>',
+    },
+  });
+
+  assert.match(output, /published: web-api-abc picastle\/web-api-abc-fix → https:\/\/github\.com\/acme\/repo\/pull\/50/);
+  assert.match(output, /publish: web-api picastle\/web-api-short-work/);
+
+  const ghTrace = readFileSync(ghLog, "utf8");
+  assert.match(ghTrace, /pr create .*--head picastle\/web-api-short-work/);
+  assert.doesNotMatch(ghTrace, /pr create .*--head picastle\/web-api-abc-new-work/);
+
+  const pebTrace = readFileSync(pebLog, "utf8");
+  assert.match(pebTrace, /closes add web-api-abc --pr https:\/\/github\.com\/acme\/repo\/pull\/50/);
+  assert.match(pebTrace, /closes add web-api --pr https:\/\/github\.com\/acme\/repo\/pull\/51/);
+  assert.doesNotMatch(pebTrace, /closes add web-api --pr https:\/\/github\.com\/acme\/repo\/pull\/50/);
 });
 
 test("runtime recovery fails closed on malformed open PR discovery without mutating pebbles", () => {
@@ -969,7 +1101,7 @@ exit 1
       XDG_CACHE_HOME: join(tempRoot, "cache"),
       PICASTLE_PEB_REMOTE: "",
       PICASTLE_PEB_REPO: "",
-      PICASTLE_FAKE_AGENT_OUTPUT: '<review>{"status":"approved","summary":"ready","findings":[],"checks":[]}</review>',
+      PICASTLE_TEST_AGENT_OUTPUT: '<review>{"status":"approved","summary":"ready","findings":[],"checks":[]}</review>',
     },
   });
 

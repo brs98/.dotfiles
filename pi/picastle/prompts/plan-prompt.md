@@ -30,7 +30,7 @@ Issue IDs must be preserved exactly.
 
 ## 1. Filter out issues that already have an open PR
 
-For each candidate issue X, check whether any supplied PR `headRefName` equals `picastle/X-<anything>` or `sandcastle/X-<anything>`. If so, the issue is already in flight and must not be planned. Do not infer that unrelated PRs are absent; the PR input is intentionally bounded to Picastle/Sandcastle heads.
+For each candidate issue X, check whether any supplied PR `headRefName` is a Picastle/Sandcastle branch for that exact issue: `picastle/X-<slug>` or `sandcastle/X-<slug>`. Match only against the known candidate issue IDs in `<issues-json>` and prefer the longest exact issue-id prefix before the slug. For example, when both `web-api` and `web-api-abc` are known, `picastle/web-api-abc-fix` belongs to `web-api-abc`, not `web-api`. If such a PR exists, the issue is already in flight and must not be planned. Do not infer that unrelated PRs are absent; the PR input is intentionally bounded to Picastle/Sandcastle heads.
 
 ## 2. Build a dependency graph
 
