@@ -6,7 +6,7 @@
     "picastle": "bin/picastle"
   },
   "scripts": {
-    "typecheck": "tsc main.mts review-tools.mts --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck --allowImportingTsExtensions",
+    "typecheck": "tsc main.mts review-session.mts review-tools.mts --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck --allowImportingTsExtensions",
     "test": "tsx --test review-tools.test.mts",
     "prep": "bash scripts/prep.sh",
     "start": "tsx main.mts"

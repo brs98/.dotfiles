@@ -13,11 +13,14 @@ import { fileURLToPath } from "node:url";
 import {
   AuthStorage,
   createAgentSession,
+  getAgentDir,
   ModelRegistry,
   SessionManager,
+  SettingsManager,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 
+import { createReviewerResourceLoader } from "./review-session.mts";
 import { createReviewCheckTool } from "./review-tools.mts";
 
 type PlannedIssue = { id: string; title: string; branch: string };
@@ -463,6 +466,7 @@ async function reviewCompletedIssue(
     cwd: issue.worktreePath,
     tools: ["read", "grep", "find", "ls", "review_check"],
     customTools: [createReviewCheckTool(issue.worktreePath)],
+    disableExtensions: true,
     prompt,
     logFile: join(logsDir, `picastle-${issue.id}-review-${iteration}-${pass}.log`),
   });
@@ -772,6 +776,7 @@ async function runPiAgent(args: {
   cwd: string;
   tools: string[];
   customTools?: ToolDefinition[];
+  disableExtensions?: boolean;
   prompt: string;
   logFile: string;
 }): Promise<string> {
@@ -779,12 +784,22 @@ async function runPiAgent(args: {
   mkdirSync(dirname(args.logFile), { recursive: true });
   writeFileSync(args.logFile, `# ${args.name}\n# cwd: ${args.cwd}\n\n`);
 
+  const agentDir = getAgentDir();
+  const settingsManager = SettingsManager.create(args.cwd, agentDir);
+  const resourceLoader = args.disableExtensions
+    ? createReviewerResourceLoader({ cwd: args.cwd, agentDir, settingsManager })
+    : undefined;
+  if (resourceLoader) await resourceLoader.reload();
+
   const { session } = await createAgentSession({
     cwd: args.cwd,
+    agentDir,
     tools: args.tools,
     customTools: args.customTools,
     authStorage,
     modelRegistry,
+    settingsManager,
+    resourceLoader,
     sessionManager: SessionManager.inMemory(args.cwd),
     ...(THINKING ? { thinkingLevel: THINKING } : {}),
   });
