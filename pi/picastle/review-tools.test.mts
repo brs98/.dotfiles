@@ -79,6 +79,16 @@ test("rejects git helper execution options", () => {
   assert.throws(() => planReviewCommand("git diff --textco", root), /git option: --textco/);
 });
 
+test("rejects git blame contents files and long-option abbreviations", () => {
+  assert.throws(() => planReviewCommand("git blame --contents pi/picastle/README.md -- pi/picastle/review-tools.mts", root), /git option: --contents/);
+  assert.throws(() => planReviewCommand("git blame --contents=pi/picastle/README.md -- pi/picastle/review-tools.mts", root), /git option: --contents=/);
+  assert.throws(() => planReviewCommand("git blame --content=pi/picastle/README.md -- pi/picastle/review-tools.mts", root), /git option: --content=/);
+  assert.throws(() => planReviewCommand("git blame --cont pi/picastle/README.md -- pi/picastle/review-tools.mts", root), /git option: --cont/);
+
+  const plan = planReviewCommand("git blame -- pi/picastle/review-tools.mts", root);
+  assert.deepEqual(plan.steps[0]?.argv, ["git", "blame", "--", "pi/picastle/review-tools.mts"]);
+});
+
 test("rejects git describe because dirty and broken modes refresh the index", () => {
   assert.throws(() => planReviewCommand("git describe", root), /git subcommand: describe/);
   assert.throws(() => planReviewCommand("git describe --dirty --always", root), /git subcommand: describe/);
@@ -124,7 +134,6 @@ test("rejects symlink escapes for cd, git -C, and filesystem arguments", () => {
     assert.throws(() => planReviewCommand("git -C outside-link status", repo), /escapes the worktree/);
     assert.throws(() => planReviewCommand("find outside-link -maxdepth 1 -type f -print", repo), /escapes the worktree/);
     assert.throws(() => planReviewCommand("grep -f outside-link/patterns.txt needle file.txt", repo), /escapes the worktree/);
-    assert.throws(() => planReviewCommand("wc --files0-from outside-link/files.txt", repo), /escapes the worktree/);
   } finally {
     rmSync(repo, { recursive: true, force: true });
     rmSync(outside, { recursive: true, force: true });
@@ -165,13 +174,24 @@ test("confines filesystem command path arguments to the worktree", () => {
   assert.deepEqual(plan.steps[0]?.argv, ["cat", "pi/picastle/package.json"]);
 });
 
-test("confines path-valued options for find, grep, and wc", () => {
+test("confines path-valued options for find and grep", () => {
   assert.throws(() => planReviewCommand("find . -newer /tmp/reference", root), /absolute paths/);
-  assert.throws(() => planReviewCommand("find . -files0-from ../files", root), /parent directory/);
   assert.throws(() => planReviewCommand("grep --exclude-from /tmp/patterns needle .", root), /absolute paths/);
   assert.throws(() => planReviewCommand("grep -f ../patterns needle .", root), /parent directory/);
-  assert.throws(() => planReviewCommand("wc --files0-from /tmp/files", root), /absolute paths/);
-  assert.throws(() => planReviewCommand("wc -0 ../files", root), /parent directory/);
+});
+
+test("rejects files0-from list-file options even when the list file is inside the worktree", () => {
+  const repo = mkdtempSync(join(tmpdir(), "picastle-review-files0-"));
+  try {
+    writeFileSync(join(repo, "files0.txt"), "/tmp/outside\0inside.txt\0");
+
+    assert.throws(() => planReviewCommand("find -files0-from files0.txt -print", repo), /find option: -files0-from/);
+    assert.throws(() => planReviewCommand("wc --files0-from files0.txt", repo), /wc option: --files0-from/);
+    assert.throws(() => planReviewCommand("wc --files0-from=files0.txt", repo), /wc option: --files0-from=/);
+    assert.throws(() => planReviewCommand("wc -0 files0.txt", repo), /wc option: -0/);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
 });
 
 test("rejects write-capable find actions", () => {

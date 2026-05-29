@@ -128,6 +128,7 @@ function normalizeCommand(argv: string[], cwd: string, root: string): ReviewStep
   if (command === "grep") ensureGrepOptionsAreSafe(argv);
   if (command === "find") ensureFindIsReadOnly(argv);
   if (command === "ls") ensureLsOptionsAreSafe(argv);
+  if (command === "wc") ensureWcOptionsAreSafe(argv);
   ensureFilesystemCommandPathsInsideRoot(argv, cwd, root);
 
   return { argv, cwd, mode: "source" };
@@ -263,6 +264,8 @@ function ensureFindIsReadOnly(argv: string[]): void {
   ]);
   const unsafeTraversal = argv.find((arg) => FIND_SYMLINK_FOLLOW_OPTIONS.has(arg));
   if (unsafeTraversal) throw new Error(`review_check does not allow find option: ${unsafeTraversal}`);
+  const files0From = argv.find((arg) => arg === "-files0-from" || arg.startsWith("-files0-from="));
+  if (files0From) throw new Error(`review_check does not allow find option: ${files0From}`);
   const found = argv.find((arg) => forbiddenWriteActions.has(arg));
   if (found) throw new Error(`review_check does not allow find action: ${found}`);
 }
@@ -288,6 +291,24 @@ function ensureLsOptionsAreSafe(argv: string[]): void {
     }
 
     if (recursive && dereference) throw new Error("review_check does not allow ls recursive dereference options");
+  }
+}
+
+function ensureWcOptionsAreSafe(argv: string[]): void {
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--") break;
+
+    if (arg.startsWith("--") && arg !== "--") {
+      if (isLongOptionAbbreviation(arg, "--files0-from")) {
+        throw new Error(`review_check does not allow wc option: ${arg}`);
+      }
+      continue;
+    }
+
+    if (arg.startsWith("-") && arg !== "-" && arg.includes("0")) {
+      throw new Error(`review_check does not allow wc option: ${arg}`);
+    }
   }
 }
 
@@ -445,7 +466,7 @@ const GREP_VALUE_OPTIONS = new Set([
   "--label",
   "--max-count",
 ]);
-const FIND_PATH_VALUE_OPTIONS = new Set(["-anewer", "-cnewer", "-files0-from", "-newer", "-samefile"]);
+const FIND_PATH_VALUE_OPTIONS = new Set(["-anewer", "-cnewer", "-newer", "-samefile"]);
 
 function consumeGrepShortOptionsForSafety(
   arg: string,
@@ -649,6 +670,7 @@ function ensureNoGitWriteOptions(argv: string[]): void {
       arg.startsWith("--output=") ||
       isGitOptionAbbreviation(arg, "--ext-diff") ||
       isGitOptionAbbreviation(arg, "--textconv") ||
+      isGitOptionAbbreviation(arg, "--contents") ||
       arg === "--no-index" ||
       arg === "--exec" ||
       arg.startsWith("--exec=") ||
@@ -661,6 +683,11 @@ function ensureNoGitWriteOptions(argv: string[]): void {
 
 function isGitOptionAbbreviation(arg: string, fullOption: string): boolean {
   if (!arg.startsWith("--") || arg.startsWith("--no-")) return false;
+  return isLongOptionAbbreviation(arg, fullOption);
+}
+
+function isLongOptionAbbreviation(arg: string, fullOption: string): boolean {
+  if (!arg.startsWith("--")) return false;
   const optionName = arg.split("=", 1)[0]!;
   return optionName.length > 2 && fullOption.startsWith(optionName);
 }
