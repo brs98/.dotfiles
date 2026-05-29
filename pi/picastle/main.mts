@@ -13,8 +13,11 @@ import { fileURLToPath } from "node:url";
 import {
   AuthStorage,
   createAgentSession,
+  getAgentDir,
   ModelRegistry,
   SessionManager,
+  SettingsManager,
+  type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 
 import {
@@ -47,6 +50,7 @@ import {
   type PlannedIssue,
   type PlannerDecision,
 } from "./planner-output.mjs";
+import { createReviewerAgentTooling, createReviewerResourceLoader } from "./review-session.mts";
 type CompletedIssue = PlannedIssue & { worktreePath: string };
 type ReviewStatus = "approved" | "changes_requested" | "blocked";
 type ReviewFinding = {
@@ -780,7 +784,7 @@ async function reviewCompletedIssue(
   const stdout = await runPiAgent({
     name: `reviewer-${issue.id}-${pass}`,
     cwd: issue.worktreePath,
-    tools: ["read", "bash"],
+    ...createReviewerAgentTooling(issue.worktreePath),
     prompt,
     logFile: join(logsDir, `picastle-${issue.id}-review-${iteration}-${pass}.log`),
   });
@@ -1093,6 +1097,8 @@ async function runPiAgent(args: {
   name: string;
   cwd: string;
   tools: string[];
+  customTools?: ToolDefinition[];
+  disableExtensions?: boolean;
   prompt: string;
   logFile: string;
 }): Promise<string> {
@@ -1100,17 +1106,29 @@ async function runPiAgent(args: {
   mkdirSync(dirname(args.logFile), { recursive: true });
   writeFileSync(args.logFile, `# ${args.name}\n# cwd: ${args.cwd}\n\n`);
 
+  const agentDir = getAgentDir();
+  const settingsManager = SettingsManager.create(args.cwd, agentDir);
+  const resourceLoader = args.disableExtensions
+    ? createReviewerResourceLoader({ cwd: args.cwd, agentDir, settingsManager })
+    : undefined;
+  if (resourceLoader) await resourceLoader.reload();
+
   if (TEST_AGENT_OUTPUT !== undefined) {
     append(args.logFile, TEST_AGENT_OUTPUT + "\n");
     process.stdout.write(TEST_AGENT_OUTPUT + "\n");
     return TEST_AGENT_OUTPUT;
   }
 
+
   const { session } = await createAgentSession({
     cwd: args.cwd,
+    agentDir,
     tools: args.tools,
+    customTools: args.customTools,
     authStorage,
     modelRegistry,
+    settingsManager,
+    resourceLoader,
     sessionManager: SessionManager.inMemory(args.cwd),
     ...(THINKING ? { thinkingLevel: THINKING } : {}),
   });
@@ -1358,13 +1376,14 @@ function run(
     maxBuffer: 1024 * 1024 * 20,
     env: { ...process.env, ...(opts.env ?? {}) },
   });
-  const status = result.status ?? 1;
+  const status = result.status === null ? 1 : result.status;
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
+  const termination = result.status === null ? formatSpawnFailure(result.error, result.signal) : "";
   if (status !== 0 && !opts.allowFailure) {
-    throw new Error(`command failed (${status}): ${command}\n${stdout}${stderr}`);
+    throw new Error(`command failed (${status}): ${command}\n${stdout}${stderr}${termination}`);
   }
-  return { status, stdout, stderr };
+  return { status, stdout, stderr: stderr + termination };
 }
 
 function extractPrRef(output: string): string | undefined {
@@ -1474,6 +1493,11 @@ function append(path: string, text: string): void {
 
 function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max)}\n... truncated ...`;
+}
+
+function formatSpawnFailure(error: Error | undefined, signal: NodeJS.Signals | null): string {
+  const details = [signal ? `signal ${signal}` : undefined, error ? error.message : undefined].filter(Boolean).join("; ");
+  return details ? `spawn failed: ${details}` : "spawn failed with unknown termination";
 }
 
 function formatError(error: unknown): string {

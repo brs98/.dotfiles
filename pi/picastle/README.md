@@ -71,6 +71,16 @@ never just `issues: []` without explaining what Picastle considered.
 Implementer worktrees may contain untracked `.picastle/pending-*.jsonl` manifests.
 The host fan-in script applies those to Pebbles after each iteration.
 
+Reviewer agents are granted only `review_check`, a restricted allowlisted
+command runner. They do not receive `bash`, `edit`, or `write`, and
+Picastle disables Pi extension loading for reviewer sessions so reviewed branches
+cannot run project-local extension code during startup.
+`review_check` allows git/Pebbles/GitHub inspection commands and rejects
+project-code execution (package scripts, test runners, compilers, and build
+tools), commits, pushes, PR creation, Pebbles writes, redirects, and general
+shell syntax. Reviewers record any executable-check validation gap for the
+repair/implementer path instead of running branch-controlled code.
+
 ## Useful knobs
 
 - `PICASTLE_CONCURRENCY=3`

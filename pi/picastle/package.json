@@ -6,8 +6,8 @@
     "picastle": "bin/picastle"
   },
   "scripts": {
-    "typecheck": "tsc main.mts --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck",
-    "test": "tsx --test recovery.test.mts scripts/planner-output.test.mts",
+    "typecheck": "tsc main.mts review-session.mts review-tools.mts --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --skipLibCheck --allowImportingTsExtensions",
+    "test": "tsx --test review-tools.test.mts recovery.test.mts scripts/planner-output.test.mts",
     "prep": "bash scripts/prep.sh",
     "start": "tsx main.mts"
   },
