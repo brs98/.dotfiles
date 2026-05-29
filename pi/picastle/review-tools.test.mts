@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -51,6 +51,13 @@ test("rejects git grep pager execution options", () => {
   assert.throws(() => planReviewCommand("git grep -O touch needle", root), /git option: -O/);
   assert.throws(() => planReviewCommand("git grep -nOfalse needle", root), /git option: -nOfalse/);
   assert.throws(() => planReviewCommand("git grep --open-files-in-page=false needle", root), /git option: --open-files-in-page=false/);
+});
+
+test("rejects git helper execution options", () => {
+  assert.throws(() => planReviewCommand("git diff --ext-diff", root), /git option: --ext-diff/);
+  assert.throws(() => planReviewCommand("git diff --ext", root), /git option: --ext/);
+  assert.throws(() => planReviewCommand("git diff --textconv", root), /git option: --textconv/);
+  assert.throws(() => planReviewCommand("git diff --textco", root), /git option: --textco/);
 });
 
 test("rejects commands that are not on the review allowlist", () => {
@@ -122,7 +129,53 @@ test("source git status does not refresh the index", async () => {
   }
 });
 
+test("source git status disables configured fsmonitor helpers", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "picastle-review-fsmonitor-"));
+  try {
+    runGit(repo, "init");
+    writeFileSync(join(repo, "tracked.txt"), "original\n");
+    runGit(repo, "add", "tracked.txt");
+    writeExecutable(join(repo, ".git", "fsmonitor.sh"), "#!/bin/sh\ntouch \"$PWD/pwned-fsmonitor\"\nprintf '\\n'\n");
+    runGit(repo, "config", "core.fsmonitor", ".git/fsmonitor.sh");
+
+    const tool = createReviewCheckTool(repo);
+    await tool.execute("test", { command: "git status --short" } as never, undefined, undefined, {} as never);
+
+    assert.equal(existsSync(join(repo, "pwned-fsmonitor")), false);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("source git diff disables configured external diff and textconv helpers", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "picastle-review-diff-helpers-"));
+  try {
+    runGit(repo, "init");
+    writeFileSync(join(repo, ".gitattributes"), "*.pwn diff=pwn\n");
+    writeFileSync(join(repo, "file.pwn"), "original\n");
+    runGit(repo, "add", ".gitattributes", "file.pwn");
+    writeExecutable(join(repo, ".git", "external-diff.sh"), "#!/bin/sh\ntouch \"$PWD/pwned-extdiff\"\nexit 0\n");
+    writeExecutable(join(repo, ".git", "textconv.sh"), "#!/bin/sh\ntouch \"$PWD/pwned-textconv\"\ncat \"$1\"\n");
+    runGit(repo, "config", "diff.pwn.command", ".git/external-diff.sh");
+    runGit(repo, "config", "diff.pwn.textconv", ".git/textconv.sh");
+    writeFileSync(join(repo, "file.pwn"), "changed\n");
+
+    const tool = createReviewCheckTool(repo);
+    await tool.execute("test", { command: "git diff" } as never, undefined, undefined, {} as never);
+
+    assert.equal(existsSync(join(repo, "pwned-extdiff")), false);
+    assert.equal(existsSync(join(repo, "pwned-textconv")), false);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 function runGit(cwd: string, ...args: string[]): void {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
+}
+
+function writeExecutable(path: string, content: string): void {
+  writeFileSync(path, content);
+  chmodSync(path, 0o755);
 }

@@ -213,7 +213,8 @@ function ensureNoGitWriteOptions(argv: string[]): void {
     (arg) =>
       arg === "--output" ||
       arg.startsWith("--output=") ||
-      arg === "--ext-diff" ||
+      isGitOptionAbbreviation(arg, "--ext-diff") ||
+      isGitOptionAbbreviation(arg, "--textconv") ||
       arg === "--no-index" ||
       arg === "--exec" ||
       arg.startsWith("--exec=") ||
@@ -222,6 +223,12 @@ function ensureNoGitWriteOptions(argv: string[]): void {
       arg === "-o",
   );
   if (forbidden) throw new Error(`review_check does not allow git option: ${forbidden}`);
+}
+
+function isGitOptionAbbreviation(arg: string, fullOption: string): boolean {
+  if (!arg.startsWith("--") || arg.startsWith("--no-")) return false;
+  const optionName = arg.split("=", 1)[0]!;
+  return optionName.length > 2 && fullOption.startsWith(optionName);
 }
 
 function isGitOpenFilesInPagerOption(arg: string): boolean {
@@ -263,7 +270,37 @@ function executeSteps(
 }
 
 function gitArgv(argv: string[]): string[] {
-  return ["git", "-c", "core.pager=cat", "-c", "diff.external=", ...argv.slice(1)];
+  const subcommand = argv[1];
+  const hardenedArgs = gitSubcommandArgvWithReadOnlyGuards(argv);
+  return [
+    "git",
+    "-c",
+    "core.pager=cat",
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    "core.hooksPath=/dev/null",
+    "-c",
+    "diff.external=",
+    "-c",
+    "credential.helper=",
+    ...hardenedArgs.slice(subcommand ? 1 : 0),
+  ];
+}
+
+function gitSubcommandArgvWithReadOnlyGuards(argv: string[]): string[] {
+  const subcommand = argv[1];
+  if (!subcommand) return argv;
+
+  if (subcommand === "diff" || subcommand === "log" || subcommand === "show") {
+    return ["git", subcommand, "--no-ext-diff", "--no-textconv", ...argv.slice(2)];
+  }
+
+  if (subcommand === "grep" || subcommand === "blame") {
+    return ["git", subcommand, "--no-textconv", ...argv.slice(2)];
+  }
+
+  return argv;
 }
 
 function reviewCommandEnv(): NodeJS.ProcessEnv {
