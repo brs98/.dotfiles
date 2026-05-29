@@ -131,6 +131,30 @@ test("rejects symlink escapes for cd, git -C, and filesystem arguments", () => {
   }
 });
 
+test("rejects recursive symlink-following filesystem options", () => {
+  const repo = mkdtempSync(join(tmpdir(), "picastle-review-recursive-symlink-"));
+  const outside = mkdtempSync(join(tmpdir(), "picastle-review-recursive-outside-"));
+  try {
+    writeFileSync(join(outside, "secret.txt"), "outside\n");
+    symlinkSync(outside, join(repo, "outside-link"));
+
+    assert.throws(() => planReviewCommand("grep -R outside .", repo), /grep option: -R/);
+    assert.throws(() => planReviewCommand("grep -r outside .", repo), /grep option: -r/);
+    assert.throws(() => planReviewCommand("grep --recursive outside .", repo), /grep option: --recursive/);
+    assert.throws(() => planReviewCommand("grep --dereference-recursive outside .", repo), /grep option: --dereference-recursive/);
+    assert.throws(() => planReviewCommand("grep --directories=recurse outside .", repo), /grep option: --directories=recurse/);
+    assert.throws(() => planReviewCommand("grep -d recurse outside .", repo), /grep option: -d recurse/);
+    assert.throws(() => planReviewCommand("find -L . -name secret.txt -print", repo), /find option: -L/);
+    assert.throws(() => planReviewCommand("find . -follow -name secret.txt -print", repo), /find option: -follow/);
+    assert.throws(() => planReviewCommand("ls -LR .", repo), /ls recursive dereference options/);
+    assert.throws(() => planReviewCommand("ls -R -L .", repo), /ls recursive dereference options/);
+    assert.throws(() => planReviewCommand("ls --recursive --dereference .", repo), /ls recursive dereference options/);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
 test("confines filesystem command path arguments to the worktree", () => {
   assert.throws(() => planReviewCommand("cat /tmp/x", root), /absolute paths/);
   assert.throws(() => planReviewCommand("cat ~/.foo", root), /home paths/);

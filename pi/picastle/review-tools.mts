@@ -47,6 +47,17 @@ const ALLOWED_PEB_NESTED_SUBCOMMANDS = new Map([
   ["closure", new Set(["show"])],
 ]);
 const READ_ONLY_GH_SUBCOMMANDS = new Map([["pr", new Set(["list", "view", "diff", "checks"])]]);
+const GREP_RECURSIVE_LONG_OPTIONS = new Set(["--recursive", "--dereference-recursive"]);
+const GREP_SHORT_VALUE_OPTION_CHARS = new Set(["A", "B", "C", "D", "d", "m"]);
+const FIND_SYMLINK_FOLLOW_OPTIONS = new Set(["-H", "-L", "-follow"]);
+const LS_RECURSIVE_LONG_OPTIONS = new Set(["--recursive"]);
+const LS_DEREFERENCE_LONG_OPTIONS = new Set([
+  "--dereference",
+  "--dereference-command-line",
+  "--dereference-command-line-symlink-to-dir",
+]);
+const LS_SHORT_VALUE_OPTION_CHARS = new Set(["I", "T", "w"]);
+
 export function createReviewCheckTool(root: string): ToolDefinition {
   const reviewRoot = resolveReviewRoot(root);
   return defineTool({
@@ -114,7 +125,9 @@ function normalizeCommand(argv: string[], cwd: string, root: string): ReviewStep
   if (command === "git") return normalizeGitCommand(argv, cwd, root);
   if (command === "peb") return normalizePebCommand(argv, cwd, root);
   if (command === "gh") return normalizeGhCommand(argv, cwd);
+  if (command === "grep") ensureGrepOptionsAreSafe(argv);
   if (command === "find") ensureFindIsReadOnly(argv);
+  if (command === "ls") ensureLsOptionsAreSafe(argv);
   ensureFilesystemCommandPathsInsideRoot(argv, cwd, root);
 
   return { argv, cwd, mode: "source" };
@@ -197,6 +210,45 @@ function normalizeGhCommand(argv: string[], cwd: string): ReviewStep {
   return { argv, cwd, mode: "source" };
 }
 
+function ensureGrepOptionsAreSafe(argv: string[]): void {
+  let parsingOptions = true;
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (parsingOptions && arg === "--") {
+      parsingOptions = false;
+      continue;
+    }
+    if (!parsingOptions) continue;
+
+    if (arg.startsWith("--") && arg !== "--") {
+      const [option, inlineValue] = splitLongOption(arg);
+      if (GREP_RECURSIVE_LONG_OPTIONS.has(option)) throw new Error(`review_check does not allow grep option: ${option}`);
+      if (option === "--directories") {
+        const value = inlineValue ?? argv[i + 1];
+        if (value === "recurse") {
+          const forbidden = inlineValue === undefined ? `${option} ${value}` : `${option}=${value}`;
+          throw new Error(`review_check does not allow grep option: ${forbidden}`);
+        }
+        if (inlineValue === undefined) i++;
+        continue;
+      }
+      if (option === "--file" || option === "--exclude-from" || option === "--regexp") {
+        if (inlineValue === undefined) i++;
+        continue;
+      }
+      if (inlineValue === undefined && GREP_VALUE_OPTIONS.has(option)) i++;
+      continue;
+    }
+
+    if (arg.startsWith("-") && arg !== "-") {
+      const consumed = consumeGrepShortOptionsForSafety(arg, argv, i);
+      if (consumed.forbidden) throw new Error(`review_check does not allow grep option: ${consumed.forbidden}`);
+      i += consumed.extraArgs;
+    }
+  }
+}
+
 function ensureFindIsReadOnly(argv: string[]): void {
   const forbiddenWriteActions = new Set([
     "-delete",
@@ -209,8 +261,34 @@ function ensureFindIsReadOnly(argv: string[]): void {
     "-ok",
     "-okdir",
   ]);
+  const unsafeTraversal = argv.find((arg) => FIND_SYMLINK_FOLLOW_OPTIONS.has(arg));
+  if (unsafeTraversal) throw new Error(`review_check does not allow find option: ${unsafeTraversal}`);
   const found = argv.find((arg) => forbiddenWriteActions.has(arg));
   if (found) throw new Error(`review_check does not allow find action: ${found}`);
+}
+
+function ensureLsOptionsAreSafe(argv: string[]): void {
+  let recursive = false;
+  let dereference = false;
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--") break;
+
+    if (arg.startsWith("--") && arg !== "--") {
+      const [option, inlineValue] = splitLongOption(arg);
+      recursive ||= LS_RECURSIVE_LONG_OPTIONS.has(option);
+      dereference ||= LS_DEREFERENCE_LONG_OPTIONS.has(option);
+      if (inlineValue === undefined && isValueOption("ls", option)) i++;
+    } else if (arg.startsWith("-") && arg !== "-") {
+      const consumed = consumeLsShortOptionsForSafety(arg);
+      recursive ||= consumed.recursive;
+      dereference ||= consumed.dereference;
+      i += consumed.extraArgs;
+    }
+
+    if (recursive && dereference) throw new Error("review_check does not allow ls recursive dereference options");
+  }
 }
 
 function ensureFilesystemCommandPathsInsideRoot(argv: string[], cwd: string, root: string): void {
@@ -325,6 +403,18 @@ function findPathArguments(argv: string[]): string[] {
 
   for (; i < argv.length; i++) {
     const arg = argv[i]!;
+    if (arg === "-P" || arg === "-H" || arg === "-L") continue;
+    if (arg === "-D") {
+      i++;
+      continue;
+    }
+    if (arg.startsWith("-D") || /^-O\d+$/.test(arg)) continue;
+    if (isFindExpressionStart(arg)) break;
+    break;
+  }
+
+  for (; i < argv.length; i++) {
+    const arg = argv[i]!;
     if (isFindExpressionStart(arg)) break;
     paths.push(arg);
   }
@@ -357,6 +447,45 @@ const GREP_VALUE_OPTIONS = new Set([
 ]);
 const FIND_PATH_VALUE_OPTIONS = new Set(["-anewer", "-cnewer", "-files0-from", "-newer", "-samefile"]);
 
+function consumeGrepShortOptionsForSafety(
+  arg: string,
+  argv: string[],
+  index: number,
+): { extraArgs: number; forbidden?: string } {
+  for (let offset = 1; offset < arg.length; offset++) {
+    const option = arg[offset]!;
+    const rest = arg.slice(offset + 1);
+    if (option === "r" || option === "R") return { extraArgs: 0, forbidden: `-${option}` };
+    if (option === "d") {
+      const value = rest || argv[index + 1];
+      if (value === "recurse") return { extraArgs: 0, forbidden: rest ? "-drecurse" : "-d recurse" };
+      return { extraArgs: rest ? 0 : 1 };
+    }
+    if (option === "e" || option === "f" || GREP_SHORT_VALUE_OPTION_CHARS.has(option)) {
+      return { extraArgs: rest ? 0 : 1 };
+    }
+  }
+
+  return { extraArgs: 0 };
+}
+
+function consumeLsShortOptionsForSafety(arg: string): { extraArgs: number; recursive: boolean; dereference: boolean } {
+  let recursive = false;
+  let dereference = false;
+
+  for (let offset = 1; offset < arg.length; offset++) {
+    const option = arg[offset]!;
+    const rest = arg.slice(offset + 1);
+    if (option === "R") recursive = true;
+    if (option === "H" || option === "L") dereference = true;
+    if (LS_SHORT_VALUE_OPTION_CHARS.has(option)) {
+      return { extraArgs: rest ? 0 : 1, recursive, dereference };
+    }
+  }
+
+  return { extraArgs: 0, recursive, dereference };
+}
+
 function consumeGrepShortOptions(
   arg: string,
   argv: string[],
@@ -364,7 +493,6 @@ function consumeGrepShortOptions(
   paths: string[],
 ): { extraArgs: number; hasExplicitPattern: boolean } {
   let hasExplicitPattern = false;
-  const optionCharsWithValues = new Set(["A", "B", "C", "D", "d", "m"]);
 
   for (let offset = 1; offset < arg.length; offset++) {
     const option = arg[offset]!;
@@ -376,7 +504,7 @@ function consumeGrepShortOptions(
       hasExplicitPattern = true;
       return { extraArgs: rest ? 0 : 1, hasExplicitPattern };
     }
-    if (optionCharsWithValues.has(option)) return { extraArgs: rest ? 0 : 1, hasExplicitPattern };
+    if (GREP_SHORT_VALUE_OPTION_CHARS.has(option)) return { extraArgs: rest ? 0 : 1, hasExplicitPattern };
   }
 
   return { extraArgs: 0, hasExplicitPattern };

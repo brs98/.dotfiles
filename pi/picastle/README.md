@@ -65,8 +65,8 @@ Runtime files are outside the target repo:
 Implementer worktrees may contain untracked `.picastle/pending-*.jsonl` manifests.
 The host fan-in script applies those to Pebbles after each iteration.
 
-Reviewer agents are granted only read tools plus `review_check`, a restricted
-allowlisted command runner. They do not receive `bash`, `edit`, or `write`, and
+Reviewer agents are granted only `review_check`, a restricted allowlisted
+command runner. They do not receive `bash`, `edit`, or `write`, and
 Picastle disables Pi extension loading for reviewer sessions so reviewed branches
 cannot run project-local extension code during startup.
 `review_check` allows git/Pebbles/GitHub inspection commands and rejects
