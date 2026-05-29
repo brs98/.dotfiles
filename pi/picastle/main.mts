@@ -23,6 +23,7 @@ import {
   extractIssueIdFromBranch,
   normalizeOpenPrsJson,
   parseFirstOpenPrUrl,
+  parseKnownIssueIdsJson,
   parseOpenPrsByHead,
   type RecoveryBranchInput,
   type RecoveryIssueLookup,
@@ -334,28 +335,16 @@ function loadExistingOpenPrUrl(branch: string): string | undefined {
   return parseFirstOpenPrUrl(result.stdout);
 }
 
-function loadKnownIssueIdsForRecovery(): Set<string> {
+function loadKnownIssueIdsForRecovery(): string[] {
   const result = run(pebCommand("list --json"), repoRoot, { allowFailure: true });
   if (result.status !== 0) {
-    console.warn(`  ⚠ peb issue id query failed: ${result.stderr || result.stdout}`);
-    return new Set<string>();
+    throw new Error(`peb issue id query failed during recovery; refusing heuristic issue-id extraction: ${result.stderr || result.stdout}`);
   }
 
   try {
-    const parsed = JSON.parse(result.stdout || "{}");
-    const items = Array.isArray(parsed)
-      ? parsed
-      : parsed && typeof parsed === "object" && Array.isArray((parsed as { data?: unknown }).data)
-        ? (parsed as { data: unknown[] }).data
-        : [];
-    return new Set(
-      items
-        .map((item) => (item && typeof item === "object" && "id" in item ? String((item as { id: unknown }).id) : ""))
-        .filter(Boolean),
-    );
+    return parseKnownIssueIdsJson(result.stdout);
   } catch (error) {
-    console.warn(`  ⚠ failed to parse peb issue id query: ${formatError(error)}`);
-    return new Set<string>();
+    throw new Error(`failed to parse peb issue id query during recovery; refusing heuristic issue-id extraction: ${formatError(error)}`);
   }
 }
 

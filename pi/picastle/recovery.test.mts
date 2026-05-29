@@ -7,6 +7,7 @@ import {
   extractIssueIdFromBranch,
   normalizeOpenPrsJson,
   parseFirstOpenPrUrl,
+  parseKnownIssueIdsJson,
   parseOpenPrsByHead,
   type RecoveryBranchInput,
 } from "./recovery.mjs";
@@ -191,6 +192,21 @@ test("keeps lookup failures distinct from confirmed missing pebbles", () => {
       ["dotfiles-zzz", "pebble was not found"],
     ],
   );
+});
+
+test("parses known issue id discovery output deterministically", () => {
+  assert.deepEqual(parseKnownIssueIdsJson(JSON.stringify({ data: [{ id: "my-repo" }, { id: "my-repo-abc" }, { id: "my-repo" }] })), [
+    "my-repo-abc",
+    "my-repo",
+  ]);
+  assert.deepEqual(parseKnownIssueIdsJson(JSON.stringify([{ id: "b-abc" }, { id: "a-abc" }])), ["a-abc", "b-abc"]);
+});
+
+test("fails closed on malformed known issue id discovery JSON", () => {
+  assert.throws(() => parseKnownIssueIdsJson(""), /empty output/);
+  assert.throws(() => parseKnownIssueIdsJson("not json"), /failed to parse peb issue id query JSON/);
+  assert.throws(() => parseKnownIssueIdsJson('{"id":"dotfiles-yi5"}'), /expected an array or an object with a data array/);
+  assert.throws(() => parseKnownIssueIdsJson(JSON.stringify({ data: [{ title: "missing id" }] })), /invalid id/);
 });
 
 test("fails closed on malformed open PR discovery JSON", () => {

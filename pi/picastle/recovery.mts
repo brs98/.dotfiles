@@ -63,11 +63,19 @@ function extractKnownIssueIdFromBranch(branch: string, knownIssueIds: Iterable<s
   if (!branch.startsWith("picastle/")) return undefined;
 
   const slug = branch.slice("picastle/".length);
-  const matches = [...knownIssueIds]
-    .filter((issueId) => issueId.length > 0 && slug.startsWith(`${issueId}-`))
-    .sort((a, b) => b.length - a.length || a.localeCompare(b));
+  let bestMatch: string | undefined;
+  for (const issueId of knownIssueIds) {
+    if (!issueId || !slug.startsWith(`${issueId}-`)) continue;
+    if (
+      !bestMatch ||
+      issueId.length > bestMatch.length ||
+      (issueId.length === bestMatch.length && issueId.localeCompare(bestMatch) < 0)
+    ) {
+      bestMatch = issueId;
+    }
+  }
 
-  return matches[0];
+  return bestMatch;
 }
 
 export function buildRecoveryPlan(
@@ -175,6 +183,42 @@ export function buildRecoveryPlan(
   plan.ignoredBranches.sort(compareRecoveryDecisions);
 
   return plan;
+}
+
+export function parseKnownIssueIdsJson(stdout: string): string[] {
+  const trimmed = stdout.trim();
+  if (!trimmed) {
+    throw new Error("failed to parse peb issue id query JSON: empty output");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    throw new Error(`failed to parse peb issue id query JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  const items = Array.isArray(parsed)
+    ? parsed
+    : parsed && typeof parsed === "object" && Array.isArray((parsed as { data?: unknown }).data)
+      ? (parsed as { data: unknown[] }).data
+      : undefined;
+  if (!items) {
+    throw new Error("failed to parse peb issue id query JSON: expected an array or an object with a data array");
+  }
+
+  const ids = new Set<string>();
+  for (const [index, item] of items.entries()) {
+    if (!item || typeof item !== "object") {
+      throw new Error(`failed to parse peb issue id query JSON: entry ${index} is not an object`);
+    }
+    const id = (item as { id?: unknown }).id;
+    if (typeof id !== "string" || id.length === 0) {
+      throw new Error(`failed to parse peb issue id query JSON: entry ${index} has invalid id`);
+    }
+    ids.add(id);
+  }
+
+  return [...ids].sort((a, b) => b.length - a.length || a.localeCompare(b));
 }
 
 export function parseOpenPrsByHead(stdout: string): Map<string, string> {
