@@ -217,13 +217,21 @@ function ensureNoGitWriteOptions(argv: string[]): void {
       arg === "--no-index" ||
       arg === "--exec" ||
       arg.startsWith("--exec=") ||
-      arg === "--open-files-in-pager" ||
-      arg.startsWith("--open-files-in-pager=") ||
-      arg === "-O" ||
-      arg.startsWith("-O") ||
+      isGitOpenFilesInPagerOption(arg) ||
+      isGitOpenFilesInPagerShortOption(arg) ||
       arg === "-o",
   );
   if (forbidden) throw new Error(`review_check does not allow git option: ${forbidden}`);
+}
+
+function isGitOpenFilesInPagerOption(arg: string): boolean {
+  if (!arg.startsWith("--")) return false;
+  const optionName = arg.split("=", 1)[0]!;
+  return optionName.length > 2 && "--open-files-in-pager".startsWith(optionName);
+}
+
+function isGitOpenFilesInPagerShortOption(arg: string): boolean {
+  return arg.startsWith("-") && !arg.startsWith("--") && arg.slice(1).includes("O");
 }
 
 function executeReviewCommandPlan(plan: ReviewCommandPlan, _root: string): { status: number; stdout: string; stderr: string } {

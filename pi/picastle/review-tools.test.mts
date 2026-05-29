@@ -27,6 +27,11 @@ test("allows read-only Pebbles inspection with remote args", () => {
   assert.equal(plan.mode, "source");
 });
 
+test("allows git grep pathspec separator", () => {
+  const plan = planReviewCommand("git grep needle -- pi/picastle/README.md", root);
+  assert.deepEqual(plan.steps[0]?.argv, ["git", "grep", "needle", "--", "pi/picastle/README.md"]);
+});
+
 test("rejects shell redirection and chained mutations", () => {
   assert.throws(() => planReviewCommand("git diff > review.patch", root), /shell operator/);
   assert.throws(() => planReviewCommand("git diff && git push", root), /git subcommand: push/);
@@ -44,6 +49,8 @@ test("rejects git grep pager execution options", () => {
   assert.throws(() => planReviewCommand("git grep --open-files-in-pager touch needle", root), /git option: --open-files-in-pager/);
   assert.throws(() => planReviewCommand("git grep -Otouch needle", root), /git option: -Otouch/);
   assert.throws(() => planReviewCommand("git grep -O touch needle", root), /git option: -O/);
+  assert.throws(() => planReviewCommand("git grep -nOfalse needle", root), /git option: -nOfalse/);
+  assert.throws(() => planReviewCommand("git grep --open-files-in-page=false needle", root), /git option: --open-files-in-page=false/);
 });
 
 test("rejects commands that are not on the review allowlist", () => {
