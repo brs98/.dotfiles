@@ -14,6 +14,9 @@ import {
 test("extracts pebble ids before realistic branch slugs during recovery", () => {
   assert.equal(extractIssueIdFromBranch("picastle/ricekit-394-fix-old"), "ricekit-394");
   assert.equal(extractIssueIdFromBranch("picastle/dotfiles-yi5-resumable-idempotent-runs"), "dotfiles-yi5");
+  assert.equal(extractIssueIdFromBranch("picastle/my-repo-abc-fix"), "my-repo-abc");
+  assert.equal(extractIssueIdFromBranch("picastle/my-repo-abc-fix", ["my-repo", "my-repo-abc"]), "my-repo-abc");
+  assert.equal(extractIssueIdFromBranch("picastle/web-api-abc-fix", ["web-api", "web-api-abc"]), "web-api-abc");
 
   const issuesById = new Map([
     ["ricekit-394", { title: "Fix publish recovery", status: "ready_for_agent" }],
@@ -43,6 +46,14 @@ test("extracts pebble ids before realistic branch slugs during recovery", () => 
   assert.equal(plan.blockedIssueIds.has("dotfiles-yi5"), true);
   assert.equal(plan.blockedIssueIds.has("ricekit-394-fix"), false);
   assert.equal(plan.blockedIssueIds.has("dotfiles-yi5-resumable-idempotent"), false);
+});
+
+test("ignores malformed Picastle branch names without issue ids", () => {
+  assert.equal(extractIssueIdFromBranch("ricekit-394-fix-old"), undefined);
+  assert.equal(extractIssueIdFromBranch("picastle/ricekit-394"), undefined);
+  assert.equal(extractIssueIdFromBranch("picastle/my-repo"), undefined);
+  assert.equal(extractIssueIdFromBranch("picastle/my--repo-abc-fix"), undefined);
+  assert.equal(extractIssueIdFromBranch("picastle/My-repo-abc-fix"), undefined);
 });
 
 test("recovers one canonical unpublished branch per ready pebble", () => {

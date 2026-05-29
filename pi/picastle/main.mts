@@ -242,11 +242,12 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
   const worktreeByBranch = new Map(worktrees.filter((entry) => entry.branch).map((entry) => [entry.branch!, entry]));
   const openPrByHead = loadOpenPrsByHead();
   const issueCache = new Map<string, { title?: string; status?: string; lookup: RecoveryIssueLookup } | undefined>();
+  const knownIssueIds = loadKnownIssueIdsForRecovery();
 
   const localBranches = listLocalPicastleBranches();
   const localBranchNames = new Set(localBranches.map((branch) => branch.branch));
   const inputs: RecoveryBranchInput[] = localBranches.map((localBranch) => {
-    const issueId = extractIssueIdFromBranch(localBranch.branch);
+    const issueId = extractIssueIdFromBranch(localBranch.branch, knownIssueIds);
     const worktree = worktreeByBranch.get(localBranch.branch);
     const dirty = worktree?.path && existsSync(worktree.path)
       ? run("git status --porcelain", worktree.path).stdout.trim().length > 0
@@ -276,7 +277,7 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
 
   for (const [head, url] of openPrByHead) {
     if (!head.startsWith("picastle/") || localBranchNames.has(head)) continue;
-    const issueId = extractIssueIdFromBranch(head);
+    const issueId = extractIssueIdFromBranch(head, knownIssueIds);
     const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
     inputs.push({
       branch: head,
@@ -331,6 +332,31 @@ function loadExistingOpenPrUrl(branch: string): string | undefined {
     repoRoot,
   );
   return parseFirstOpenPrUrl(result.stdout);
+}
+
+function loadKnownIssueIdsForRecovery(): Set<string> {
+  const result = run(pebCommand("list --json"), repoRoot, { allowFailure: true });
+  if (result.status !== 0) {
+    console.warn(`  ⚠ peb issue id query failed: ${result.stderr || result.stdout}`);
+    return new Set<string>();
+  }
+
+  try {
+    const parsed = JSON.parse(result.stdout || "{}");
+    const items = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === "object" && Array.isArray((parsed as { data?: unknown }).data)
+        ? (parsed as { data: unknown[] }).data
+        : [];
+    return new Set(
+      items
+        .map((item) => (item && typeof item === "object" && "id" in item ? String((item as { id: unknown }).id) : ""))
+        .filter(Boolean),
+    );
+  } catch (error) {
+    console.warn(`  ⚠ failed to parse peb issue id query: ${formatError(error)}`);
+    return new Set<string>();
+  }
 }
 
 function readIssueForRecovery(

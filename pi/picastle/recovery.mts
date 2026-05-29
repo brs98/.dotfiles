@@ -37,8 +37,37 @@ export type RecoveryPlan = {
   blockedIssueIds: Set<string>;
 };
 
-export function extractIssueIdFromBranch(branch: string): string | undefined {
-  return branch.match(/^picastle\/([a-z0-9][a-z0-9_]*-[a-z0-9]{3,})-/)?.[1];
+export function extractIssueIdFromBranch(branch: string, knownIssueIds?: Iterable<string>): string | undefined {
+  const knownIssueId = knownIssueIds ? extractKnownIssueIdFromBranch(branch, knownIssueIds) : undefined;
+  if (knownIssueId) return knownIssueId;
+
+  const prefix = "picastle/";
+  if (!branch.startsWith(prefix)) return undefined;
+
+  const slug = branch.slice(prefix.length);
+  const tokens = slug.split("-");
+  if (tokens.length < 3 || tokens.some((token) => !/^[a-z0-9_]+$/.test(token))) {
+    return undefined;
+  }
+
+  for (let index = 1; index < tokens.length - 1; index += 1) {
+    if (/^[a-z0-9]{3}$/.test(tokens[index]!)) {
+      return tokens.slice(0, index + 1).join("-");
+    }
+  }
+
+  return undefined;
+}
+
+function extractKnownIssueIdFromBranch(branch: string, knownIssueIds: Iterable<string>): string | undefined {
+  if (!branch.startsWith("picastle/")) return undefined;
+
+  const slug = branch.slice("picastle/".length);
+  const matches = [...knownIssueIds]
+    .filter((issueId) => issueId.length > 0 && slug.startsWith(`${issueId}-`))
+    .sort((a, b) => b.length - a.length || a.localeCompare(b));
+
+  return matches[0];
 }
 
 export function buildRecoveryPlan(
