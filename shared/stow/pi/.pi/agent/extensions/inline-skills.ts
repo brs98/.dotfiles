@@ -177,7 +177,7 @@ class InlineSkillEditor extends CustomEditor {
   }
 }
 
-function formatLoadedSkills(
+export function formatLoadedSkills(
   skills: Array<{ name: string; path: string; content: string }>,
 ): string {
   const sections = skills.map(
@@ -192,6 +192,18 @@ function formatLoadedSkills(
     sections.join("\n\n"),
     "</inline_skills>",
   ].join("\n");
+}
+
+export function formatLoadedSkillPrompt(
+  skills: Array<{ name: string }>,
+  strippedPrompt: string,
+): string {
+  const skillNames = skills.map((skill) => skill.name).join(", ");
+  const noun = skills.length === 1 ? "skill" : "skills";
+  const loadedLine = `Loaded ${noun}: **${skillNames}**.`;
+  const prompt = strippedPrompt.trim();
+
+  return prompt.length > 0 ? `${loadedLine}\n\n${prompt}` : loadedLine;
 }
 
 export default function inlineSkills(pi: ExtensionAPI) {
@@ -266,11 +278,21 @@ export default function inlineSkills(pi: ExtensionAPI) {
     if (loadedSkills.length === 0) return { action: "continue" as const };
 
     const strippedPrompt = stripInlineSkillMarkers(event.text, commands);
-    const transformedText = `${formatLoadedSkills(loadedSkills)}\n\nUser request:\n${strippedPrompt}`;
+    pi.sendMessage(
+      {
+        customType: "inline-skills",
+        content: formatLoadedSkills(loadedSkills),
+        display: false,
+        details: {
+          skills: loadedSkills.map((skill) => ({ name: skill.name, path: skill.path })),
+        },
+      },
+      { deliverAs: "nextTurn" },
+    );
 
     return {
       action: "transform" as const,
-      text: transformedText,
+      text: formatLoadedSkillPrompt(loadedSkills, strippedPrompt),
       images: event.images,
     };
   });
