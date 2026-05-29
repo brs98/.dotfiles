@@ -4,6 +4,7 @@ export type RecoveryIssueLookup =
   | { state: "failed"; message: string };
 
 export type OpenPrRecord = { number?: number; headRefName: string; url: string };
+export type PlannedIssueSelection = { id: string; title: string; branch: string };
 
 export type RecoveryBranchInput = {
   branch: string;
@@ -240,9 +241,46 @@ export function parseOpenPrsByHead(stdout: string): Map<string, string> {
 
 export function findOpenPrForIssue(stdout: string, issueId: string): OpenPrRecord | undefined {
   return parseOpenPrRecords(stdout).find((pr) => {
-    const inferredIssueId = extractIssueIdFromBranch(pr.headRefName);
-    if (inferredIssueId) return inferredIssueId === issueId;
-    return extractIssueIdFromBranch(pr.headRefName, [issueId]) === issueId;
+    if (looksLikePebbleIssueId(issueId) && extractIssueIdFromBranch(pr.headRefName, [issueId]) === issueId) {
+      return true;
+    }
+    return extractIssueIdFromBranch(pr.headRefName) === issueId;
+  });
+}
+
+export function validatePlannedIssueSelections(
+  plannedIssues: unknown[],
+  candidateIssues: unknown[],
+  options: {
+    suppressedIssueIds?: Iterable<string>;
+    normalizeBranch?: (branch: string, id: string, title: string) => string;
+  } = {},
+): PlannedIssueSelection[] {
+  const candidateIds = new Set<string>();
+  for (const [index, candidate] of candidateIssues.entries()) {
+    const id = readRecordString(candidate, "id");
+    if (!id) throw new Error(`Candidate issue at index ${index} is missing id`);
+    candidateIds.add(id);
+  }
+
+  const suppressedIssueIds = new Set(options.suppressedIssueIds ?? []);
+  const seen = new Set<string>();
+  return plannedIssues.map((plannedIssue, index) => {
+    const id = readRecordString(plannedIssue, "id");
+    const title = readRecordString(plannedIssue, "title");
+    const branch = readRecordString(plannedIssue, "branch");
+    if (!id || !title || !branch) {
+      throw new Error(`Invalid planned issue at index ${index}: ${JSON.stringify(plannedIssue)}`);
+    }
+    if (seen.has(id)) throw new Error(`Planner selected duplicate issue id ${id}`);
+    seen.add(id);
+    if (suppressedIssueIds.has(id)) throw new Error(`Planner selected suppressed issue id ${id}`);
+    if (!candidateIds.has(id)) throw new Error(`Planner selected non-candidate issue id ${id}`);
+    return {
+      id,
+      title,
+      branch: options.normalizeBranch ? options.normalizeBranch(branch, id, title) : branch,
+    };
   });
 }
 
@@ -260,6 +298,16 @@ export function classifyPebShowFailure(output: string): RecoveryIssueLookup {
     return { state: "not_found", message };
   }
   return { state: "failed", message };
+}
+
+function looksLikePebbleIssueId(issueId: string): boolean {
+  return /-[a-z0-9]{3}$/.test(issueId);
+}
+
+function readRecordString(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "string" && field.length > 0 ? field : undefined;
 }
 
 function parseOpenPrRecords(stdout: string): OpenPrRecord[] {

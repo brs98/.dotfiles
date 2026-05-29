@@ -10,6 +10,7 @@ import {
   parseFirstOpenPrUrl,
   parseKnownIssueIdsJson,
   parseOpenPrsByHead,
+  validatePlannedIssueSelections,
   type RecoveryBranchInput,
 } from "./recovery.mjs";
 
@@ -314,6 +315,83 @@ test("finds existing open PRs by pebble id instead of exact branch only", () => 
   });
   assert.equal(findOpenPrForIssue(stdout, "dotfiles-xyz"), undefined);
   assert.equal(findOpenPrForIssue(stdout, "my-repo"), undefined);
+});
+
+test("prefers exact known target issue id matching before heuristic PR branch extraction", () => {
+  const stdout = JSON.stringify([
+    { number: 20, headRefName: "picastle/web-api-abc-fix", url: "https://github.com/acme/repo/pull/20" },
+  ]);
+
+  assert.equal(extractIssueIdFromBranch("picastle/web-api-abc-fix"), "web-api");
+  assert.deepEqual(findOpenPrForIssue(stdout, "web-api-abc"), {
+    number: 20,
+    headRefName: "picastle/web-api-abc-fix",
+    url: "https://github.com/acme/repo/pull/20",
+  });
+});
+
+test("validates planner selections against filtered candidates", () => {
+  const candidates = [
+    { id: "dotfiles-aaa", title: "Allowed" },
+    { id: "dotfiles-bbb", title: "Also allowed" },
+  ];
+
+  assert.deepEqual(
+    validatePlannedIssueSelections(
+      [{ id: "dotfiles-aaa", title: "Allowed", branch: "sandcastle/dotfiles-aaa-old-prefix" }],
+      candidates,
+      { normalizeBranch: (branch) => branch.replace(/^sandcastle\//, "picastle/") },
+    ),
+    [{ id: "dotfiles-aaa", title: "Allowed", branch: "picastle/dotfiles-aaa-old-prefix" }],
+  );
+
+  assert.throws(
+    () => validatePlannedIssueSelections([
+      { id: "dotfiles-aaa", title: "Allowed", branch: "picastle/dotfiles-aaa-a" },
+      { id: "dotfiles-aaa", title: "Allowed", branch: "picastle/dotfiles-aaa-b" },
+    ], candidates),
+    /duplicate issue id dotfiles-aaa/,
+  );
+  assert.throws(
+    () => validatePlannedIssueSelections([
+      { id: "dotfiles-ccc", title: "Suppressed", branch: "picastle/dotfiles-ccc-suppressed" },
+    ], candidates, { suppressedIssueIds: ["dotfiles-ccc"] }),
+    /suppressed issue id dotfiles-ccc/,
+  );
+  assert.throws(
+    () => validatePlannedIssueSelections([
+      { id: "dotfiles-ccc", title: "Not a candidate", branch: "picastle/dotfiles-ccc-missing" },
+    ], candidates),
+    /non-candidate issue id dotfiles-ccc/,
+  );
+});
+
+test("recovery blocked issues wire into planner validation to avoid duplicate PR work", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/web-api-abc-fix",
+        issueId: "web-api-abc",
+        title: "Fix web API",
+        issueStatus: "ready_for_agent",
+        issueLookup: { state: "found" },
+        ahead: 1,
+        dirty: false,
+        openPrUrl: "https://github.com/acme/repo/pull/20",
+      },
+    ],
+    "ready_for_agent",
+  );
+
+  assert.equal(plan.blockedIssueIds.has("web-api-abc"), true);
+  assert.throws(
+    () => validatePlannedIssueSelections(
+      [{ id: "web-api-abc", title: "Fix web API", branch: "picastle/web-api-abc-new" }],
+      [],
+      { suppressedIssueIds: plan.blockedIssueIds },
+    ),
+    /suppressed issue id web-api-abc/,
+  );
 });
 
 test("classifies peb show failures without collapsing them all to not-found", () => {

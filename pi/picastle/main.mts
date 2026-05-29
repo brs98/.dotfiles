@@ -25,6 +25,7 @@ import {
   normalizeOpenPrsJson,
   parseKnownIssueIdsJson,
   parseOpenPrsByHead,
+  validatePlannedIssueSelections,
   type RecoveryBranchInput,
   type RecoveryIssueLookup,
   type RecoveryPlan,
@@ -92,8 +93,9 @@ const OPEN_PRS = envBool("PICASTLE_OPEN_PRS", !cli.noPr);
 const PUBLISHER_AGENT = envBool("PICASTLE_PUBLISHER_AGENT", true);
 const REVIEW_REPAIR_CYCLES = envInt("PICASTLE_REVIEW_REPAIR_CYCLES", 10);
 const REVIEW_CONCURRENCY = envInt("PICASTLE_REVIEW_CONCURRENCY", CONCURRENCY);
-// gh pr list defaults to 30; no-cap Picastle runs can exceed that and must still
-// see every existing PR before recovery/planning selects work.
+// gh pr list defaults to 30; no-cap Picastle runs can exceed that. Use a high
+// bounded scan so recovery/planning usually sees in-flight Picastle PRs without
+// implying this enumerates an unbounded repository PR history.
 const OPEN_PR_SCAN_LIMIT = envInt("PICASTLE_OPEN_PR_SCAN_LIMIT", 1000);
 const WORKTREE_READY_COMMAND = env("PICASTLE_WORKTREE_READY_COMMAND", "");
 const BEFORE_PUSH_COMMAND = env("PICASTLE_BEFORE_PUSH_COMMAND", "");
@@ -443,15 +445,9 @@ async function planIssues(iteration: number, suppressedIssueIds: Set<string>): P
     throw new Error("Planner <plan> JSON must contain an issues array");
   }
 
-  const planned = parsed.issues.map((issue: Partial<PlannedIssue>) => {
-    if (!issue.id || !issue.title || !issue.branch) {
-      throw new Error(`Invalid planned issue: ${JSON.stringify(issue)}`);
-    }
-    return {
-      id: String(issue.id),
-      title: String(issue.title),
-      branch: normalizeBranch(String(issue.branch), String(issue.id), String(issue.title)),
-    };
+  const planned = validatePlannedIssueSelections(parsed.issues, candidates, {
+    suppressedIssueIds,
+    normalizeBranch,
   });
 
   return MAX_ISSUES > 0 ? planned.slice(0, MAX_ISSUES) : planned;

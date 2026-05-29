@@ -83,6 +83,7 @@ The host fan-in script applies those to Pebbles after each iteration.
 - `PICASTLE_PUBLISHER_AGENT=1` uses the review/repair/publish pipeline for Sandcastle parity
 - `PICASTLE_REVIEW_REPAIR_CYCLES=10` max reviewer ↔ implementer repair loops
 - `PICASTLE_REVIEW_CONCURRENCY=$PICASTLE_CONCURRENCY` parallel review/publish workers
+- `PICASTLE_OPEN_PR_SCAN_LIMIT=1000` bounded `gh pr list` scan used to detect in-flight Picastle PRs; it is intentionally high but not an unbounded "all PRs" query
 - `PICASTLE_WORKTREE_READY_COMMAND=` optional once-per-worktree setup command, e.g. `npm install`
 - `PICASTLE_BEFORE_PUSH_COMMAND=` optional command run in the worktree immediately before `git push`
 - `PICASTLE_CLEAN_TARGETS=1` deletes each Picastle worktree's `target/` after its publish/defer path finishes
