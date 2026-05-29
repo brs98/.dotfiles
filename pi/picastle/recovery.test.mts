@@ -13,6 +13,7 @@ import {
   decidePublishCommandBoundary,
   decidePublishFlow,
   extractIssueIdFromBranch,
+  extractIssueIdFromOpenPrHead,
   findOpenPrForIssue,
   isRecognizedRecoveryPrHead,
   normalizeOpenPrsJson,
@@ -599,7 +600,7 @@ test("finds existing open PRs by pebble id instead of exact branch only", () => 
   assert.equal(findOpenPrForIssue(stdout, "my-repo"), undefined);
 });
 
-test("prefers longest known issue id matching before heuristic PR branch extraction", () => {
+test("open PR issue matching fails closed on shorter known ids and prefers longest known ids", () => {
   const stdout = JSON.stringify([
     { number: 20, headRefName: "picastle/web-api-abc-fix", url: "https://github.com/acme/repo/pull/20" },
   ]);
@@ -607,6 +608,8 @@ test("prefers longest known issue id matching before heuristic PR branch extract
 
   assert.equal(extractIssueIdFromBranch("picastle/web-api-abc-fix"), "web-api");
   assert.equal(extractIssueIdFromBranch("picastle/web-api-abc-fix", knownIssueIds), "web-api-abc");
+  assert.equal(extractIssueIdFromOpenPrHead("picastle/web-api-abc-fix", ["web-api"]), "web-api-abc");
+  assert.equal(findOpenPrForIssue(stdout, "web-api", { knownIssueIds: ["web-api"] }), undefined);
   assert.equal(findOpenPrForIssue(stdout, "web-api", { knownIssueIds }), undefined);
   assert.deepEqual(findOpenPrForIssue(stdout, "web-api-abc", { knownIssueIds }), {
     number: 20,

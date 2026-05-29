@@ -115,19 +115,23 @@ local `picastle/<issue>-*` branches, registered worktrees, and a bounded,
 same-repository-filtered list of open Picastle/legacy Sandcastle PR heads before
 it asks the planner for new work. Recovery is handled first:
 
-- dirty ready-queue worktrees are sent back through implementation so uncommitted
-  work is not lost
-- ahead-of-base branches with no open PR are reviewed/published before planning
-- orphan local branches are attached to a runtime worktree before publishing
+- dirty branches are resumed through implementation only after their Pebble
+  lookup is confirmed and the Pebble is still in the ready queue, so
+  uncommitted work is not lost
+- ahead-of-base ready-queue branches with confirmed lookup/readiness and no open
+  PR are reviewed/published before planning
+- orphan ready-queue local branches are attached to a runtime worktree before
+  publishing
 - clean open-PR branches with no unpushed commits have their Pebbles
-  closure/review state reconciled only after the pebble lookup succeeds and the
-  pebble is still in the ready queue
-- dirty open-PR branches are resumed through implementation; clean open-PR
-  branches with unpushed commits are reviewed/published so the existing PR is
-  updated
+  closure/review state reconciled only after the Pebble lookup succeeds and the
+  Pebble is still in the ready queue
+- dirty open-PR branches with confirmed ready-queue Pebbles are resumed through
+  implementation; clean open-PR branches with unpushed commits are
+  reviewed/published so the existing PR is updated
 - zero-ahead/stale branches are summarized as ignored; duplicate, missing-pebble,
-  lookup-failed, and non-ready branches with recoverable work are deferred and
-  block new planning for that pebble instead of silently creating another branch
+  lookup-failed, non-ready, and ambiguous/open-PR branches with recoverable work
+  are deferred and block new planning for that Pebble instead of silently
+  creating another branch
 
 If recovery finds resumable local work, Picastle finishes that recovery pass and
 restarts the loop rather than selecting new issues in the same iteration. This

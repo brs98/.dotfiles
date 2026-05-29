@@ -294,12 +294,25 @@ export function findOpenPrForIssue(stdout: string, issueId: string, options: Ope
   knownIssueIds?.add(issueId);
 
   return parseRecognizedRecoveryPrRecords(stdout, options).find((pr) => {
-    if (knownIssueIds) return extractIssueIdFromBranch(pr.headRefName, knownIssueIds) === issueId;
+    if (knownIssueIds) return extractIssueIdFromOpenPrHead(pr.headRefName, knownIssueIds) === issueId;
     if (looksLikePebbleIssueId(issueId) && extractIssueIdFromBranch(pr.headRefName, [issueId]) === issueId) {
       return true;
     }
     return extractIssueIdFromBranch(pr.headRefName) === issueId;
   });
+}
+
+export function extractIssueIdFromOpenPrHead(head: string, knownIssueIds?: Iterable<string>): string | undefined {
+  const issueId = extractIssueIdFromBranch(head, knownIssueIds);
+  if (!issueId) return undefined;
+
+  const knownIssueIdSet = knownIssueIds ? new Set(knownIssueIds) : undefined;
+  const potentialLongerIssueId = extractPotentialLongerIssueIdFromBranch(head, issueId);
+  if (potentialLongerIssueId && !knownIssueIdSet?.has(potentialLongerIssueId)) {
+    return potentialLongerIssueId;
+  }
+
+  return issueId;
 }
 
 export function selectRecoveryActions(
@@ -434,6 +447,20 @@ export function classifyPebShowFailure(output: string): RecoveryIssueLookup {
 
 function looksLikePebbleIssueId(issueId: string): boolean {
   return /-[a-z0-9]{3}$/.test(issueId);
+}
+
+function extractPotentialLongerIssueIdFromBranch(branch: string, issueId: string): string | undefined {
+  const prefix = recoveryBranchPrefix(branch);
+  if (!prefix) return undefined;
+
+  const slug = branch.slice(prefix.length);
+  if (!slug.startsWith(`${issueId}-`)) return undefined;
+
+  const suffixTokens = slug.slice(issueId.length + 1).split("-");
+  if (suffixTokens.length < 2) return undefined;
+
+  const nextToken = suffixTokens[0]!;
+  return /^[a-z0-9]{3}$/.test(nextToken) ? `${issueId}-${nextToken}` : undefined;
 }
 
 function recoveryBranchPrefix(branch: string): "picastle/" | "sandcastle/" | undefined {

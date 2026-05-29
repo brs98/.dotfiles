@@ -24,6 +24,7 @@ import {
   decidePublishCommandBoundary,
   decidePublishFlow,
   extractIssueIdFromBranch,
+  extractIssueIdFromOpenPrHead,
   findOpenPrForIssue,
   isRecognizedRecoveryPrHead,
   normalizeOpenPrsJson,
@@ -292,7 +293,10 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
   const localBranchNames = new Set(localBranches.map((branch) => branch.branch));
   const inputs: RecoveryBranchInput[] = localBranches.map((localBranch) => {
     assertSafeRecoveryBranchName(localBranch.branch);
-    const issueId = extractIssueIdFromBranch(localBranch.branch, knownIssueIds);
+    const openPrUrl = openPrByHead.get(localBranch.branch);
+    const issueId = openPrUrl
+      ? extractIssueIdFromOpenPrHead(localBranch.branch, knownIssueIds)
+      : extractIssueIdFromBranch(localBranch.branch, knownIssueIds);
     const worktree = worktreeByBranch.get(localBranch.branch);
     const dirty = worktree?.path && existsSync(worktree.path)
       ? run("git status --porcelain", worktree.path).stdout.trim().length > 0
@@ -305,7 +309,6 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
     if (!Number.isFinite(ahead)) {
       throw new Error(`invalid git rev-list ahead count for ${localBranch.branch}: ${aheadOutput}`);
     }
-    const openPrUrl = openPrByHead.get(localBranch.branch);
     const unpushed = openPrUrl ? countUnpushedCommits(localBranch.branch, ahead) : 0;
     const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
     return {
@@ -326,7 +329,7 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
 
   for (const [head, url] of openPrByHead) {
     if (!isRecognizedRecoveryPrHead(head) || localBranchNames.has(head)) continue;
-    const issueId = extractIssueIdFromBranch(head, knownIssueIds);
+    const issueId = extractIssueIdFromOpenPrHead(head, knownIssueIds);
     const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
     inputs.push({
       branch: head,
