@@ -17,7 +17,17 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 
-import { buildRecoveryPlan, extractIssueIdFromBranch, type RecoveryBranchInput, type RecoveryPlan } from "./recovery.mjs";
+import {
+  buildRecoveryPlan,
+  classifyPebShowFailure,
+  extractIssueIdFromBranch,
+  normalizeOpenPrsJson,
+  parseFirstOpenPrUrl,
+  parseOpenPrsByHead,
+  type RecoveryBranchInput,
+  type RecoveryIssueLookup,
+  type RecoveryPlan,
+} from "./recovery.mjs";
 
 type PlannedIssue = { id: string; title: string; branch: string };
 type CompletedIssue = PlannedIssue & { worktreePath: string };
@@ -126,6 +136,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       if (PUBLISHER_AGENT) await publishCompletedIssuesWithAgent(completed, iteration);
       else await publishCompletedIssues(completed, iteration);
     }
+    runPendingFanIn();
     continue;
   }
 
@@ -136,6 +147,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     } else {
       await publishCompletedIssues(recovery.unpublishedBranches, iteration);
     }
+    runPendingFanIn();
     continue;
   }
 
@@ -180,6 +192,12 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     }
   }
 
+  runPendingFanIn();
+}
+
+console.log("\nPicastle done.");
+
+function runPendingFanIn(): void {
   const fanIn = run(`bash ${shellQuote(join(scriptRoot, "scripts", "apply-pending-issues.sh"))}`, repoRoot, {
     stdio: "inherit",
     allowFailure: true,
@@ -191,9 +209,6 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     );
   }
 }
-
-console.log("\nPicastle done.");
-
 
 function recoverInterruptedRun(): RecoveryPlan & { unpublishedBranches: CompletedIssue[] } {
   const prune = run("git worktree prune --verbose", repoRoot, { allowFailure: true });
@@ -226,7 +241,7 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
   const worktrees = collectWorktreeEntries();
   const worktreeByBranch = new Map(worktrees.filter((entry) => entry.branch).map((entry) => [entry.branch!, entry]));
   const openPrByHead = loadOpenPrsByHead();
-  const issueCache = new Map<string, { title?: string; status?: string } | undefined>();
+  const issueCache = new Map<string, { title?: string; status?: string; lookup: RecoveryIssueLookup } | undefined>();
 
   const localBranches = listLocalPicastleBranches();
   const localBranchNames = new Set(localBranches.map((branch) => branch.branch));
@@ -234,19 +249,23 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
     const issueId = extractIssueIdFromBranch(localBranch.branch);
     const worktree = worktreeByBranch.get(localBranch.branch);
     const dirty = worktree?.path && existsSync(worktree.path)
-      ? run("git status --porcelain", worktree.path, { allowFailure: true }).stdout.trim().length > 0
+      ? run("git status --porcelain", worktree.path).stdout.trim().length > 0
       : false;
-    const ahead = Number(
-      run(`git rev-list --count ${shellQuote(BASE_BRANCH)}..${shellQuote(localBranch.branch)}`, repoRoot, {
-        allowFailure: true,
-      }).stdout.trim() || "0",
-    );
+    const aheadOutput = run(
+      `git rev-list --count ${shellQuote(BASE_BRANCH)}..${shellQuote(localBranch.branch)}`,
+      repoRoot,
+    ).stdout.trim();
+    const ahead = Number(aheadOutput);
+    if (!Number.isFinite(ahead)) {
+      throw new Error(`invalid git rev-list ahead count for ${localBranch.branch}: ${aheadOutput}`);
+    }
     const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
     return {
       branch: localBranch.branch,
       issueId,
       title: issue?.title,
       issueStatus: issue?.status,
+      issueLookup: issue?.lookup,
       ahead,
       dirty,
       worktreePath: worktree?.path,
@@ -264,6 +283,7 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
       issueId,
       title: issue?.title,
       issueStatus: issue?.status,
+      issueLookup: issue?.lookup,
       ahead: 0,
       dirty: false,
       openPrUrl: url,
@@ -274,13 +294,7 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
 }
 
 function listLocalPicastleBranches(): Array<{ branch: string; commitTime?: number }> {
-  const result = run("git for-each-ref --format='%(refname:short)%00%(committerdate:unix)' refs/heads/picastle", repoRoot, {
-    allowFailure: true,
-  });
-  if (result.status !== 0) {
-    console.warn(`  ⚠ failed to list local Picastle branches: ${result.stderr || result.stdout}`);
-    return [];
-  }
+  const result = run("git for-each-ref --format='%(refname:short)%00%(committerdate:unix)' refs/heads/picastle", repoRoot);
   return result.stdout
     .split("\n")
     .map((line) => line.trim())
@@ -305,39 +319,47 @@ function collectWorktreeEntries(): Array<{ path: string; branch?: string }> {
 
 function loadOpenPrsByHead(): Map<string, string> {
   const result = run(
-    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json headRefName,url --jq '.[] | [.headRefName, .url] | @tsv'`,
+    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json headRefName,url`,
     repoRoot,
-    { allowFailure: true },
   );
-  if (result.status !== 0) {
-    console.warn(`  ⚠ failed to list open PRs; recovery will treat local branches as unpublished: ${result.stderr || result.stdout}`);
-    return new Map();
-  }
-  return new Map(
-    result.stdout
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const [head, url] = line.split("\t");
-        return [head!, url!] as const;
-      }),
+  return parseOpenPrsByHead(result.stdout);
+}
+
+function loadExistingOpenPrUrl(branch: string): string | undefined {
+  const result = run(
+    `gh pr list --state open --head ${shellQuote(branch)} --json headRefName,url`,
+    repoRoot,
   );
+  return parseFirstOpenPrUrl(result.stdout);
 }
 
 function readIssueForRecovery(
   issueId: string,
-  cache: Map<string, { title?: string; status?: string } | undefined>,
-): { title?: string; status?: string } | undefined {
+  cache: Map<string, { title?: string; status?: string; lookup: RecoveryIssueLookup } | undefined>,
+): { title?: string; status?: string; lookup: RecoveryIssueLookup } | undefined {
   if (cache.has(issueId)) return cache.get(issueId);
   const show = run(pebCommand(`show ${shellQuote(issueId)} --json`), repoRoot, { allowFailure: true });
   if (show.status !== 0) {
-    cache.set(issueId, undefined);
-    return undefined;
+    const lookup = classifyPebShowFailure(show.stderr || show.stdout);
+    const result = { lookup };
+    cache.set(issueId, result);
+    return result;
   }
-  const issue = JSON.parse(show.stdout).data as { title?: string; status?: string };
-  cache.set(issueId, issue);
-  return issue;
+  try {
+    const issue = JSON.parse(show.stdout).data as { title?: string; status?: string };
+    const result = { ...issue, lookup: { state: "found" } as const };
+    cache.set(issueId, result);
+    return result;
+  } catch (error) {
+    const result = {
+      lookup: {
+        state: "failed",
+        message: `failed to parse peb show JSON for ${issueId}: ${formatError(error)}`,
+      } as const,
+    };
+    cache.set(issueId, result);
+    return result;
+  }
 }
 
 function logRecoveryPlan(plan: RecoveryPlan): void {
@@ -371,14 +393,16 @@ async function planIssues(iteration: number, suppressedIssueIds: Set<string>): P
   const candidates = loadCandidateIssues(suppressedIssueIds);
   const issuesJson = JSON.stringify(candidates);
 
-  const openPrsJson = run(
-    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json number,headRefName,url --jq '[.[] | {number, headRefName, url}]'`,
-    repoRoot,
-  ).stdout;
+  const openPrsJson = normalizeOpenPrsJson(
+    run(
+      `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json number,headRefName,url`,
+      repoRoot,
+    ).stdout,
+  );
 
   const prompt = renderPrompt("plan-prompt.md", {
     ISSUES_JSON: issuesJson,
-    OPEN_PRS_JSON: openPrsJson.trim() || "[]",
+    OPEN_PRS_JSON: openPrsJson,
     ISSUE_LABEL: ISSUE_LABEL || "<none>",
     ISSUE_STATUS,
     POLICY_READY_LABEL: queuePolicy.policyReadyLabel ?? "<none>",
@@ -654,11 +678,7 @@ async function repairFromReview(
 async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
   console.log(`\n==> Publishing approved branch ${issue.id} (${issue.branch})`);
 
-  const existingPr = run(
-    `gh pr list --state open --head ${shellQuote(issue.branch)} --json url --jq '.[0].url // ""'`,
-    repoRoot,
-    { allowFailure: true },
-  ).stdout.trim();
+  const existingPr = loadExistingOpenPrUrl(issue.branch);
   if (existingPr) {
     console.log(`  already has PR: ${existingPr}`);
     const closes = run(pebCommand(`closes add ${shellQuote(issue.id)} --pr ${shellQuote(existingPr)}`), repoRoot, {
@@ -749,11 +769,7 @@ async function publishCompletedIssues(
     try {
       console.log(`\n==> Publishing ${issue.id} (${issue.branch})`);
 
-      const existingPr = run(
-        `gh pr list --state open --head ${shellQuote(issue.branch)} --json url --jq '.[0].url // ""'`,
-        repoRoot,
-        { allowFailure: true },
-      ).stdout.trim();
+      const existingPr = loadExistingOpenPrUrl(issue.branch);
       if (existingPr) {
         console.log(`  already has PR: ${existingPr}`);
         markIssueInReview(issue.id);

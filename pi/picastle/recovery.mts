@@ -1,8 +1,14 @@
+export type RecoveryIssueLookup =
+  | { state: "found" }
+  | { state: "not_found"; message?: string }
+  | { state: "failed"; message: string };
+
 export type RecoveryBranchInput = {
   branch: string;
   issueId?: string;
   title?: string;
   issueStatus?: string;
+  issueLookup?: RecoveryIssueLookup;
   ahead: number;
   dirty: boolean;
   worktreePath?: string;
@@ -87,7 +93,7 @@ export function buildRecoveryPlan(
     if (branch.issueStatus !== readyStatus) {
       const reason = branch.issueStatus
         ? `pebble status is ${branch.issueStatus}, not ${readyStatus}`
-        : "pebble was not found";
+        : recoveryIssueLookupReason(branch.issueLookup);
       const decision = { ...branch, issueId, reason };
       if (hasRecoverableWork) {
         plan.deferredBranches.push(decision);
@@ -140,6 +146,65 @@ export function buildRecoveryPlan(
   plan.ignoredBranches.sort(compareRecoveryDecisions);
 
   return plan;
+}
+
+export function parseOpenPrsByHead(stdout: string): Map<string, string> {
+  return new Map(parseOpenPrRecords(stdout).map((pr) => [pr.headRefName, pr.url]));
+}
+
+export function normalizeOpenPrsJson(stdout: string): string {
+  return JSON.stringify(parseOpenPrRecords(stdout));
+}
+
+export function parseFirstOpenPrUrl(stdout: string): string | undefined {
+  return parseOpenPrRecords(stdout)[0]?.url;
+}
+
+export function classifyPebShowFailure(output: string): RecoveryIssueLookup {
+  const message = output.trim() || "peb show failed without output";
+  if (/\b(not found|no such|unknown (issue|pebble)|does not exist)\b/i.test(message)) {
+    return { state: "not_found", message };
+  }
+  return { state: "failed", message };
+}
+
+function parseOpenPrRecords(stdout: string): Array<{ number?: number; headRefName: string; url: string }> {
+  const trimmed = stdout.trim();
+  if (!trimmed) {
+    throw new Error("failed to parse gh pr list JSON: empty output");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    throw new Error(`failed to parse gh pr list JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error("failed to parse gh pr list JSON: expected an array");
+  }
+  return parsed.map((item, index) => {
+    if (!item || typeof item !== "object") {
+      throw new Error(`failed to parse gh pr list JSON: entry ${index} is not an object`);
+    }
+    const record = item as Record<string, unknown>;
+    if (typeof record.headRefName !== "string" || record.headRefName.length === 0) {
+      throw new Error(`failed to parse gh pr list JSON: entry ${index} has invalid headRefName`);
+    }
+    if (typeof record.url !== "string" || record.url.length === 0) {
+      throw new Error(`failed to parse gh pr list JSON: entry ${index} has invalid url`);
+    }
+    const number = record.number === undefined ? undefined : Number(record.number);
+    return {
+      ...(Number.isFinite(number) ? { number } : {}),
+      headRefName: record.headRefName,
+      url: record.url,
+    };
+  });
+}
+
+function recoveryIssueLookupReason(lookup: RecoveryIssueLookup | undefined): string {
+  if (lookup?.state === "failed") return `pebble lookup failed: ${lookup.message}`;
+  return "pebble was not found";
 }
 
 function compareRecoveryCandidates(a: RecoveryBranchDecision, b: RecoveryBranchDecision): number {

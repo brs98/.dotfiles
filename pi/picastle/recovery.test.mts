@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildRecoveryPlan, extractIssueIdFromBranch, type RecoveryBranchInput } from "./recovery.mjs";
+import {
+  buildRecoveryPlan,
+  classifyPebShowFailure,
+  extractIssueIdFromBranch,
+  normalizeOpenPrsJson,
+  parseFirstOpenPrUrl,
+  parseOpenPrsByHead,
+  type RecoveryBranchInput,
+} from "./recovery.mjs";
 
 test("extracts pebble ids before realistic branch slugs during recovery", () => {
   assert.equal(extractIssueIdFromBranch("picastle/ricekit-394-fix-old"), "ricekit-394");
@@ -142,6 +150,61 @@ test("routes dirty ready worktrees back through implementation before publish", 
     },
   ]);
   assert.deepEqual(plan.unpublishedBranches, []);
+});
+
+test("keeps lookup failures distinct from confirmed missing pebbles", () => {
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/dotfiles-yi5-resumable-idempotent-runs",
+        issueId: "dotfiles-yi5",
+        ahead: 1,
+        dirty: false,
+        issueLookup: { state: "failed", message: "database is locked" },
+      },
+      {
+        branch: "picastle/dotfiles-zzz-missing",
+        issueId: "dotfiles-zzz",
+        ahead: 1,
+        dirty: false,
+        issueLookup: { state: "not_found", message: "not found" },
+      },
+    ],
+    "ready_for_agent",
+  );
+
+  assert.deepEqual(
+    plan.deferredBranches.map((branch) => [branch.issueId, branch.reason]),
+    [
+      ["dotfiles-yi5", "pebble lookup failed: database is locked"],
+      ["dotfiles-zzz", "pebble was not found"],
+    ],
+  );
+});
+
+test("fails closed on malformed open PR discovery JSON", () => {
+  assert.throws(() => parseOpenPrsByHead(""), /empty output/);
+  assert.throws(() => parseOpenPrsByHead("not json"), /failed to parse gh pr list JSON/);
+  assert.throws(() => normalizeOpenPrsJson('{"headRefName":"branch"}'), /expected an array/);
+  assert.throws(() => parseOpenPrsByHead('[{"headRefName":"picastle/x"}]'), /invalid url/);
+});
+
+test("parses open PR discovery output for recovery and publish probes", () => {
+  const stdout = JSON.stringify([
+    { number: 12, headRefName: "picastle/dotfiles-yi5-resumable-idempotent-runs", url: "https://github.com/acme/repo/pull/12" },
+  ]);
+
+  assert.equal(
+    parseOpenPrsByHead(stdout).get("picastle/dotfiles-yi5-resumable-idempotent-runs"),
+    "https://github.com/acme/repo/pull/12",
+  );
+  assert.equal(parseFirstOpenPrUrl(stdout), "https://github.com/acme/repo/pull/12");
+  assert.equal(normalizeOpenPrsJson(stdout), stdout);
+});
+
+test("classifies peb show failures without collapsing them all to not-found", () => {
+  assert.equal(classifyPebShowFailure("issue dotfiles-yi5 not found").state, "not_found");
+  assert.deepEqual(classifyPebShowFailure("database is locked"), { state: "failed", message: "database is locked" });
 });
 
 test("recognizes already-published and zero-ahead branches explicitly", () => {
