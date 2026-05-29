@@ -30,7 +30,7 @@ Issue IDs must be preserved exactly.
 
 ## 1. Filter out issues that already have an open PR
 
-For each candidate issue X, check whether any supplied PR `headRefName` is a Picastle/Sandcastle branch for that exact issue: `picastle/X-<slug>` or `sandcastle/X-<slug>`. Prefer the longest exact issue-id prefix before the slug across the candidate IDs and issue IDs implied by the supplied open PR heads. For example, when `web-api-abc` is known, `picastle/web-api-abc-fix` belongs to `web-api-abc`, not to a shorter `web-api` prefix. Do not filter a candidate merely because a PR head has a longer, non-candidate issue-id-shaped prefix that starts with the candidate ID. If an exact PR exists for the candidate, the issue is already in flight and must not be planned. Do not infer that unrelated PRs are absent; the PR input is intentionally bounded to Picastle/Sandcastle heads.
+For each candidate issue X, check whether any supplied PR `headRefName` is a Picastle/Sandcastle branch for that exact issue: `picastle/X-<slug>` or `sandcastle/X-<slug>`. Match only against authoritative issue IDs present in the candidate list or otherwise explicitly supplied by Picastle, and prefer the longest known issue-id prefix before the slug. For example, `picastle/web-api-abc-fix` belongs to `web-api-abc` only when `web-api-abc` is a known issue; otherwise it may belong to known candidate `web-api`. Do not invent longer issue IDs from slug words such as `fix`, `add`, or `cli`. If an exact PR exists for the candidate, the issue is already in flight and must not be planned. Do not infer that unrelated PRs are absent; the PR input is intentionally bounded to same-repository Picastle/Sandcastle heads.
 
 ## 2. Build a dependency graph
 
