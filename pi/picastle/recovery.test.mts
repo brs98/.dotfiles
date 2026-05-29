@@ -600,7 +600,7 @@ test("finds existing open PRs by pebble id instead of exact branch only", () => 
   assert.equal(findOpenPrForIssue(stdout, "my-repo"), undefined);
 });
 
-test("open PR issue matching fails closed on shorter known ids and prefers longest known ids", () => {
+test("open PR issue matching does not fabricate longer unknown ids and prefers longest known ids", () => {
   const stdout = JSON.stringify([
     { number: 20, headRefName: "picastle/web-api-abc-fix", url: "https://github.com/acme/repo/pull/20" },
   ]);
@@ -608,14 +608,29 @@ test("open PR issue matching fails closed on shorter known ids and prefers longe
 
   assert.equal(extractIssueIdFromBranch("picastle/web-api-abc-fix"), "web-api");
   assert.equal(extractIssueIdFromBranch("picastle/web-api-abc-fix", knownIssueIds), "web-api-abc");
-  assert.equal(extractIssueIdFromOpenPrHead("picastle/web-api-abc-fix", ["web-api"]), "web-api-abc");
-  assert.equal(findOpenPrForIssue(stdout, "web-api", { knownIssueIds: ["web-api"] }), undefined);
+  assert.equal(extractIssueIdFromOpenPrHead("picastle/web-api-abc-fix", ["web-api"]), "web-api");
+  assert.equal(findOpenPrForIssue(stdout, "web-api", { knownIssueIds: ["web-api"] })?.headRefName, "picastle/web-api-abc-fix");
   assert.equal(findOpenPrForIssue(stdout, "web-api", { knownIssueIds }), undefined);
   assert.deepEqual(findOpenPrForIssue(stdout, "web-api-abc", { knownIssueIds }), {
     number: 20,
     headRefName: "picastle/web-api-abc-fix",
     url: "https://github.com/acme/repo/pull/20",
   });
+});
+
+test("open PR issue matching keeps known shorter ids for three-token action slugs", () => {
+  const cases = [
+    { issueId: "dotfiles-yi5", headRefName: "picastle/dotfiles-yi5-fix-old" },
+    { issueId: "dotfiles-yi5", headRefName: "picastle/dotfiles-yi5-add-tests" },
+    { issueId: "ricekit-394", headRefName: "picastle/ricekit-394-cli-fix" },
+  ];
+
+  for (const { issueId, headRefName } of cases) {
+    const stdout = JSON.stringify([{ number: 21, headRefName, url: "https://github.com/acme/repo/pull/21" }]);
+
+    assert.equal(extractIssueIdFromOpenPrHead(headRefName, [issueId]), issueId);
+    assert.equal(findOpenPrForIssue(stdout, issueId, { knownIssueIds: [issueId] })?.headRefName, headRefName);
+  }
 });
 
 test("recognizes Picastle and legacy Sandcastle PR heads for recovery scans", () => {
@@ -1142,7 +1157,7 @@ exit 1
   assert.match(pebTrace, /update dotfiles-bbb --status in_review/);
 });
 
-test("default publisher-agent publish path reuses existing issue PR without duplicate PR creation", () => {
+test("default publisher-agent publish path reuses existing three-token issue PR without duplicate PR creation", () => {
   const packageDir = dirname(fileURLToPath(import.meta.url));
   const tempRoot = mkdtempSync(join(tmpdir(), "picastle-agent-publish-existing-pr-"));
   const repo = join(tempRoot, "repo");
@@ -1156,10 +1171,10 @@ test("default publisher-agent publish path reuses existing issue PR without dupl
     cwd: repo,
     encoding: "utf8",
   });
-  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-aaa-new-work"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-yi5-add-tests"], { cwd: repo, encoding: "utf8" });
   writeFileSync(join(repo, "change.txt"), "publish me\n");
   execFileSync("git", ["add", "change.txt"], { cwd: repo, encoding: "utf8" });
-  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "change\n\nCloses: dotfiles-aaa"], {
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "change\n\nCloses: dotfiles-yi5"], {
     cwd: repo,
     encoding: "utf8",
   });
@@ -1191,7 +1206,7 @@ if [[ "$1 $2" == "pr list" ]]; then
   else
     cat <<'JSON'
 [
-  {"number":30,"headRefName":"sandcastle/dotfiles-aaa-existing-pr","url":"https://github.com/acme/repo/pull/30","isCrossRepository":false,"headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"repo"}}
+  {"number":30,"headRefName":"picastle/dotfiles-yi5-fix-old","url":"https://github.com/acme/repo/pull/30","isCrossRepository":false,"headRepositoryOwner":{"login":"acme"},"headRepository":{"name":"repo"}}
 ]
 JSON
   fi
@@ -1213,10 +1228,10 @@ exit 1
     `#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$PEB_LOG"
 if [[ "$1" == "list" ]]; then
-  printf '%s\n' '{"data":[{"id":"dotfiles-aaa"}]}'
+  printf '%s\n' '{"data":[{"id":"dotfiles-yi5"}]}'
   exit 0
 fi
-if [[ "$1 $2" == "show dotfiles-aaa" ]]; then
+if [[ "$1 $2" == "show dotfiles-yi5" ]]; then
   printf '%s\n' '{"data":{"title":"Reuse existing PR","status":"ready_for_agent"}}'
   exit 0
 fi
@@ -1250,11 +1265,11 @@ exit 1
   });
 
   assert.match(output, /Review\/repair loop handling 1 completed branch\(es\)/);
-  assert.match(output, /issue already has open PR on sandcastle\/dotfiles-aaa-existing-pr: https:\/\/github\.com\/acme\/repo\/pull\/30/);
+  assert.match(output, /issue already has open PR on picastle\/dotfiles-yi5-fix-old: https:\/\/github\.com\/acme\/repo\/pull\/30/);
   assert.doesNotMatch(readFileSync(ghLog, "utf8"), /\bpr create\b/);
   const pebTrace = readFileSync(pebLog, "utf8");
-  assert.match(pebTrace, /closes add dotfiles-aaa --pr https:\/\/github\.com\/acme\/repo\/pull\/30/);
-  assert.match(pebTrace, /update dotfiles-aaa --status in_review/);
+  assert.match(pebTrace, /closes add dotfiles-yi5 --pr https:\/\/github\.com\/acme\/repo\/pull\/30/);
+  assert.match(pebTrace, /update dotfiles-yi5 --status in_review/);
 });
 
 test("runtime recovery and publisher prefer longest known issue id before branch slug", () => {
