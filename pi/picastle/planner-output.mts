@@ -70,16 +70,18 @@ export function parsePlannerPlan(
   });
   const issues = options.maxIssues && options.maxIssues > 0 ? planned.slice(0, options.maxIssues) : planned;
   const plannedIds = new Set(issues.map((issue) => issue.id));
+  const allPlannedIds = new Set(planned.map((issue) => issue.id));
 
   let hasSyntheticExplanations = planned.length !== issues.length;
   const skippedById = new Map<string, PlannerSkippedIssue>();
   for (const raw of extractSkippedItems(parsed)) {
     const skipped = parseSkippedItem(raw, candidateById);
-    if (!skipped) continue;
     if (!candidateById.has(skipped.id)) {
       throw new Error(`Planner returned skipped issue id not present in candidates: ${skipped.id}`);
     }
-    if (plannedIds.has(skipped.id)) continue;
+    if (allPlannedIds.has(skipped.id)) {
+      throw new Error(`Planner returned issue id in both issues and skipped: ${skipped.id}`);
+    }
     skippedById.set(skipped.id, skipped);
   }
 
@@ -144,17 +146,36 @@ export function formatPlannerBlockedSummary(decision: PlannerDecision): string[]
   return lines;
 }
 
-export function normalizeBranch(branch: string, id: string, title: string): string {
-  if (branch.startsWith("picastle/")) return branch;
-  if (branch.startsWith("sandcastle/")) return branch.replace(/^sandcastle\//, "picastle/");
-  return `picastle/${id}-${slugify(title)}`;
+export function normalizeBranch(branch: string, id: string, _title: string): string {
+  let normalized: string;
+  if (branch.startsWith("picastle/")) {
+    normalized = branch;
+  } else if (branch.startsWith("sandcastle/")) {
+    normalized = branch.replace(/^sandcastle\//, "picastle/");
+  } else {
+    throw new Error(
+      `Planner branch for ${id} must use picastle/${id}-... (sandcastle/ is also accepted for migration), got ${JSON.stringify(branch)}`,
+    );
+  }
+
+  const pattern = new RegExp(`^picastle/${escapeRegExp(id)}-.+`);
+  if (!pattern.test(normalized)) {
+    throw new Error(
+      `Planner branch for ${id} must normalize to picastle/${id}-..., got ${JSON.stringify(normalized)}`,
+    );
+  }
+  return normalized;
 }
 
 function extractSkippedItems(parsed: Record<string, unknown>): unknown[] {
   const result: unknown[] = [];
   for (const key of ["skipped", "blocked", "filtered", "declined"] as const) {
+    if (!(key in parsed)) continue;
     const items = parsed[key];
-    if (Array.isArray(items)) result.push(...items);
+    if (!Array.isArray(items)) {
+      throw new Error(`Planner <plan> ${key} field must be an array when present`);
+    }
+    result.push(...items);
   }
   return result;
 }
@@ -162,11 +183,15 @@ function extractSkippedItems(parsed: Record<string, unknown>): unknown[] {
 function parseSkippedItem(
   raw: unknown,
   candidateById: Map<string, { id: string; title: string }>,
-): PlannerSkippedIssue | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
+): PlannerSkippedIssue {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(`Invalid skipped issue: ${JSON.stringify(raw)}`);
+  }
   const item = raw as Record<string, unknown>;
   const id = stringField(item.id) || stringField(item.issue_id) || stringField(item.issueId);
-  if (!id) return undefined;
+  if (!id) {
+    throw new Error(`Invalid skipped issue: ${JSON.stringify(item)}`);
+  }
   const candidate = candidateById.get(id);
   const title = stringField(item.title) || candidate?.title || id;
   return {
@@ -180,7 +205,7 @@ function parseSkippedItem(
       stringField(item.summary) ||
       stringField(item.details) ||
       "Planner skipped this candidate without a detailed reason.",
-    blockers: stringArrayField(item.blockers) ?? stringArrayField(item.blocked_by) ?? stringArrayField(item.blockedBy) ?? [],
+    blockers: skippedBlockers(item),
   };
 }
 
@@ -221,6 +246,18 @@ function findOpenPrForIssue(id: string, openPrs: OpenPr[]): OpenPr | undefined {
   return openPrs.find((pr) => branchPattern.test(stringField(pr.headRefName)));
 }
 
+function skippedBlockers(item: Record<string, unknown>): string[] {
+  for (const key of ["blockers", "blocked_by", "blockedBy"] as const) {
+    if (!(key in item)) continue;
+    const blockers = stringArrayField(item[key]);
+    if (!blockers) {
+      throw new Error(`Invalid skipped issue blockers for ${stringField(item.id) || "unknown issue"}: must be an array`);
+    }
+    return blockers;
+  }
+  return [];
+}
+
 function normalizeCategory(value: string): PlannerSkipCategory {
   const normalized = value.toLowerCase().replace(/[\s-]+/g, "_");
   if (["existing_pr", "open_pr", "pr", "in_flight", "already_in_flight"].includes(normalized)) return "existing_pr";
@@ -248,15 +285,6 @@ function stringArrayField(value: unknown): string[] | undefined {
 
 function truncateLine(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
-}
-
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/^[a-z]+\([^)]+\):\s*/, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "issue";
 }
 
 function escapeRegExp(value: string): string {

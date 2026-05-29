@@ -110,21 +110,82 @@ const candidatesWithThird = [
       ),
     /Invalid planned issue/,
   );
+
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        '<plan>{"issues":[{"id":"repo-abc","title":"fix(auth): stale token","branch":"picastle/repo-def-token"}]}</plan>',
+        { candidates, openPrs: [] },
+      ),
+    /must normalize to picastle\/repo-abc-/,
+  );
+
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        '<plan>{"issues":[{"id":"repo-abc","title":"fix(auth): stale token","branch":"feature/repo-abc-token"}]}</plan>',
+        { candidates, openPrs: [] },
+      ),
+    /must use picastle\/repo-abc-/,
+  );
 }
 
 {
-  const decision = parsePlannerPlan(
-    `<plan>{
-      "issues": [],
-      "skipped": [null, {"title":"missing id","category":"dependency","reason":"no candidate id"}]
-    }</plan>`,
-    { candidates: candidates.slice(0, 1), openPrs: [] },
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        `<plan>{
+          "issues": [],
+          "skipped": [null]
+        }</plan>`,
+        { candidates: candidates.slice(0, 1), openPrs: [] },
+      ),
+    /Invalid skipped issue: null/,
   );
 
-  assert.equal(decision.skipped.length, 1);
-  assert.equal(decision.skipped[0]?.id, "repo-abc");
-  assert.equal(decision.skipped[0]?.category, "missing_context");
-  assert.equal(decision.hasSyntheticExplanations, true);
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        `<plan>{
+          "issues": [],
+          "skipped": [{"title":"missing id","category":"dependency","reason":"no candidate id"}]
+        }</plan>`,
+        { candidates: candidates.slice(0, 1), openPrs: [] },
+      ),
+    /Invalid skipped issue/,
+  );
+
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        '<plan>{"issues":[],"skipped":{"id":"repo-abc","reason":"not an array"}}</plan>',
+        { candidates, openPrs: [] },
+      ),
+    /skipped field must be an array/,
+  );
+
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        '<plan>{"issues":[],"skipped":[{"id":"repo-abc","reason":"bad blockers","blockers":"repo-def"}]}</plan>',
+        { candidates, openPrs: [] },
+      ),
+    /blockers for repo-abc: must be an array/,
+  );
+}
+
+{
+  assert.throws(
+    () =>
+      parsePlannerPlan(
+        `<plan>{
+          "issues": [{"id":"repo-abc","title":"fix(auth): stale token","branch":"picastle/repo-abc-token"}],
+          "skipped": [{"id":"repo-abc","title":"fix(auth): stale token","category":"dependency","reason":"also skipped"}]
+        }</plan>`,
+        { candidates, openPrs: [] },
+      ),
+    /in both issues and skipped: repo-abc/,
+  );
 }
 
 {
