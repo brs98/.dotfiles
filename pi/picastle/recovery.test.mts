@@ -2788,6 +2788,112 @@ exit 1
   assert.match(readFileSync(pebLog, "utf8"), /comment add dotfiles-bbb Picastle published stacked PR 2\/2/);
 });
 
+test("stack reconciliation refreshes stale local base before rebasing downstream", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-stack-stale-base-"));
+  const repo = join(tempRoot, "repo");
+  const origin = join(tempRoot, "origin.git");
+  const merger = join(tempRoot, "merger");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--bare", origin], { encoding: "utf8" });
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  execFileSync("git", ["config", "user.name", "Picastle Test"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["remote", "add", "origin", origin], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["commit", "-m", "initial"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["push", "-u", "origin", "main"], { cwd: repo, encoding: "utf8" });
+
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-aaa-upstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "a.txt"), "upstream\n");
+  execFileSync("git", ["add", "a.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["commit", "-m", "dotfiles-aaa"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "b.txt"), "downstream\n");
+  execFileSync("git", ["add", "b.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["commit", "-m", "dotfiles-bbb"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["push", "-u", "origin", "picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "main"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["branch", "-D", "picastle/dotfiles-aaa-upstream"], { cwd: repo, encoding: "utf8" });
+
+  execFileSync("git", ["clone", "--branch", "main", origin, merger], { encoding: "utf8" });
+  execFileSync("git", ["config", "user.name", "Picastle Test"], { cwd: merger, encoding: "utf8" });
+  execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: merger, encoding: "utf8" });
+  writeFileSync(join(merger, "a.txt"), "upstream\n");
+  execFileSync("git", ["add", "a.txt"], { cwd: merger, encoding: "utf8" });
+  execFileSync("git", ["commit", "-m", "squash upstream"], { cwd: merger, encoding: "utf8" });
+  execFileSync("git", ["push", "origin", "main"], { cwd: merger, encoding: "utf8" });
+
+  const stackBody = `<!-- picastle-stack\n${JSON.stringify({
+    stackId: "dotfiles-aaa-dotfiles-bbb",
+    index: 2,
+    total: 2,
+    issueId: "dotfiles-bbb",
+    headBranch: "picastle/dotfiles-bbb-downstream",
+    baseBranch: "main",
+    previousBranch: "picastle/dotfiles-aaa-upstream",
+  })}\n-->`;
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+  const gh = join(fakeBin, "gh");
+  writeFileSync(gh, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'; exit 0; fi
+if [[ "$1 $2" == "pr list" ]]; then cat <<'JSON'
+[{"number":22,"headRefName":"picastle/dotfiles-bbb-downstream","baseRefName":"picastle/dotfiles-aaa-upstream","url":"https://github.com/acme/repo/pull/22","body":${JSON.stringify(stackBody)},"isCrossRepository":false,"headRepository":{"name":"repo"},"headRepositoryOwner":{"login":"acme"}}]
+JSON
+exit 0; fi
+if [[ "$1 $2" == "pr edit" ]]; then exit 0; fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`);
+  chmodSync(gh, 0o755);
+  const peb = join(fakeBin, "peb");
+  writeFileSync(peb, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then printf '%s\n' '{"data":[{"id":"dotfiles-bbb"}]}'; exit 0; fi
+if [[ "$1" == "show" ]]; then printf '%s\n' '{"data":{"title":"Downstream","status":"ready_for_agent"}}'; exit 0; fi
+if [[ "$1 $2" == "closes add" || "$1" == "update" || "$1 $2" == "comment add" ]]; then printf '%s\n' 'ok'; exit 0; fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`);
+  chmodSync(peb, 0o755);
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_MAX_ISSUES: "0",
+      PICASTLE_STACK_PRS: "1",
+    },
+  });
+
+  assert.match(output, /rebasing stack branch picastle\/dotfiles-bbb-downstream onto main/);
+  assert.doesNotThrow(() => execFileSync("git", ["merge-base", "--is-ancestor", "origin/main", "picastle/dotfiles-bbb-downstream"], { cwd: repo }));
+  assert.notEqual(
+    execFileSync("git", ["rev-parse", "main"], { cwd: repo, encoding: "utf8" }),
+    execFileSync("git", ["rev-parse", "origin/main"], { cwd: repo, encoding: "utf8" }),
+  );
+  assert.deepEqual(
+    execFileSync("git", ["diff", "--name-only", "origin/main...picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" }).trim().split("\n").filter(Boolean),
+    ["b.txt"],
+  );
+  assert.match(readFileSync(ghLog, "utf8"), /pr edit https:\/\/github\.com\/acme\/repo\/pull\/22 --base main/);
+});
+
 test("stack reconciliation rebases downstream with old upstream boundary after multi-commit squash merge", () => {
   const packageDir = dirname(fileURLToPath(import.meta.url));
   const tempRoot = mkdtempSync(join(tmpdir(), "picastle-stack-squash-boundary-"));

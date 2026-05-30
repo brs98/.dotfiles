@@ -1888,8 +1888,8 @@ function rebaseBranchWorktree(
   options: { oldUpstream?: string } = {},
 ): boolean {
   assertSafeRecoveryBranchName(branch);
-  ensureLocalRebaseBase(base);
-  const ancestor = run(`git merge-base --is-ancestor ${shellQuote(base)} ${shellQuote(branch)}`, repoRoot, {
+  const rebaseBase = resolveFreshRebaseBase(base);
+  const ancestor = run(`git merge-base --is-ancestor ${shellQuote(rebaseBase)} ${shellQuote(branch)}`, repoRoot, {
     allowFailure: true,
   });
   if (ancestor.status === 0) return false;
@@ -1900,8 +1900,8 @@ function rebaseBranchWorktree(
   const oldUpstream = resolveSafeRebaseBoundary(options.oldUpstream, branch);
   console.log(`  rebasing stack branch ${branch} onto ${base}`);
   const command = oldUpstream
-    ? `git rebase --onto ${shellQuote(base)} ${shellQuote(oldUpstream)} ${shellQuote(branch)}`
-    : `git rebase ${shellQuote(base)}`;
+    ? `git rebase --onto ${shellQuote(rebaseBase)} ${shellQuote(oldUpstream)} ${shellQuote(branch)}`
+    : `git rebase ${shellQuote(rebaseBase)}`;
   const rebase = run(command, worktreePath, { allowFailure: true });
   if (rebase.status !== 0) {
     run("git rebase --abort", worktreePath, { allowFailure: true });
@@ -1923,15 +1923,38 @@ function resolveSafeRebaseBoundary(oldUpstream: string | undefined, branch: stri
   return ancestor.status === 0 ? oldUpstream : undefined;
 }
 
-function ensureLocalRebaseBase(base: string): void {
+function resolveFreshRebaseBase(base: string): string {
+  if (base === BASE_BRANCH) {
+    const remoteBase = refreshRepositoryBaseFromOrigin(base);
+    if (remoteBase) return remoteBase;
+  }
   const exists = run(`git rev-parse --verify --quiet ${shellQuote(base)}`, repoRoot, { allowFailure: true }).status === 0;
-  if (exists) return;
+  if (exists) return base;
   if (!isRecognizedRecoveryPrHead(base)) throw new Error(`cannot rebase stack branch: missing local base ${base}`);
   const remoteRef = `origin/${base}`;
   if (!isSafeRecoveryTrackingRef(remoteRef)) throw new Error(`unsafe Picastle recovery tracking ref for ${base}: ${remoteRef}`);
   const remoteExists = run(`git rev-parse --verify --quiet ${shellQuote(remoteRef)}`, repoRoot, { allowFailure: true }).status === 0;
   if (!remoteExists) throw new Error(`cannot rebase stack branch: missing local base ${base} and ${remoteRef}`);
   run(`git branch --track ${shellQuote(base)} ${shellQuote(remoteRef)}`, repoRoot);
+  return base;
+}
+
+function refreshRepositoryBaseFromOrigin(base: string): string | undefined {
+  const hasOrigin = run("git remote get-url origin", repoRoot, { allowFailure: true }).status === 0;
+  if (!hasOrigin) return undefined;
+  const validBranch = run(`git check-ref-format --branch ${shellQuote(base)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (!validBranch) throw new Error(`cannot refresh invalid repository base branch ${base}`);
+  const remoteRef = `refs/remotes/origin/${base}`;
+  const fetch = run(`git fetch --quiet origin ${shellQuote(`${base}:${remoteRef}`)}`, repoRoot, { allowFailure: true });
+  if (fetch.status !== 0) throw new Error(`failed to refresh repository base ${base} from origin: ${fetch.stderr || fetch.stdout}`);
+  const remoteExists = run(`git rev-parse --verify --quiet ${shellQuote(`${remoteRef}^{commit}`)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (!remoteExists) return undefined;
+  const localExists = run(`git rev-parse --verify --quiet ${shellQuote(`${base}^{commit}`)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (!localExists) return remoteRef;
+  const localIsStale = run(`git merge-base --is-ancestor ${shellQuote(base)} ${shellQuote(remoteRef)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (localIsStale) return remoteRef;
+  const remoteIsStale = run(`git merge-base --is-ancestor ${shellQuote(remoteRef)} ${shellQuote(base)}`, repoRoot, { allowFailure: true }).status === 0;
+  return remoteIsStale ? base : remoteRef;
 }
 
 function verifyStackMergeability(stack: CompletedIssue[]): void {
@@ -1939,13 +1962,14 @@ function verifyStackMergeability(stack: CompletedIssue[]): void {
   console.log(`  verifying stacked PR mergeability for ${stack.length} branch(es)`);
   for (const issue of stack) {
     const base = effectiveBaseBranch(issue);
-    const ancestor = run(`git merge-base --is-ancestor ${shellQuote(base)} ${shellQuote(issue.branch)}`, repoRoot, {
+    const mergeBase = resolveFreshRebaseBase(base);
+    const ancestor = run(`git merge-base --is-ancestor ${shellQuote(mergeBase)} ${shellQuote(issue.branch)}`, repoRoot, {
       allowFailure: true,
     });
     if (ancestor.status !== 0) {
       throw new Error(`stack branch ${issue.branch} is not based on ${base}; rebase or recreate the stack before publishing`);
     }
-    const mergeTree = run(`git merge-tree --write-tree ${shellQuote(base)} ${shellQuote(issue.branch)}`, repoRoot, {
+    const mergeTree = run(`git merge-tree --write-tree ${shellQuote(mergeBase)} ${shellQuote(issue.branch)}`, repoRoot, {
       allowFailure: true,
     });
     if (mergeTree.status !== 0) {
