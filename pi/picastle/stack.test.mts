@@ -79,6 +79,47 @@ test("retargets open stack PRs to the nearest previous open stack entry", () => 
   );
 });
 
+test("refreshes next stack metadata to the next still-open PR", () => {
+  const [first, second, third] = stackIssues(
+    [
+      { id: "repo-aaa", title: "A", branch: "picastle/repo-aaa-a" },
+      { id: "repo-bbb", title: "B", branch: "picastle/repo-bbb-b" },
+      { id: "repo-ccc", title: "C", branch: "picastle/repo-ccc-c" },
+    ],
+    "main",
+  );
+
+  const actions = planStackRetargets(
+    [
+      {
+        number: 1,
+        headRefName: first!.branch,
+        baseRefName: "main",
+        url: "https://github.com/acme/repo/pull/1",
+        body: stackPrBodySection(first!.stack),
+      },
+      {
+        number: 3,
+        headRefName: third!.branch,
+        baseRefName: second!.branch,
+        url: "https://github.com/acme/repo/pull/3",
+        body: stackPrBodySection(third!.stack),
+      },
+    ],
+    "main",
+  );
+
+  assert.deepEqual(
+    actions.map((action) => [action.headRefName, action.expectedBase, action.stack.previousBranch, action.stack.nextBranch]),
+    [
+      [first!.branch, "main", undefined, third!.branch],
+      [third!.branch, first!.branch, first!.branch, undefined],
+    ],
+  );
+  assert.equal(actions[0]!.updateBase, false);
+  assert.equal(actions[0]!.updateBody, true);
+});
+
 test("ignores malformed or non-stack PR bodies when planning retargets", () => {
   assert.equal(parseStackMetadataFromBody("<!-- picastle-stack\nnot json\n-->"), undefined);
   assert.deepEqual(

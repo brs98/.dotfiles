@@ -142,7 +142,7 @@ export function planStackRetargets(openPrs: StackPrRecord[], baseBranch: string)
         baseBranch,
         headBranch: entry.pr.headRefName,
         previousBranch: group[index - 1]?.pr.headRefName,
-        nextBranch: entry.stack.nextBranch,
+        nextBranch: group[index + 1]?.pr.headRefName,
       });
       const expectedBase = stackBaseBranch(refreshedStack);
       const effectiveBaseChanged = stackBaseBranch(entry.stack) !== expectedBase;

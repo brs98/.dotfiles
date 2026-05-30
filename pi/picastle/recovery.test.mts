@@ -1847,6 +1847,9 @@ if [[ "$1 $2" == "pr create" ]]; then
   echo "empty downstream branch should not be published" >&2
   exit 2
 fi
+if [[ "$1 $2" == "pr edit" ]]; then
+  exit 0
+fi
 echo "unexpected gh invocation: $*" >&2
 exit 1
 `,
@@ -2131,6 +2134,9 @@ if [[ "$1 $2" == "pr create" ]]; then
   fi
   echo "unexpected partial stacked gh pr create invocation: $*" >&2
   exit 2
+fi
+if [[ "$1 $2" == "pr edit" ]]; then
+  exit 0
 fi
 echo "unexpected gh invocation: $*" >&2
 exit 1

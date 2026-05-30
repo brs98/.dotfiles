@@ -543,7 +543,7 @@ function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}, dirtyBranch
         baseBranch: BASE_BRANCH,
         headBranch: entry.pr.headRefName,
         previousBranch: group[index - 1]?.pr.headRefName,
-        nextBranch: entry.stack.nextBranch,
+        nextBranch: group[index + 1]?.pr.headRefName,
       });
       if (dirtyBranches.has(entry.pr.headRefName)) {
         logStackReconcileDeferred(entry.pr.headRefName, stackBaseBranch(refreshedStack));
