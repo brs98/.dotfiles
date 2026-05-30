@@ -2095,6 +2095,96 @@ exit 1
   assert.doesNotMatch(readFileSync(ghLog, "utf8"), /pr edit/);
 });
 
+test("mutable recovery defers dirty open downstream stack PR retargets", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-dirty-open-stack-mutable-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  execFileSync("git", ["config", "user.name", "Picastle Test"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["commit", "-m", "initial"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-aaa-upstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "a.txt"), "upstream\n");
+  execFileSync("git", ["add", "a.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["commit", "-m", "dotfiles-aaa"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "b.txt"), "downstream\n");
+  execFileSync("git", ["add", "b.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["commit", "-m", "dotfiles-bbb"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "main"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "a.txt"), "upstream\n");
+  execFileSync("git", ["add", "a.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["commit", "-m", "squash upstream"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["branch", "-D", "picastle/dotfiles-aaa-upstream"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "dirty.txt"), "uncommitted downstream repair\n");
+
+  const stackBody = `<!-- picastle-stack\n${JSON.stringify({
+    stackId: "dotfiles-aaa-dotfiles-bbb",
+    index: 2,
+    total: 2,
+    issueId: "dotfiles-bbb",
+    headBranch: "picastle/dotfiles-bbb-downstream",
+    baseBranch: "main",
+    previousBranch: "picastle/dotfiles-aaa-upstream",
+  })}\n-->`;
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+  const gh = join(fakeBin, "gh");
+  writeFileSync(gh, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'; exit 0; fi
+if [[ "$1 $2" == "pr list" ]]; then cat <<'JSON'
+[{"number":22,"headRefName":"picastle/dotfiles-bbb-downstream","baseRefName":"picastle/dotfiles-aaa-upstream","url":"https://github.com/acme/repo/pull/22","body":${JSON.stringify(stackBody)},"isCrossRepository":false,"headRepository":{"name":"repo"},"headRepositoryOwner":{"login":"acme"}}]
+JSON
+exit 0; fi
+if [[ "$1 $2" == "pr edit" ]]; then echo "dirty stack PR should not be edited during recovery reconcile" >&2; exit 7; fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`);
+  chmodSync(gh, 0o755);
+  const peb = join(fakeBin, "peb");
+  writeFileSync(peb, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then printf '%s\n' '{"data":[]}'; exit 0; fi
+if [[ "$1" == "show" ]]; then printf '%s\n' '{"data":{"title":"Downstream","status":"in_review"}}'; exit 0; fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`);
+  chmodSync(peb, 0o755);
+
+  const result = spawnSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_STACK_PRS: "1",
+      PICASTLE_TEST_AGENT_OUTPUT: '<plan>{"issues":[]}</plan>',
+    },
+  });
+
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /defer: dotfiles-bbb picastle\/dotfiles-bbb-downstream: pebble status is in_review, not ready_for_agent/);
+  assert.match(output, /stack reconcile deferred: picastle\/dotfiles-bbb-downstream base main \(dirty worktree; recovery will resume it first\)/);
+  assert.doesNotMatch(output, /refusing to rebase dirty stack worktree/);
+  assert.doesNotMatch(readFileSync(ghLog, "utf8"), /pr edit/);
+});
+
 test("stack reconciliation rebases later downstream PRs after predecessor is rewritten", () => {
   const packageDir = dirname(fileURLToPath(import.meta.url));
   const tempRoot = mkdtempSync(join(tmpdir(), "picastle-stack-cascade-rebase-"));

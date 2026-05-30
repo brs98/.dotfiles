@@ -282,7 +282,7 @@ function recoverInterruptedRun(options: { readOnly?: boolean } = {}): RecoveryPl
     requiredLabel: ISSUE_LABEL || undefined,
   });
   logRecoveryPlan(plan);
-  reconcileOpenStackPrs(options);
+  reconcileOpenStackPrs(options, dirtyStackBranches(branchInputs));
 
   if (options.readOnly) {
     return { ...plan, unpublishedBranches: [] };
@@ -481,7 +481,11 @@ function loadExistingOpenPrForIssue(issueId: string): { headRefName: string; url
   return findOpenPrForIssue(result.stdout, issueId, { currentRepository: loadRepositoryIdentity(), knownIssueIds });
 }
 
-function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}): void {
+function dirtyStackBranches(branches: RecoveryBranchInput[]): Set<string> {
+  return new Set(branches.filter((branch) => branch.dirty && branch.stack).map((branch) => branch.branch));
+}
+
+function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}, dirtyBranches = new Set<string>()): void {
   if (!OPEN_PRS) return;
   const openPrs = loadOpenStackPrRecords("open GitHub stack PR list");
   const retargets = planStackRetargets(openPrs, BASE_BRANCH);
@@ -497,6 +501,12 @@ function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}): void {
     for (const [index, entry] of group.entries()) {
       const action = actionsByHead.get(entry.pr.headRefName);
       if (action) {
+        if (dirtyBranches.has(action.headRefName)) {
+          logStackReconcileDeferred(action.headRefName, action.expectedBase);
+          applied.add(action.headRefName);
+          upstreamRebased = false;
+          continue;
+        }
         upstreamRebased = applyStackRetargetAction(action, { rebaseBranch: upstreamRebased }) || upstreamRebased;
         applied.add(action.headRefName);
         continue;
@@ -509,13 +519,27 @@ function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}): void {
         previousBranch: group[index - 1]?.pr.headRefName,
         nextBranch: entry.stack.nextBranch,
       });
+      if (dirtyBranches.has(entry.pr.headRefName)) {
+        logStackReconcileDeferred(entry.pr.headRefName, stackBaseBranch(refreshedStack));
+        upstreamRebased = false;
+        continue;
+      }
       upstreamRebased = rebaseOpenStackPrBranch(entry.pr.headRefName, stackBaseBranch(refreshedStack)).rebased || upstreamRebased;
     }
   }
 
   for (const action of retargets) {
-    if (!applied.has(action.headRefName)) applyStackRetargetAction(action);
+    if (applied.has(action.headRefName)) continue;
+    if (dirtyBranches.has(action.headRefName)) {
+      logStackReconcileDeferred(action.headRefName, action.expectedBase);
+      continue;
+    }
+    applyStackRetargetAction(action);
   }
+}
+
+function logStackReconcileDeferred(headRefName: string, expectedBase: string): void {
+  console.warn(`  stack reconcile deferred: ${headRefName} base ${expectedBase} (dirty worktree; recovery will resume it first)`);
 }
 
 function logStackRetargetAction(action: StackRetargetAction, readOnly = false): void {
