@@ -8,6 +8,7 @@ export type StackMetadata = {
   headBranch: string;
   baseBranch: string;
   previousBranch?: string;
+  previousHeadSha?: string;
   nextBranch?: string;
 };
 
@@ -204,6 +205,7 @@ export function stackMetadataEqual(a: StackMetadata, b: StackMetadata): boolean 
     a.headBranch === b.headBranch &&
     a.baseBranch === b.baseBranch &&
     a.previousBranch === b.previousBranch &&
+    a.previousHeadSha === b.previousHeadSha &&
     a.nextBranch === b.nextBranch;
 }
 
@@ -230,6 +232,7 @@ function normalizeStackMetadata(value: unknown): StackMetadata | undefined {
     headBranch,
     baseBranch,
     ...(stringField(record.previousBranch) ? { previousBranch: stringField(record.previousBranch) } : {}),
+    ...(shaField(record.previousHeadSha) ? { previousHeadSha: shaField(record.previousHeadSha) } : {}),
     ...(stringField(record.nextBranch) ? { nextBranch: stringField(record.nextBranch) } : {}),
   };
 }
@@ -240,4 +243,8 @@ function stringField(value: unknown): string | undefined {
 
 function numberField(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+function shaField(value: unknown): string | undefined {
+  return typeof value === "string" && /^[0-9a-f]{7,40}$/i.test(value) ? value : undefined;
 }

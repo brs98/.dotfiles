@@ -550,7 +550,7 @@ function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}, dirtyBranch
         upstreamRebased = false;
         continue;
       }
-      upstreamRebased = rebaseOpenStackPrBranch(entry.pr.headRefName, stackBaseBranch(refreshedStack)).rebased || upstreamRebased;
+      upstreamRebased = rebaseOpenStackPrBranch(entry.pr.headRefName, stackBaseBranch(refreshedStack), refreshedStack).rebased || upstreamRebased;
     }
   }
 
@@ -578,7 +578,7 @@ function logStackRetargetAction(action: StackRetargetAction, readOnly = false): 
 function applyStackRetargetAction(action: StackRetargetAction, options: { rebaseBranch?: boolean } = {}): boolean {
   logStackRetargetAction(action);
   const result = action.updateBase || action.effectiveBaseChanged || options.rebaseBranch
-    ? rebaseOpenStackPrBranch(action.headRefName, action.expectedBase)
+    ? rebaseOpenStackPrBranch(action.headRefName, action.expectedBase, action.stack)
     : { worktreePath: ensureExistingBranchWorktree(action.headRefName), rebased: false };
   persistStackMetadata(action.stack);
   const bodyFile = writeStackPrBodyRefreshFile(action);
@@ -604,9 +604,27 @@ function openStackPrGroups(openPrs: StackPrRecord[]): Array<Array<{ pr: StackPrR
 }
 
 function persistStackMetadata(stack: StackMetadata): void {
-  assertSafeRecoveryBranchName(stack.headBranch);
+  const refreshedStack = refreshStackHeadSha(stack);
+  assertSafeRecoveryBranchName(refreshedStack.headBranch);
   mkdirSync(stackMetadataDir, { recursive: true });
-  writeFileSync(stackMetadataPath(stack.headBranch), JSON.stringify(stack, null, 2));
+  writeFileSync(stackMetadataPath(refreshedStack.headBranch), JSON.stringify(refreshedStack, null, 2));
+}
+
+function refreshStackHeadSha(stack: StackMetadata): StackMetadata {
+  const refreshed = { ...stack };
+  if (!refreshed.previousBranch) {
+    delete refreshed.previousHeadSha;
+    return refreshed;
+  }
+  const previousHeadSha = resolveCommitSha(refreshed.previousBranch);
+  if (previousHeadSha) refreshed.previousHeadSha = previousHeadSha;
+  return refreshed;
+}
+
+function resolveCommitSha(ref: string): string | undefined {
+  if (ref !== BASE_BRANCH && !isRecognizedRecoveryPrHead(ref)) return undefined;
+  const result = run(`git rev-parse --verify --quiet ${shellQuote(`${ref}^{commit}`)}`, repoRoot, { allowFailure: true });
+  return result.status === 0 ? result.stdout.trim() || undefined : undefined;
 }
 
 function loadPersistedStackMetadata(branch: string): StackMetadata | undefined {
@@ -1579,7 +1597,7 @@ function writePrBodyFile(issue: CompletedIssue): string {
 function writeStackPrBodyRefreshFile(action: StackRetargetAction): string {
   const bodyFile = join(logsDir, `pr-body-stack-refresh-${hashString(action.headRefName)}.md`);
   mkdirSync(dirname(bodyFile), { recursive: true });
-  writeFileSync(bodyFile, upsertStackPrBodySection(action.currentBody, action.stack));
+  writeFileSync(bodyFile, upsertStackPrBodySection(action.currentBody, refreshStackHeadSha(action.stack)));
   return bodyFile;
 }
 
@@ -1608,7 +1626,7 @@ function postPebblesComment(worktreePath: string, issueId: string, body: string)
 }
 
 function buildPrBody(issue: CompletedIssue): string {
-  const stackSection = stackPrBodySection(issue.stack);
+  const stackSection = stackPrBodySection(issue.stack ? refreshStackHeadSha(issue.stack) : undefined);
   return `> *This PR was produced by an autonomous Picastle run from the agent brief on pebbles issue ${issue.id}.*
 
 ${stackSection}## Summary
@@ -1778,7 +1796,10 @@ function rebaseStackOntoExpectedBases(stack: CompletedIssue[]): void {
 
 function rebaseIssueStackBranchIfNeeded(issue: CompletedIssue): void {
   if (!issue.stack) return;
-  rebaseBranchWorktree(issue.worktreePath, issue.branch, effectiveBaseBranch(issue));
+  rebaseBranchWorktree(issue.worktreePath, issue.branch, effectiveBaseBranch(issue), {
+    oldUpstream: issue.stack.previousHeadSha,
+  });
+  persistStackMetadata(issue.stack);
 }
 
 function rebasePublishedStackDownstreamOpenPrs(issue: CompletedIssue): void {
@@ -1831,9 +1852,11 @@ function isDirtyExistingStackWorktree(branch: string): boolean {
   return Boolean(worktree && run("git status --porcelain", worktree.path).stdout.trim());
 }
 
-function rebaseOpenStackPrBranch(branch: string, expectedBase: string): { worktreePath: string; rebased: boolean } {
+function rebaseOpenStackPrBranch(branch: string, expectedBase: string, stack?: StackMetadata): { worktreePath: string; rebased: boolean } {
   const worktreePath = ensureExistingBranchWorktree(branch);
-  const rebased = rebaseBranchWorktree(worktreePath, branch, expectedBase);
+  const rebased = rebaseBranchWorktree(worktreePath, branch, expectedBase, {
+    oldUpstream: stack?.previousHeadSha,
+  });
   if (!rebased) return { worktreePath, rebased: false };
   if (!PUSH) {
     console.log("PICASTLE_PUSH=0; skipping force-with-lease update after stack rebase");
@@ -1858,7 +1881,12 @@ function ensureExistingBranchWorktree(branch: string): string {
   return ensureBranchWorktree(branch);
 }
 
-function rebaseBranchWorktree(worktreePath: string, branch: string, base: string): boolean {
+function rebaseBranchWorktree(
+  worktreePath: string,
+  branch: string,
+  base: string,
+  options: { oldUpstream?: string } = {},
+): boolean {
   assertSafeRecoveryBranchName(branch);
   ensureLocalRebaseBase(base);
   const ancestor = run(`git merge-base --is-ancestor ${shellQuote(base)} ${shellQuote(branch)}`, repoRoot, {
@@ -1869,13 +1897,30 @@ function rebaseBranchWorktree(worktreePath: string, branch: string, base: string
   const dirty = run("git status --porcelain", worktreePath).stdout.trim();
   if (dirty) throw new Error(`refusing to rebase dirty stack worktree ${branch}`);
 
+  const oldUpstream = resolveSafeRebaseBoundary(options.oldUpstream, branch);
   console.log(`  rebasing stack branch ${branch} onto ${base}`);
-  const rebase = run(`git rebase ${shellQuote(base)}`, worktreePath, { allowFailure: true });
+  const command = oldUpstream
+    ? `git rebase --onto ${shellQuote(base)} ${shellQuote(oldUpstream)} ${shellQuote(branch)}`
+    : `git rebase ${shellQuote(base)}`;
+  const rebase = run(command, worktreePath, { allowFailure: true });
   if (rebase.status !== 0) {
     run("git rebase --abort", worktreePath, { allowFailure: true });
     throw new Error(`failed to rebase stack branch ${branch} onto ${base}: ${rebase.stderr || rebase.stdout}`);
   }
   return true;
+}
+
+function resolveSafeRebaseBoundary(oldUpstream: string | undefined, branch: string): string | undefined {
+  if (!oldUpstream) return undefined;
+  if (!/^[0-9a-f]{7,40}$/i.test(oldUpstream)) return undefined;
+  const exists = run(`git rev-parse --verify --quiet ${shellQuote(`${oldUpstream}^{commit}`)}`, repoRoot, {
+    allowFailure: true,
+  }).status === 0;
+  if (!exists) return undefined;
+  const ancestor = run(`git merge-base --is-ancestor ${shellQuote(oldUpstream)} ${shellQuote(branch)}`, repoRoot, {
+    allowFailure: true,
+  });
+  return ancestor.status === 0 ? oldUpstream : undefined;
 }
 
 function ensureLocalRebaseBase(base: string): void {
