@@ -8,6 +8,8 @@ You are running through Picastle, a Pi SDK host-worktree orchestrator. This is n
 
 Base branch: `{{BASE_BRANCH}}`
 
+{{STACK_CONTEXT}}
+
 Only work on this issue.
 
 # ISSUE

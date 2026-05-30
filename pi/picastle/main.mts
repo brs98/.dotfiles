@@ -51,7 +51,18 @@ import {
   type PlannerDecision,
 } from "./planner-output.mjs";
 import { createReviewerAgentTooling, createReviewerResourceLoader } from "./review-session.mts";
-type CompletedIssue = PlannedIssue & { worktreePath: string };
+import {
+  planStackRetargets,
+  stackBaseBranch,
+  stackContext,
+  stackIssues,
+  stackPebblesComment,
+  stackPrBodySection,
+  type StackMetadata,
+  type StackPrRecord,
+} from "./stack.mjs";
+type PlannedWorkIssue = PlannedIssue & { stack?: StackMetadata };
+type CompletedIssue = PlannedWorkIssue & { worktreePath: string };
 type ReviewStatus = "approved" | "changes_requested" | "blocked";
 type ReviewFinding = {
   severity?: string;
@@ -109,6 +120,7 @@ const PLAN_ONLY = envBool("PICASTLE_PLAN_ONLY", cli.planOnly);
 const REPAIR_ON_VERIFY_FAIL = envBool("PICASTLE_REPAIR_ON_VERIFY_FAIL", true);
 const PUSH = envBool("PICASTLE_PUSH", !cli.noPush);
 const OPEN_PRS = envBool("PICASTLE_OPEN_PRS", !cli.noPr);
+const STACK_PRS = envBool("PICASTLE_STACK_PRS", false);
 const PUBLISHER_AGENT = envBool("PICASTLE_PUBLISHER_AGENT", true);
 const REVIEW_REPAIR_CYCLES = envInt("PICASTLE_REVIEW_REPAIR_CYCLES", 10);
 const REVIEW_CONCURRENCY = envInt("PICASTLE_REVIEW_CONCURRENCY", CONCURRENCY);
@@ -121,6 +133,7 @@ if (TEST_AGENT_OUTPUT !== undefined && !process.env.NODE_TEST_CONTEXT) {
 // Sandcastle PR heads before recovery/planning. This is not an unbounded "all PRs" query.
 const OPEN_PR_SCAN_LIMIT = envInt("PICASTLE_OPEN_PR_SCAN_LIMIT", 1000);
 const OPEN_PR_JSON_FIELDS = "number,headRefName,url,isCrossRepository,headRepository,headRepositoryOwner";
+const STACK_OPEN_PR_JSON_FIELDS = "number,headRefName,baseRefName,url,body,isCrossRepository,headRepository,headRepositoryOwner";
 const WORKTREE_READY_COMMAND = env("PICASTLE_WORKTREE_READY_COMMAND", "");
 const BEFORE_PUSH_COMMAND = env("PICASTLE_BEFORE_PUSH_COMMAND", "");
 const THINKING = process.env.PICASTLE_THINKING as
@@ -144,6 +157,7 @@ console.log(`Picastle runtime: ${runtimeDir}`);
 console.log(`Pebbles queue: status=${ISSUE_STATUS}${ISSUE_LABEL ? ` label=${ISSUE_LABEL}` : ""}`);
 if (MIN_FREE_GB > 0) console.log(`Disk guardrail: require ${MIN_FREE_GB} GiB free`);
 if (CLEAN_TARGETS) console.log("Disk cleanup: per-worktree target/ cleanup enabled");
+if (STACK_PRS) console.log("Stacked PR mode: enabled for multi-issue batches");
 checkMinFreeSpace("startup");
 
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
@@ -197,9 +211,10 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     break;
   }
 
-  const settled = await runWithConcurrency(issues, CONCURRENCY, (issue) =>
-    implementIssue(issue, iteration),
-  );
+  const plannedWork = preparePlannedIssuesForImplementation(issues);
+  const settled = STACK_PRS && plannedWork.length > 1
+    ? await runSequentially(plannedWork, (issue) => implementIssue(issue, iteration))
+    : await runWithConcurrency(plannedWork, CONCURRENCY, (issue) => implementIssue(issue, iteration));
 
   const completed: CompletedIssue[] = [];
   for (const [i, outcome] of settled.entries()) {
@@ -260,6 +275,7 @@ function recoverInterruptedRun(options: { readOnly?: boolean } = {}): RecoveryPl
     requiredLabel: ISSUE_LABEL || undefined,
   });
   logRecoveryPlan(plan);
+  reconcileOpenStackPrs(options);
 
   if (options.readOnly) {
     return { ...plan, unpublishedBranches: [] };
@@ -438,6 +454,29 @@ function loadExistingOpenPrForIssue(issueId: string): { headRefName: string; url
     repoRoot,
   );
   return findOpenPrForIssue(result.stdout, issueId, { currentRepository: loadRepositoryIdentity(), knownIssueIds });
+}
+
+function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}): void {
+  if (!OPEN_PRS) return;
+  const knownIssueIds = loadKnownIssueIdsForRecovery();
+  const result = run(
+    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${STACK_OPEN_PR_JSON_FIELDS}`,
+    repoRoot,
+  );
+  const openPrs = parseJsonArray(
+    normalizeOpenPrsJson(result.stdout, { currentRepository: loadRepositoryIdentity(), knownIssueIds }),
+    "open GitHub stack PR list",
+  ) as StackPrRecord[];
+  const retargets = planStackRetargets(openPrs, BASE_BRANCH);
+  for (const action of retargets) {
+    const message = `  stack retarget: ${action.headRefName} base ${action.currentBase} → ${action.expectedBase}`;
+    if (options.readOnly) {
+      console.log(`${message} (plan-only)`);
+    } else {
+      console.log(message);
+      run(`gh pr edit ${shellQuote(action.prRef)} --base ${shellQuote(action.expectedBase)}`, repoRoot);
+    }
+  }
 }
 
 function loadKnownIssueIdsForRecovery(): string[] {
@@ -643,7 +682,7 @@ function parseJsonArray(input: string, description: string): unknown[] {
 }
 
 async function implementIssue(
-  issue: PlannedIssue,
+  issue: PlannedWorkIssue,
   iteration: number,
 ): Promise<CompletedIssue | undefined> {
   assertMutableMode("run implementer");
@@ -659,7 +698,8 @@ async function implementIssue(
       TASK_ID: issue.id,
       ISSUE_TITLE: issue.title,
       BRANCH: issue.branch,
-      BASE_BRANCH,
+      BASE_BRANCH: effectiveBaseBranch(issue),
+      STACK_CONTEXT: stackContext(issue.stack),
       ISSUE_JSON: issueJson.trim(),
       RECENT_COMMITS: recentCommits.trim(),
       PEB_PREFIX: pebCommand("").trim(),
@@ -680,7 +720,7 @@ async function implementIssue(
       console.warn(`  ⚠ ${issue.id}: worktree has uncommitted changes after implementer run`);
     }
 
-    const ahead = Number(run(`git rev-list --count ${shellQuote(BASE_BRANCH)}..HEAD`, worktreePath).stdout.trim() || "0");
+    const ahead = Number(run(`git rev-list --count ${shellQuote(effectiveBaseBranch(issue))}..HEAD`, worktreePath).stdout.trim() || "0");
     if (ahead <= 0) {
       console.log(`  - ${issue.id}: no commits produced`);
       return undefined;
@@ -703,16 +743,19 @@ async function publishCompletedIssuesWithAgent(
     `\n==> Review/repair loop handling ${completed.length} completed branch(es) with concurrency ${REVIEW_CONCURRENCY}`,
   );
 
-  const settled = await runWithConcurrency(completed, REVIEW_CONCURRENCY, async (issue) => {
-    try {
-      const approved = await reviewIssueUntilApproved(issue, iteration);
-      if (!approved) return { issue, published: false };
-      await publishApprovedIssue(issue);
-      return { issue, published: true };
-    } finally {
-      cleanWorktreeTarget(issue.worktreePath, issue.id);
-    }
-  });
+  const publishTargets = prepareCompletedIssuesForPublishing(completed);
+  const settled = STACK_PRS && publishTargets.length > 1
+    ? await reviewAndPublishStackWithAgent(publishTargets, iteration)
+    : await runWithConcurrency(publishTargets, REVIEW_CONCURRENCY, async (issue) => {
+      try {
+        const approved = await reviewIssueUntilApproved(issue, iteration);
+        if (!approved) return { issue, published: false };
+        await publishApprovedIssue(issue);
+        return { issue, published: true };
+      } finally {
+        cleanWorktreeTarget(issue.worktreePath, issue.id);
+      }
+    });
 
   for (const outcome of settled) {
     if (outcome.status === "rejected") {
@@ -720,6 +763,35 @@ async function publishCompletedIssuesWithAgent(
     } else if (!outcome.value.published) {
       console.warn(`  - ${outcome.value.issue.id}: not published`);
     }
+  }
+}
+
+async function reviewAndPublishStackWithAgent(
+  stack: CompletedIssue[],
+  iteration: number,
+): Promise<PromiseSettledResult<{ issue: CompletedIssue; published: boolean }>[]> {
+  const results: PromiseSettledResult<{ issue: CompletedIssue; published: boolean }>[] = [];
+  const approved: CompletedIssue[] = [];
+  try {
+    for (const issue of stack) {
+      const isApproved = await reviewIssueUntilApproved(issue, iteration);
+      if (!isApproved) {
+        results.push({ status: "fulfilled", value: { issue, published: false } });
+        break;
+      }
+      approved.push(issue);
+      results.push({ status: "fulfilled", value: { issue, published: false } });
+    }
+
+    if (approved.length !== stack.length) return results;
+    verifyStackMergeability(stack);
+    for (const issue of stack) await publishApprovedIssue(issue);
+    return stack.map((issue) => ({ status: "fulfilled", value: { issue, published: true } }));
+  } catch (reason) {
+    results.push({ status: "rejected", reason });
+    return results;
+  } finally {
+    for (const issue of stack) cleanWorktreeTarget(issue.worktreePath, issue.id);
   }
 }
 
@@ -772,7 +844,7 @@ async function reviewCompletedIssue(
     TASK_ID: issue.id,
     ISSUE_TITLE: issue.title,
     BRANCH: issue.branch,
-    BASE_BRANCH,
+    BASE_BRANCH: effectiveBaseBranch(issue),
     WORKTREE_PATH: issue.worktreePath,
     ISSUE_JSON: issueJson.trim(),
     PEB_PREFIX: pebCommand("").trim(),
@@ -820,7 +892,7 @@ async function repairFromReview(
     TASK_ID: issue.id,
     ISSUE_TITLE: issue.title,
     BRANCH: issue.branch,
-    BASE_BRANCH,
+    BASE_BRANCH: effectiveBaseBranch(issue),
     ISSUE_JSON: issueJson.trim(),
     REVIEW_JSON: JSON.stringify(review, null, 2),
   });
@@ -843,6 +915,7 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
   const commandDecision = decidePublishCommandBoundary(publishDecision, { push: PUSH });
   if (publishDecision.kind === "use-existing-issue-pr") {
     console.log(`  issue already has open PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+    recordPublishedStackPosition(issue, publishDecision.existingPr.url);
     if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
       markIssueInReview(issue.id);
     }
@@ -863,7 +936,9 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
   }
 
   if (publishDecision.kind === "update-existing-branch-pr") {
+    retargetStackPrIfNeeded(issue, publishDecision.existingPr.url);
     console.log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+    recordPublishedStackPosition(issue, publishDecision.existingPr.url);
     if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
       markIssueInReview(issue.id);
     }
@@ -875,12 +950,9 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     return;
   }
 
-  const prBody = buildPrBody(issue);
-  const bodyFile = join(logsDir, `pr-body-${issue.id}.md`);
-  mkdirSync(dirname(bodyFile), { recursive: true });
-  writeFileSync(bodyFile, prBody);
+  const bodyFile = writePrBodyFile(issue);
   const prCreate = run(
-    `gh pr create --base ${shellQuote(BASE_BRANCH)} --head ${shellQuote(issue.branch)} --title ${shellQuote(prTitle(issue))} --body-file ${shellQuote(bodyFile)}`,
+    `gh pr create --base ${shellQuote(effectiveBaseBranch(issue))} --head ${shellQuote(issue.branch)} --title ${shellQuote(prTitle(issue))} --body-file ${shellQuote(bodyFile)}`,
     issue.worktreePath,
   );
   process.stdout.write(prCreate.stdout);
@@ -891,6 +963,7 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     return;
   }
 
+  recordPublishedStackPosition(issue, prRef);
   if (declarePendingPebbleClosure(issue.id, prRef)) {
     markIssueInReview(issue.id);
   }
@@ -928,7 +1001,9 @@ async function publishCompletedIssues(
   iteration: number,
 ): Promise<void> {
   assertMutableMode("publish completed issues");
-  for (const issue of completed) {
+  const publishTargets = prepareCompletedIssuesForPublishing(completed);
+  if (STACK_PRS && publishTargets.length > 1) verifyStackMergeability(publishTargets);
+  for (const issue of publishTargets) {
     try {
       console.log(`\n==> Publishing ${issue.id} (${issue.branch})`);
 
@@ -936,6 +1011,7 @@ async function publishCompletedIssues(
       const publishDecision = decidePublishFlow(issue.branch, existingPr, { openPrs: OPEN_PRS });
       if (publishDecision.kind === "use-existing-issue-pr") {
         console.log(`  issue already has open PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+        recordPublishedStackPosition(issue, publishDecision.existingPr.url);
         if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
           markIssueInReview(issue.id);
         }
@@ -943,11 +1019,11 @@ async function publishCompletedIssues(
       }
 
       if (VERIFY) {
-      let verified = verifyWorktree(issue.worktreePath);
+      let verified = verifyWorktree(issue.worktreePath, effectiveBaseBranch(issue));
       if (!verified.ok && REPAIR_ON_VERIFY_FAIL) {
         console.warn("  verification failed; asking Pi to repair once");
         await repairVerificationFailure(issue, verified.output, iteration);
-        verified = verifyWorktree(issue.worktreePath);
+        verified = verifyWorktree(issue.worktreePath, effectiveBaseBranch(issue));
       }
       if (!verified.ok) {
         console.error(`  ✗ verification still failing; leaving branch unpushed: ${issue.branch}`);
@@ -973,23 +1049,23 @@ async function publishCompletedIssues(
     }
 
     if (publishDecision.kind === "update-existing-branch-pr") {
+      retargetStackPrIfNeeded(issue, publishDecision.existingPr.url);
       console.log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+      recordPublishedStackPosition(issue, publishDecision.existingPr.url);
       if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
         markIssueInReview(issue.id);
       }
     } else if (publishDecision.kind === "create-new-pr") {
-      const prBody = buildPrBody(issue);
-      const bodyFile = join(logsDir, `pr-body-${issue.id}.md`);
-      mkdirSync(dirname(bodyFile), { recursive: true });
-      writeFileSync(bodyFile, prBody);
+      const bodyFile = writePrBodyFile(issue);
       const prCreate = run(
-        `gh pr create --base ${shellQuote(BASE_BRANCH)} --head ${shellQuote(issue.branch)} --title ${shellQuote(prTitle(issue))} --body-file ${shellQuote(bodyFile)}`,
+        `gh pr create --base ${shellQuote(effectiveBaseBranch(issue))} --head ${shellQuote(issue.branch)} --title ${shellQuote(prTitle(issue))} --body-file ${shellQuote(bodyFile)}`,
         issue.worktreePath,
       );
       process.stdout.write(prCreate.stdout);
       process.stderr.write(prCreate.stderr);
       const prRef = extractPrRef(prCreate.stdout) || extractPrRef(prCreate.stderr);
       if (prRef) {
+        recordPublishedStackPosition(issue, prRef);
         if (declarePendingPebbleClosure(issue.id, prRef)) {
           markIssueInReview(issue.id);
         }
@@ -1020,9 +1096,9 @@ function markIssueInReview(issueId: string): void {
   }
 }
 
-function verifyWorktree(worktreePath: string): { ok: boolean; output: string } {
+function verifyWorktree(worktreePath: string, baseBranch = BASE_BRANCH): { ok: boolean; output: string } {
   checkMinFreeSpace("before verification");
-  const changed = run(`git diff --name-only ${shellQuote(BASE_BRANCH)}...HEAD`, worktreePath).stdout
+  const changed = run(`git diff --name-only ${shellQuote(baseBranch)}...HEAD`, worktreePath).stdout
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
@@ -1158,12 +1234,12 @@ async function runPiAgent(args: {
   }
 }
 
-function ensureIssueWorktree(issue: PlannedIssue): string {
+function ensureIssueWorktree(issue: PlannedWorkIssue): string {
   const branch = normalizeBranch(issue.branch, issue.id);
-  return ensureBranchWorktree(branch);
+  return ensureBranchWorktree(branch, effectiveBaseBranch(issue));
 }
 
-function ensureBranchWorktree(branch: string): string {
+function ensureBranchWorktree(branch: string, startPoint = BASE_BRANCH): string {
   assertMutableMode("create or attach worktree");
   assertSafeRecoveryBranchName(branch);
   const existing = collectWorktreeEntries().find((entry) => entry.branch === branch && existsSync(entry.path));
@@ -1181,7 +1257,7 @@ function ensureBranchWorktree(branch: string): string {
     });
   } else {
     run(
-      `git worktree add -b ${shellQuote(branch)} ${shellQuote(worktreePath)} ${shellQuote(BASE_BRANCH)}`,
+      `git worktree add -b ${shellQuote(branch)} ${shellQuote(worktreePath)} ${shellQuote(startPoint)}`,
       repoRoot,
       { stdio: "inherit" },
     );
@@ -1275,10 +1351,32 @@ function prTitle(issue: PlannedIssue): string {
   return issue.title.length <= 70 ? issue.title : `${issue.title.slice(0, 67)}...`;
 }
 
+function writePrBodyFile(issue: CompletedIssue): string {
+  const bodyFile = join(logsDir, `pr-body-${issue.id}.md`);
+  mkdirSync(dirname(bodyFile), { recursive: true });
+  writeFileSync(bodyFile, buildPrBody(issue));
+  return bodyFile;
+}
+
+function retargetStackPrIfNeeded(issue: CompletedIssue, prRef: string): void {
+  if (!issue.stack) return;
+  const bodyFile = writePrBodyFile(issue);
+  run(
+    `gh pr edit ${shellQuote(prRef)} --base ${shellQuote(effectiveBaseBranch(issue))} --body-file ${shellQuote(bodyFile)}`,
+    issue.worktreePath,
+  );
+}
+
+function recordPublishedStackPosition(issue: CompletedIssue, prRef: string): void {
+  const comment = stackPebblesComment(issue.stack, prRef);
+  if (comment) writePendingComment(issue.worktreePath, issue.id, comment);
+}
+
 function buildPrBody(issue: CompletedIssue): string {
+  const stackSection = stackPrBodySection(issue.stack);
   return `> *This PR was produced by an autonomous Picastle run from the agent brief on pebbles issue ${issue.id}.*
 
-## Summary
+${stackSection}## Summary
 
 Implements the Picastle-selected pebbles issue:
 
@@ -1339,6 +1437,59 @@ function cleanWorktreeTarget(worktreePath: string, issueId: string): void {
   }).stdout.trim() || "unknown size";
   console.log(`  cleaning ${issueId} target/ (${size})`);
   rmSync(targetDir, { recursive: true, force: true });
+}
+
+function preparePlannedIssuesForImplementation(issues: PlannedIssue[]): PlannedWorkIssue[] {
+  return STACK_PRS && issues.length > 1 ? stackIssues(issues, BASE_BRANCH) : issues;
+}
+
+function prepareCompletedIssuesForPublishing(completed: CompletedIssue[]): CompletedIssue[] {
+  if (!STACK_PRS || completed.length <= 1) return completed;
+  const stack = stackIssues(completed, BASE_BRANCH);
+  return stack.map((issue, index) => ({ ...issue, worktreePath: completed[index]!.worktreePath }));
+}
+
+function effectiveBaseBranch(issue: PlannedWorkIssue): string {
+  return issue.stack ? stackBaseBranch(issue.stack) : BASE_BRANCH;
+}
+
+function verifyStackMergeability(stack: CompletedIssue[]): void {
+  if (stack.length <= 1) return;
+  console.log(`  verifying stacked PR mergeability for ${stack.length} branch(es)`);
+  for (const issue of stack) {
+    const base = effectiveBaseBranch(issue);
+    const ancestor = run(`git merge-base --is-ancestor ${shellQuote(base)} ${shellQuote(issue.branch)}`, repoRoot, {
+      allowFailure: true,
+    });
+    if (ancestor.status !== 0) {
+      throw new Error(`stack branch ${issue.branch} is not based on ${base}; rebase or recreate the stack before publishing`);
+    }
+    const mergeTree = run(`git merge-tree --write-tree ${shellQuote(base)} ${shellQuote(issue.branch)}`, repoRoot, {
+      allowFailure: true,
+    });
+    if (mergeTree.status !== 0) {
+      throw new Error(`stack branch ${issue.branch} does not merge cleanly into ${base}: ${mergeTree.stderr || mergeTree.stdout}`);
+    }
+  }
+}
+
+async function runSequentially<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = [];
+  for (const [index, item] of items.entries()) {
+    try {
+      results.push({ status: "fulfilled", value: await fn(item) });
+    } catch (reason) {
+      results.push({ status: "rejected", reason });
+      for (let rest = index + 1; rest < items.length; rest += 1) {
+        results.push({ status: "rejected", reason: new Error("skipped after earlier stacked issue failed") });
+      }
+      break;
+    }
+  }
+  return results;
 }
 
 async function runWithConcurrency<T, R>(
@@ -1438,7 +1589,7 @@ function parseArgs(args: string[]): {
     else if (arg === "--min-free-gb") parsed.minFreeGb = Number(next());
     else if (arg === "--base") parsed.base = next();
     else if (arg === "--help" || arg === "-h") {
-      console.log(`Usage: picastle [--repo PATH] [--plan-only] [--max-iterations N] [--max-issues N] [--concurrency N] [--min-free-gb N] [--base BRANCH] [--clean-targets] [--no-verify] [--no-push] [--no-pr]\n\nEnvironment: PICASTLE_PEB_REMOTE, PICASTLE_PEB_REPO, PICASTLE_ISSUE_STATUS, PICASTLE_ISSUE_LABEL, PICASTLE_MAX_ISSUES, PICASTLE_PENDING_STATUS, PICASTLE_REVIEW_STATUS, PICASTLE_PLAN_ONLY, PICASTLE_VERIFY, PICASTLE_PUSH, PICASTLE_OPEN_PRS, PICASTLE_OPEN_PR_SCAN_LIMIT, PICASTLE_PUBLISHER_AGENT, PICASTLE_REVIEW_REPAIR_CYCLES, PICASTLE_REVIEW_CONCURRENCY, PICASTLE_WORKTREE_READY_COMMAND, PICASTLE_BEFORE_PUSH_COMMAND, PICASTLE_CLEAN_TARGETS, PICASTLE_MIN_FREE_GB, PICASTLE_THINKING`);
+      console.log(`Usage: picastle [--repo PATH] [--plan-only] [--max-iterations N] [--max-issues N] [--concurrency N] [--min-free-gb N] [--base BRANCH] [--clean-targets] [--no-verify] [--no-push] [--no-pr]\n\nEnvironment: PICASTLE_PEB_REMOTE, PICASTLE_PEB_REPO, PICASTLE_ISSUE_STATUS, PICASTLE_ISSUE_LABEL, PICASTLE_MAX_ISSUES, PICASTLE_PENDING_STATUS, PICASTLE_REVIEW_STATUS, PICASTLE_PLAN_ONLY, PICASTLE_VERIFY, PICASTLE_PUSH, PICASTLE_OPEN_PRS, PICASTLE_STACK_PRS, PICASTLE_OPEN_PR_SCAN_LIMIT, PICASTLE_PUBLISHER_AGENT, PICASTLE_REVIEW_REPAIR_CYCLES, PICASTLE_REVIEW_CONCURRENCY, PICASTLE_WORKTREE_READY_COMMAND, PICASTLE_BEFORE_PUSH_COMMAND, PICASTLE_CLEAN_TARGETS, PICASTLE_MIN_FREE_GB, PICASTLE_THINKING`);
       process.exit(0);
     } else {
       die(`unknown argument: ${arg}`);

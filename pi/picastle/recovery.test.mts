@@ -6,6 +6,9 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+process.env.PICASTLE_WORKTREE_READY_COMMAND = "";
+process.env.PICASTLE_BEFORE_PUSH_COMMAND = "";
+
 import {
   assertSafeRecoveryBranchName,
   buildRecoveryPlan,
@@ -1440,6 +1443,135 @@ exit 1
   assert.match(pebTrace, /closes add web-api-abc --pr https:\/\/github\.com\/acme\/repo\/pull\/50/);
   assert.match(pebTrace, /closes add web-api --pr https:\/\/github\.com\/acme\/repo\/pull\/51/);
   assert.doesNotMatch(pebTrace, /closes add web-api --pr https:\/\/github\.com\/acme\/repo\/pull\/50/);
+});
+
+test("stacked publisher creates PRs against previous stack heads and records comments", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-stacked-publish-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+
+  const branches = [
+    ["picastle/dotfiles-aaa-first", "a.txt", "dotfiles-aaa"],
+    ["picastle/dotfiles-bbb-second", "b.txt", "dotfiles-bbb"],
+    ["picastle/dotfiles-ccc-third", "c.txt", "dotfiles-ccc"],
+  ] as const;
+  for (const [branch, file, issueId] of branches) {
+    execFileSync("git", ["checkout", "-b", branch], { cwd: repo, encoding: "utf8" });
+    writeFileSync(join(repo, file), `${issueId}\n`);
+    execFileSync("git", ["add", file], { cwd: repo, encoding: "utf8" });
+    execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", `${issueId}\n\nCloses: ${issueId}`], {
+      cwd: repo,
+      encoding: "utf8",
+    });
+  }
+  execFileSync("git", ["checkout", "main"], { cwd: repo, encoding: "utf8" });
+
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+
+  const gh = join(fakeBin, "gh");
+  writeFileSync(
+    gh,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then
+  printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "pr list" ]]; then
+  printf '%s\n' '[]'
+  exit 0
+fi
+if [[ "$1 $2" == "pr create" ]]; then
+  args=" $* "
+  if [[ "$args" == *" --base main "* && "$args" == *" --head picastle/dotfiles-aaa-first "* ]]; then
+    printf '%s\n' 'https://github.com/acme/repo/pull/1'
+    exit 0
+  fi
+  if [[ "$args" == *" --base picastle/dotfiles-aaa-first "* && "$args" == *" --head picastle/dotfiles-bbb-second "* ]]; then
+    printf '%s\n' 'https://github.com/acme/repo/pull/2'
+    exit 0
+  fi
+  if [[ "$args" == *" --base picastle/dotfiles-bbb-second "* && "$args" == *" --head picastle/dotfiles-ccc-third "* ]]; then
+    printf '%s\n' 'https://github.com/acme/repo/pull/3'
+    exit 0
+  fi
+  echo "unexpected stacked gh pr create invocation: $*" >&2
+  exit 2
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(gh, 0o755);
+
+  const peb = join(fakeBin, "peb");
+  writeFileSync(
+    peb,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then
+  printf '%s\n' '{"data":[{"id":"dotfiles-aaa"},{"id":"dotfiles-bbb"},{"id":"dotfiles-ccc"}]}'
+  exit 0
+fi
+if [[ "$1" == "show" ]]; then
+  case "$2" in
+    dotfiles-aaa) printf '%s\n' '{"data":{"title":"First","status":"ready_for_agent"}}'; exit 0 ;;
+    dotfiles-bbb) printf '%s\n' '{"data":{"title":"Second","status":"ready_for_agent"}}'; exit 0 ;;
+    dotfiles-ccc) printf '%s\n' '{"data":{"title":"Third","status":"ready_for_agent"}}'; exit 0 ;;
+  esac
+fi
+if [[ "$1 $2" == "closes add" || "$1" == "update" || "$1 $2" == "comment add" ]]; then
+  printf '%s\n' 'ok'
+  exit 0
+fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(peb, 0o755);
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_PUBLISHER_AGENT: "0",
+      PICASTLE_PUSH: "0",
+      PICASTLE_VERIFY: "0",
+      PICASTLE_STACK_PRS: "1",
+    },
+  });
+
+  assert.match(output, /Stacked PR mode: enabled/);
+  assert.match(output, /verifying stacked PR mergeability for 3 branch\(es\)/);
+  const ghTrace = readFileSync(ghLog, "utf8");
+  assert.match(ghTrace, /pr create --base main --head picastle\/dotfiles-aaa-first/);
+  assert.match(ghTrace, /pr create --base picastle\/dotfiles-aaa-first --head picastle\/dotfiles-bbb-second/);
+  assert.match(ghTrace, /pr create --base picastle\/dotfiles-bbb-second --head picastle\/dotfiles-ccc-third/);
+  const pebTrace = readFileSync(pebLog, "utf8");
+  assert.match(pebTrace, /comment add dotfiles-aaa Picastle published stacked PR 1\/3/);
+  assert.match(pebTrace, /comment add dotfiles-bbb Picastle published stacked PR 2\/3/);
+  assert.match(pebTrace, /comment add dotfiles-ccc Picastle published stacked PR 3\/3/);
 });
 
 test("runtime recovery fails closed on malformed open PR discovery without mutating pebbles", () => {

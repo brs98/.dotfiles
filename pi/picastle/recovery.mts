@@ -7,7 +7,9 @@ export type RepositoryIdentity = { owner: string; name: string };
 export type OpenPrRecord = {
   number?: number;
   headRefName: string;
+  baseRefName?: string;
   url: string;
+  body?: string;
   isCrossRepository?: boolean;
   headRepositoryOwner?: string;
   headRepositoryName?: string;
@@ -523,7 +525,9 @@ function parseOpenPrRecords(stdout: string, options: OpenPrParseOptions = {}): O
     return {
       ...(Number.isFinite(number) ? { number } : {}),
       headRefName: record.headRefName,
+      ...(typeof record.baseRefName === "string" && record.baseRefName.length > 0 ? { baseRefName: record.baseRefName } : {}),
       url: record.url,
+      ...(typeof record.body === "string" ? { body: record.body } : {}),
       ...(typeof record.isCrossRepository === "boolean" ? { isCrossRepository: record.isCrossRepository } : {}),
       ...extractHeadRepositoryIdentity(record),
     };
