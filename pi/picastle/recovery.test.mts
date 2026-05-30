@@ -30,7 +30,7 @@ import {
   validatePlannedIssueSelections,
   type RecoveryBranchInput,
 } from "./recovery.mjs";
-import type { StackMetadata } from "./stack.mjs";
+import { parseStackMetadataFromBody, type StackMetadata } from "./stack.mjs";
 
 test("extracts pebble ids before realistic branch slugs during recovery", () => {
   assert.equal(extractIssueIdFromBranch("picastle/ricekit-394-fix-old"), "ricekit-394");
@@ -2668,6 +2668,7 @@ exit 1
 `);
   chmodSync(peb, 0o755);
 
+  const xdgCache = join(tempRoot, "cache");
   const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
     cwd: packageDir,
     encoding: "utf8",
@@ -2676,7 +2677,7 @@ exit 1
       PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
       GH_LOG: ghLog,
       PEB_LOG: pebLog,
-      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      XDG_CACHE_HOME: xdgCache,
       PICASTLE_PEB_REMOTE: "",
       PICASTLE_PEB_REPO: "",
       PICASTLE_MAX_ISSUES: "0",
@@ -2692,8 +2693,66 @@ exit 1
   assert.equal(execFileSync("git", ["rev-parse", "picastle/dotfiles-ccc-tail"], { cwd: repo, encoding: "utf8" }), execFileSync("git", ["rev-parse", "origin/picastle/dotfiles-ccc-tail"], { cwd: repo, encoding: "utf8" }));
   const ghTrace = readFileSync(ghLog, "utf8");
   assert.match(ghTrace, /pr edit https:\/\/github\.com\/acme\/repo\/pull\/22 --base main/);
-  assert.doesNotMatch(ghTrace, /pull\/33/);
+  assert.match(ghTrace, /pr edit https:\/\/github\.com\/acme\/repo\/pull\/33 --body-file /);
   assert.match(readFileSync(pebLog, "utf8"), /comment add dotfiles-bbb Picastle published stacked PR 2\/3/);
+  const tailBodyFile = ghTrace.match(/pr edit https:\/\/github\.com\/acme\/repo\/pull\/33 --body-file (\S+)/)?.[1];
+  assert.ok(tailBodyFile);
+  const refreshedTailBody = readFileSync(tailBodyFile, "utf8");
+  const refreshedTailStack = parseStackMetadataFromBody(refreshedTailBody);
+  assert.equal(refreshedTailStack?.previousHeadSha, execFileSync("git", ["rev-parse", "picastle/dotfiles-bbb-middle"], { cwd: repo, encoding: "utf8" }).trim());
+
+  execFileSync("git", ["worktree", "remove", "--force", join(xdgCache, "picastle", safeRepoIdForTest(realpathSync(repo)), "worktrees", "dotfiles-bbb-middle")], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["branch", "-D", "picastle/dotfiles-bbb-middle"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "main"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "b.txt"), "middle squash differs\n");
+  execFileSync("git", ["add", "b.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["commit", "-m", "squash middle"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["push", "origin", "main"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(ghLog, "");
+  writeFileSync(gh, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'; exit 0; fi
+if [[ "$1 $2" == "pr list" ]]; then cat <<'JSON'
+[{"number":33,"headRefName":"picastle/dotfiles-ccc-tail","baseRefName":"picastle/dotfiles-bbb-middle","url":"https://github.com/acme/repo/pull/33","body":${JSON.stringify(refreshedTailBody)},"isCrossRepository":false,"headRepository":{"name":"repo"},"headRepositoryOwner":{"login":"acme"}}]
+JSON
+exit 0; fi
+if [[ "$1 $2" == "pr edit" ]]; then exit 0; fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`);
+  chmodSync(gh, 0o755);
+  writeFileSync(peb, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" && "$2" == "--status" ]]; then printf '%s\n' '{"data":[]}'; exit 0; fi
+if [[ "$1" == "list" ]]; then printf '%s\n' '{"data":[{"id":"dotfiles-ccc"}]}'; exit 0; fi
+if [[ "$1" == "show" ]]; then printf '%s\n' '{"data":{"title":"Tail","status":"ready_for_agent"}}'; exit 0; fi
+if [[ "$1 $2" == "closes add" || "$1" == "update" || "$1 $2" == "comment add" ]]; then printf '%s\n' 'ok'; exit 0; fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`);
+  chmodSync(peb, 0o755);
+
+  const secondOutput = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: xdgCache,
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_MAX_ISSUES: "0",
+      PICASTLE_STACK_PRS: "1",
+    },
+  });
+  assert.match(secondOutput, /stack retarget: picastle\/dotfiles-ccc-tail base picastle\/dotfiles-bbb-middle → main/);
+  assert.match(secondOutput, /rebasing stack branch picastle\/dotfiles-ccc-tail onto main/);
+  assert.deepEqual(
+    execFileSync("git", ["diff", "--name-only", "main...picastle/dotfiles-ccc-tail"], { cwd: repo, encoding: "utf8" }).trim().split("\n").filter(Boolean),
+    ["c.txt"],
+  );
 });
 
 test("stack reconciliation rebases downstream branches before retargeting merged upstream PRs", () => {

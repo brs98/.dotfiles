@@ -550,7 +550,17 @@ function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}, dirtyBranch
         upstreamRebased = false;
         continue;
       }
-      upstreamRebased = rebaseOpenStackPrBranch(entry.pr.headRefName, stackBaseBranch(refreshedStack), refreshedStack).rebased || upstreamRebased;
+      upstreamRebased = applyStackRetargetAction({
+        prRef: entry.pr.url || (entry.pr.number ? String(entry.pr.number) : entry.pr.headRefName),
+        headRefName: entry.pr.headRefName,
+        currentBase: entry.pr.baseRefName,
+        expectedBase: stackBaseBranch(refreshedStack),
+        stack: refreshedStack,
+        currentBody: entry.pr.body,
+        updateBase: false,
+        updateBody: true,
+        effectiveBaseChanged: false,
+      }, { rebaseBranch: true }) || upstreamRebased;
     }
   }
 
