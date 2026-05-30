@@ -2665,6 +2665,143 @@ exit 1
   assert.match(readFileSync(ghLog, "utf8"), /pr edit https:\/\/github\.com\/acme\/repo\/pull\/22 --base main/);
 });
 
+test("interrupted dirty stack recovery resumes sequentially before downstream rebase", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-stacked-interrupted-sequential-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  const worktrees = join(tempRoot, "worktrees");
+  mkdirSync(fakeBin, { recursive: true });
+  mkdirSync(worktrees, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+
+  const firstBranch = "picastle/dotfiles-aaa-first";
+  const secondBranch = "picastle/dotfiles-bbb-second";
+  const firstWorktree = join(worktrees, "dotfiles-aaa-first");
+  const secondWorktree = join(worktrees, "dotfiles-bbb-second");
+  execFileSync("git", ["worktree", "add", "-b", firstBranch, firstWorktree, "main"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["worktree", "add", "-b", secondBranch, secondWorktree, firstBranch], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(firstWorktree, "a.txt"), "interrupted first\n");
+  writeFileSync(join(secondWorktree, "b.txt"), "interrupted second\n");
+
+  const xdgCache = join(tempRoot, "cache");
+  const stackDir = join(xdgCache, "picastle", safeRepoIdForTest(realpathSync(repo)), "stacks");
+  mkdirSync(stackDir, { recursive: true });
+  const metadata: StackMetadata[] = [
+    {
+      stackId: "dotfiles-aaa-dotfiles-bbb",
+      index: 1,
+      total: 2,
+      issueId: "dotfiles-aaa",
+      headBranch: firstBranch,
+      baseBranch: "main",
+      nextBranch: secondBranch,
+    },
+    {
+      stackId: "dotfiles-aaa-dotfiles-bbb",
+      index: 2,
+      total: 2,
+      issueId: "dotfiles-bbb",
+      headBranch: secondBranch,
+      baseBranch: "main",
+      previousBranch: firstBranch,
+    },
+  ];
+  for (const stack of metadata) {
+    writeFileSync(join(stackDir, `${hashStringForTest(stack.headBranch)}.json`), JSON.stringify(stack));
+  }
+
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+
+  const gh = join(fakeBin, "gh");
+  writeFileSync(
+    gh,
+    `#!/usr/bin/env bash
+if [[ "$1 $2" == "repo view" ]]; then
+  printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "pr list" ]]; then
+  printf '%s\n' '[]'
+  exit 0
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(gh, 0o755);
+
+  const peb = join(fakeBin, "peb");
+  writeFileSync(
+    peb,
+    `#!/usr/bin/env bash
+if [[ "$1" == "list" ]]; then
+  printf '%s\n' '{"data":[{"id":"dotfiles-aaa"},{"id":"dotfiles-bbb"}]}'
+  exit 0
+fi
+if [[ "$1" == "show" ]]; then
+  case "$2" in
+    dotfiles-aaa) printf '%s\n' '{"data":{"title":"First","status":"ready_for_agent"}}'; exit 0 ;;
+    dotfiles-bbb) printf '%s\n' '{"data":{"title":"Second","status":"ready_for_agent"}}'; exit 0 ;;
+  esac
+fi
+if [[ "$1" == "update" ]]; then
+  printf '%s\n' 'ok'
+  exit 0
+fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(peb, 0o755);
+
+  const agentLog = join(tempRoot, "agent.log");
+  const agentLock = join(tempRoot, "agent.lock");
+  const agentCommand = `
+issue="\${PICASTLE_AGENT_NAME#implementer-}"
+printf 'start %s\n' "$issue" >> ${JSON.stringify(agentLog)}
+if [[ -e ${JSON.stringify(agentLock)} ]]; then
+  printf 'concurrent %s\n' "$issue" >> ${JSON.stringify(agentLog)}
+  exit 9
+fi
+touch ${JSON.stringify(agentLock)}
+sleep 0.2
+git add .
+git -c user.name='Picastle Test' -c user.email=test@example.com commit -m "$issue recovery\n\nCloses: $issue"
+rm -f ${JSON.stringify(agentLock)}
+printf 'end %s\n' "$issue" >> ${JSON.stringify(agentLog)}
+`;
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1", "--concurrency", "2", "--no-pr", "--no-push", "--no-verify"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      XDG_CACHE_HOME: xdgCache,
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_PUBLISHER_AGENT: "0",
+      PICASTLE_STACK_PRS: "1",
+      PICASTLE_TEST_AGENT_COMMAND: agentCommand,
+    },
+  });
+
+  assert.match(output, /Recovery contains stacked implementation work; resuming sequentially in stack order\./);
+  assert.match(output, /rebasing stack branch picastle\/dotfiles-bbb-second onto picastle\/dotfiles-aaa-first/);
+  assert.equal(readFileSync(agentLog, "utf8"), "start dotfiles-aaa\nend dotfiles-aaa\nstart dotfiles-bbb\nend dotfiles-bbb\n");
+  assert.doesNotThrow(() => execFileSync("git", ["merge-base", "--is-ancestor", firstBranch, secondBranch], { cwd: repo }));
+});
+
 function hashStringForTest(input: string): string {
   let hash = 5381;
   for (const char of input) hash = ((hash << 5) + hash + char.charCodeAt(0)) >>> 0;

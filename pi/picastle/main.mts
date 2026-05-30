@@ -37,6 +37,7 @@ import {
   selectRecoveryActions,
   validatePlannedIssueSelections,
   type RecoveryBranchInput,
+  type RecoveryIssue,
   type RecoveryIssueLookup,
   type RecoveryPlan,
   type RepositoryIdentity,
@@ -135,6 +136,10 @@ const TEST_AGENT_OUTPUT = process.env.PICASTLE_TEST_AGENT_OUTPUT;
 if (TEST_AGENT_OUTPUT !== undefined && !process.env.NODE_TEST_CONTEXT) {
   throw new Error("PICASTLE_TEST_AGENT_OUTPUT is only available to the node:test harness");
 }
+const TEST_AGENT_COMMAND = process.env.PICASTLE_TEST_AGENT_COMMAND;
+if (TEST_AGENT_COMMAND !== undefined && !process.env.NODE_TEST_CONTEXT) {
+  throw new Error("PICASTLE_TEST_AGENT_COMMAND is only available to the node:test harness");
+}
 // gh pr list defaults to 30; no-cap Picastle runs can exceed that. Use a high,
 // bounded scan, then locally filter to same-repository Picastle and legacy
 // Sandcastle PR heads before recovery/planning. This is not an unbounded "all PRs" query.
@@ -174,9 +179,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   const recovery = recoverInterruptedRun({ readOnly: PLAN_ONLY });
   if (!PLAN_ONLY && recovery.interruptedImplementations.length > 0) {
     console.log("Recovery has interrupted implementation work; resuming before planning new work.");
-    const settled = await runWithConcurrency(recovery.interruptedImplementations, CONCURRENCY, (issue) =>
-      implementIssue(issue, iteration),
-    );
+    const settled = await resumeInterruptedImplementations(recovery.interruptedImplementations, iteration);
     const completed = settled.flatMap((outcome) => outcome.status === "fulfilled" && outcome.value ? [outcome.value] : []);
     for (const outcome of settled) {
       if (outcome.status === "rejected") console.error(`  ✗ recovery implementer failed: ${formatError(outcome.reason)}`);
@@ -830,6 +833,45 @@ function parseJsonArray(input: string, description: string): unknown[] {
   return parsed;
 }
 
+async function resumeInterruptedImplementations(
+  issues: RecoveryIssue[],
+  iteration: number,
+): Promise<PromiseSettledResult<CompletedIssue | undefined>[]> {
+  if (!issues.some((issue) => issue.stack)) {
+    return runWithConcurrency(issues, CONCURRENCY, (issue) => implementIssue(issue, iteration));
+  }
+
+  const ordered = orderInterruptedStackRecoveryIssues(issues);
+  console.log("Recovery contains stacked implementation work; resuming sequentially in stack order.");
+  const completedByStack = new Map<string, CompletedIssue[]>();
+  return runSequentially(ordered, async (issue) => {
+    const completed = await implementIssue(issue, iteration);
+    if (completed?.stack) {
+      const stackCompleted = [...(completedByStack.get(completed.stack.stackId) ?? []), completed]
+        .sort((a, b) => a.stack!.index - b.stack!.index || a.id.localeCompare(b.id));
+      completedByStack.set(completed.stack.stackId, stackCompleted);
+      rebaseStackOntoExpectedBases(stackCompleted);
+    }
+    return completed;
+  });
+}
+
+function orderInterruptedStackRecoveryIssues(issues: RecoveryIssue[]): RecoveryIssue[] {
+  return issues
+    .map((issue, position) => ({ issue, position }))
+    .sort((a, b) => {
+      const aStack = a.issue.stack;
+      const bStack = b.issue.stack;
+      if (aStack && bStack) {
+        if (aStack.stackId !== bStack.stackId) return aStack.stackId.localeCompare(bStack.stackId) || a.position - b.position;
+        return aStack.index - bStack.index || a.issue.id.localeCompare(b.issue.id) || a.position - b.position;
+      }
+      if (aStack || bStack) return aStack ? -1 : 1;
+      return a.position - b.position;
+    })
+    .map((entry) => entry.issue);
+}
+
 async function implementIssue(
   issue: PlannedWorkIssue,
   iteration: number,
@@ -1342,6 +1384,22 @@ async function runPiAgent(args: {
     ? createReviewerResourceLoader({ cwd: args.cwd, agentDir, settingsManager })
     : undefined;
   if (resourceLoader) await resourceLoader.reload();
+
+  if (TEST_AGENT_COMMAND !== undefined) {
+    run(TEST_AGENT_COMMAND, args.cwd, {
+      stdio: "inherit",
+      env: {
+        PICASTLE_AGENT_NAME: args.name,
+        PICASTLE_AGENT_LOG_FILE: args.logFile,
+      },
+    });
+    const output = TEST_AGENT_OUTPUT ?? "";
+    if (output) {
+      append(args.logFile, output + "\n");
+      process.stdout.write(output + "\n");
+    }
+    return output;
+  }
 
   if (TEST_AGENT_OUTPUT !== undefined) {
     append(args.logFile, TEST_AGENT_OUTPUT + "\n");
