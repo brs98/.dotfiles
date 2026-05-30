@@ -339,14 +339,8 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
     const dirty = worktree?.path && existsSync(worktree.path)
       ? run("git status --porcelain", worktree.path).stdout.trim().length > 0
       : false;
-    const aheadOutput = run(
-      `git rev-list --count ${shellQuote(BASE_BRANCH)}..${shellQuote(localBranch.branch)}`,
-      repoRoot,
-    ).stdout.trim();
-    const ahead = Number(aheadOutput);
-    if (!Number.isFinite(ahead)) {
-      throw new Error(`invalid git rev-list ahead count for ${localBranch.branch}: ${aheadOutput}`);
-    }
+    const stack = loadPersistedStackMetadata(localBranch.branch) ?? openPr?.stack;
+    const ahead = countRecoverableCommits(localBranch.branch, stack);
     const unpushed = openPrUrl ? countUnpushedCommits(localBranch.branch, ahead) : 0;
     const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
     return {
@@ -362,7 +356,7 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
       worktreePath: worktree?.path,
       openPrUrl,
       commitTime: localBranch.commitTime,
-      stack: loadPersistedStackMetadata(localBranch.branch) ?? openPr?.stack,
+      stack,
     };
   });
 
@@ -385,6 +379,35 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
   }
 
   return inputs;
+}
+
+function countRecoverableCommits(branch: string, stack?: StackMetadata): number {
+  assertSafeRecoveryBranchName(branch);
+  const base = stack ? stackBaseBranch(stack) : BASE_BRANCH;
+  const baseRef = resolveRecoveryComparisonBase(base) ?? (base === BASE_BRANCH ? undefined : resolveRecoveryComparisonBase(BASE_BRANCH));
+  if (!baseRef) throw new Error(`cannot compare recovery branch ${branch}: missing base ${base}`);
+  if (baseRef !== base) {
+    console.warn(`  ⚠ recovery compare base ${base} missing for ${branch}; falling back to ${baseRef}`);
+  }
+  const aheadOutput = run(
+    `git rev-list --count ${shellQuote(baseRef)}..${shellQuote(branch)}`,
+    repoRoot,
+  ).stdout.trim();
+  const ahead = Number(aheadOutput);
+  if (!Number.isFinite(ahead)) {
+    throw new Error(`invalid git rev-list ahead count for ${branch} against ${baseRef}: ${aheadOutput}`);
+  }
+  return ahead;
+}
+
+function resolveRecoveryComparisonBase(base: string): string | undefined {
+  const exists = run(`git rev-parse --verify --quiet ${shellQuote(base)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (exists) return base;
+  if (!isRecognizedRecoveryPrHead(base)) return undefined;
+  const remoteRef = `origin/${base}`;
+  if (!isSafeRecoveryTrackingRef(remoteRef)) throw new Error(`unsafe Picastle recovery tracking ref for ${base}: ${remoteRef}`);
+  const remoteExists = run(`git rev-parse --verify --quiet ${shellQuote(remoteRef)}`, repoRoot, { allowFailure: true }).status === 0;
+  return remoteExists ? remoteRef : undefined;
 }
 
 function countUnpushedCommits(branch: string, fallbackWhenNoTracking: number): number {
@@ -1633,7 +1656,7 @@ function refreshIssueStackMetadata<T extends { branch: string; stack?: StackMeta
         baseBranch: BASE_BRANCH,
         headBranch: entry.branch,
         previousBranch: group[index - 1]?.branch,
-        nextBranch: entry.stack.nextBranch,
+        nextBranch: group[index + 1]?.branch,
       });
       refreshedByBranch.set(entry.branch, refreshed);
       if (!stackMetadataEqual(entry.stack, refreshed)) {
