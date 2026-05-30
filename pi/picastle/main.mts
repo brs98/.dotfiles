@@ -1502,7 +1502,9 @@ function prepareCompletedIssuesForPublishing(completed: CompletedIssue[]): Compl
 function preservedCompletedStack(completed: CompletedIssue[]): CompletedIssue[] | undefined {
   if (!completed.every((issue) => issue.stack)) return undefined;
   const stackId = completed[0]!.stack!.stackId;
-  if (!completed.every((issue) => issue.stack!.stackId === stackId && issue.stack!.total === completed.length)) return undefined;
+  const total = completed[0]!.stack!.total;
+  if (total < completed.length) return undefined;
+  if (!completed.every((issue) => issue.stack!.stackId === stackId && issue.stack!.total === total)) return undefined;
   return [...completed].sort((a, b) => a.stack!.index - b.stack!.index || a.id.localeCompare(b.id));
 }
 
