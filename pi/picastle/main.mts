@@ -585,7 +585,7 @@ function applyStackRetargetAction(action: StackRetargetAction, options: { rebase
   const baseEdit = action.updateBase ? ` --base ${shellQuote(action.expectedBase)}` : "";
   run(`gh pr edit ${shellQuote(action.prRef)}${baseEdit} --body-file ${shellQuote(bodyFile)}`, repoRoot);
   const comment = stackPebblesComment(action.stack, action.prRef);
-  if (comment) writePendingComment(result.worktreePath, action.stack.issueId, comment);
+  if (comment) postPebblesComment(result.worktreePath, action.stack.issueId, comment);
   return result.rebased;
 }
 
@@ -1594,7 +1594,17 @@ function retargetStackPrIfNeeded(issue: CompletedIssue, prRef: string): void {
 
 function recordPublishedStackPosition(issue: CompletedIssue, prRef: string): void {
   const comment = stackPebblesComment(issue.stack, prRef);
-  if (comment) writePendingComment(issue.worktreePath, issue.id, comment);
+  if (comment) postPebblesComment(issue.worktreePath, issue.id, comment);
+}
+
+function postPebblesComment(worktreePath: string, issueId: string, body: string): void {
+  const result = run(pebCommand(`comment add ${shellQuote(issueId)} ${shellQuote(body)}`), repoRoot, {
+    allowFailure: true,
+  });
+  if (result.status === 0) return;
+
+  console.warn(`  ⚠ failed to post Pebbles comment for ${issueId}: ${result.stderr || result.stdout}`);
+  writePendingComment(worktreePath, issueId, body);
 }
 
 function buildPrBody(issue: CompletedIssue): string {

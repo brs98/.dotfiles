@@ -2656,7 +2656,7 @@ exit 1
 printf '%s\n' "$*" >> "$PEB_LOG"
 if [[ "$1" == "list" ]]; then printf '%s\n' '{"data":[{"id":"dotfiles-bbb"},{"id":"dotfiles-ccc"}]}'; exit 0; fi
 if [[ "$1" == "show" ]]; then printf '%s\n' '{"data":{"title":"Stack entry","status":"ready_for_agent"}}'; exit 0; fi
-if [[ "$1 $2" == "closes add" || "$1" == "update" ]]; then printf '%s\n' 'ok'; exit 0; fi
+if [[ "$1 $2" == "closes add" || "$1" == "update" || "$1 $2" == "comment add" ]]; then printf '%s\n' 'ok'; exit 0; fi
 echo "unexpected peb invocation: $*" >&2
 exit 1
 `);
@@ -2687,6 +2687,7 @@ exit 1
   const ghTrace = readFileSync(ghLog, "utf8");
   assert.match(ghTrace, /pr edit https:\/\/github\.com\/acme\/repo\/pull\/22 --base main/);
   assert.doesNotMatch(ghTrace, /pull\/33/);
+  assert.match(readFileSync(pebLog, "utf8"), /comment add dotfiles-bbb Picastle published stacked PR 2\/3/);
 });
 
 test("stack reconciliation rebases downstream branches before retargeting merged upstream PRs", () => {
@@ -2752,7 +2753,7 @@ exit 1
 printf '%s\n' "$*" >> "$PEB_LOG"
 if [[ "$1" == "list" ]]; then printf '%s\n' '{"data":[{"id":"dotfiles-bbb"}]}'; exit 0; fi
 if [[ "$1" == "show" ]]; then printf '%s\n' '{"data":{"title":"Downstream","status":"ready_for_agent"}}'; exit 0; fi
-if [[ "$1 $2" == "closes add" || "$1" == "update" ]]; then printf '%s\n' 'ok'; exit 0; fi
+if [[ "$1 $2" == "closes add" || "$1" == "update" || "$1 $2" == "comment add" ]]; then printf '%s\n' 'ok'; exit 0; fi
 echo "unexpected peb invocation: $*" >&2
 exit 1
 `);
@@ -2778,6 +2779,7 @@ exit 1
   assert.doesNotThrow(() => execFileSync("git", ["merge-base", "--is-ancestor", "main", "picastle/dotfiles-bbb-downstream"], { cwd: repo }));
   assert.equal(execFileSync("git", ["rev-parse", "picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" }), execFileSync("git", ["rev-parse", "origin/picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" }));
   assert.match(readFileSync(ghLog, "utf8"), /pr edit https:\/\/github\.com\/acme\/repo\/pull\/22 --base main/);
+  assert.match(readFileSync(pebLog, "utf8"), /comment add dotfiles-bbb Picastle published stacked PR 2\/2/);
 });
 
 test("interrupted dirty stack recovery resumes sequentially before downstream rebase", () => {
