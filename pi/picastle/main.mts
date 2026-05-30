@@ -1132,6 +1132,7 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     retargetStackPrIfNeeded(issue, publishDecision.existingPr.url);
     console.log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
     recordPublishedStackPosition(issue, publishDecision.existingPr.url);
+    rebasePublishedStackDownstreamOpenPrs(issue);
     if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
       markIssueInReview(issue.id);
     }
@@ -1157,6 +1158,7 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
   }
 
   recordPublishedStackPosition(issue, prRef);
+  rebasePublishedStackDownstreamOpenPrs(issue);
   if (declarePendingPebbleClosure(issue.id, prRef)) {
     markIssueInReview(issue.id);
   }
@@ -1248,6 +1250,7 @@ async function publishCompletedIssues(
       retargetStackPrIfNeeded(issue, publishDecision.existingPr.url);
       console.log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
       recordPublishedStackPosition(issue, publishDecision.existingPr.url);
+      rebasePublishedStackDownstreamOpenPrs(issue);
       if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
         markIssueInReview(issue.id);
       }
@@ -1262,6 +1265,7 @@ async function publishCompletedIssues(
       const prRef = extractPrRef(prCreate.stdout) || extractPrRef(prCreate.stderr);
       if (prRef) {
         recordPublishedStackPosition(issue, prRef);
+        rebasePublishedStackDownstreamOpenPrs(issue);
         if (declarePendingPebbleClosure(issue.id, prRef)) {
           markIssueInReview(issue.id);
         }
@@ -1765,6 +1769,55 @@ function rebaseStackOntoExpectedBases(stack: CompletedIssue[]): void {
 function rebaseIssueStackBranchIfNeeded(issue: CompletedIssue): void {
   if (!issue.stack) return;
   rebaseBranchWorktree(issue.worktreePath, issue.branch, effectiveBaseBranch(issue));
+}
+
+function rebasePublishedStackDownstreamOpenPrs(issue: CompletedIssue): void {
+  if (!issue.stack || !OPEN_PRS) return;
+  const openPrs = loadOpenStackPrRecords("open GitHub stack PR list for downstream stack rebase");
+  const entries = openPrs
+    .map((pr) => ({ pr, stack: parseStackMetadataFromBody(pr.body) }))
+    .filter((entry): entry is { pr: StackPrRecord; stack: StackMetadata } => entry.stack?.stackId === issue.stack!.stackId);
+
+  const publishedIndex = entries.findIndex((entry) => entry.pr.headRefName === issue.branch);
+  if (publishedIndex >= 0) {
+    entries[publishedIndex] = { ...entries[publishedIndex]!, stack: issue.stack };
+  } else {
+    entries.push({ pr: { headRefName: issue.branch }, stack: issue.stack });
+  }
+
+  entries.sort((a, b) => a.stack.index - b.stack.index || a.pr.headRefName.localeCompare(b.pr.headRefName));
+  const start = entries.findIndex((entry) => entry.pr.headRefName === issue.branch);
+  if (start < 0 || start >= entries.length - 1) return;
+
+  for (let index = start + 1; index < entries.length; index += 1) {
+    const entry = entries[index]!;
+    const refreshedStack = relinkStackMetadata(entry.stack, {
+      baseBranch: issue.stack.baseBranch,
+      headBranch: entry.pr.headRefName,
+      previousBranch: entries[index - 1]?.pr.headRefName,
+      nextBranch: entries[index + 1]?.pr.headRefName,
+    });
+    const expectedBase = stackBaseBranch(refreshedStack);
+    if (isDirtyExistingStackWorktree(entry.pr.headRefName)) {
+      logStackReconcileDeferred(entry.pr.headRefName, expectedBase);
+      break;
+    }
+    applyStackRetargetAction({
+      prRef: entry.pr.url || (entry.pr.number ? String(entry.pr.number) : entry.pr.headRefName),
+      headRefName: entry.pr.headRefName,
+      currentBase: entry.pr.baseRefName,
+      expectedBase,
+      stack: refreshedStack,
+      currentBody: entry.pr.body,
+      updateBase: Boolean(entry.pr.baseRefName && entry.pr.baseRefName !== expectedBase),
+      updateBody: !stackMetadataEqual(entry.stack, refreshedStack),
+    }, { rebaseBranch: true });
+  }
+}
+
+function isDirtyExistingStackWorktree(branch: string): boolean {
+  const worktree = collectWorktreeEntries().find((entry) => entry.branch === branch && existsSync(entry.path));
+  return Boolean(worktree && run("git status --porcelain", worktree.path).stdout.trim());
 }
 
 function rebaseOpenStackPrBranch(branch: string, expectedBase: string): { worktreePath: string; rebased: boolean } {
