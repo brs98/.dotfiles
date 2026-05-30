@@ -34,10 +34,10 @@ import {
   normalizeOpenPrsJson,
   pebClosureRegistrationSucceeded,
   parseKnownIssueIdsJson,
-  parseOpenPrsByHead,
   selectRecoveryActions,
   validatePlannedIssueSelections,
   type RecoveryBranchInput,
+  type RecoveryIssue,
   type RecoveryIssueLookup,
   type RecoveryPlan,
   type RepositoryIdentity,
@@ -51,7 +51,24 @@ import {
   type PlannerDecision,
 } from "./planner-output.mjs";
 import { createReviewerAgentTooling, createReviewerResourceLoader } from "./review-session.mts";
-type CompletedIssue = PlannedIssue & { worktreePath: string };
+import {
+  parseStackMetadataFromBody,
+  parseStackMetadataJson,
+  planStackRetargets,
+  relinkStackMetadata,
+  stackBaseBranch,
+  stackContext,
+  stackMetadataEqual,
+  stackIssues,
+  stackPebblesComment,
+  stackPrBodySection,
+  upsertStackPrBodySection,
+  type StackMetadata,
+  type StackPrRecord,
+  type StackRetargetAction,
+} from "./stack.mjs";
+type PlannedWorkIssue = PlannedIssue & { stack?: StackMetadata };
+type CompletedIssue = PlannedWorkIssue & { worktreePath: string };
 type ReviewStatus = "approved" | "changes_requested" | "blocked";
 type ReviewFinding = {
   severity?: string;
@@ -89,8 +106,10 @@ const cacheRoot = process.env.XDG_CACHE_HOME || join(requireHome(), ".cache");
 const runtimeDir = join(cacheRoot, "picastle", safeRepoId(repoRoot));
 const logsDir = join(runtimeDir, "logs");
 const worktreesDir = join(runtimeDir, "worktrees");
+const stackMetadataDir = join(runtimeDir, "stacks");
 mkdirSync(logsDir, { recursive: true });
 mkdirSync(worktreesDir, { recursive: true });
+mkdirSync(stackMetadataDir, { recursive: true });
 
 const policy = loadPebblesPolicy(repoRoot);
 const queuePolicy = deriveQueuePolicy(policy);
@@ -109,6 +128,7 @@ const PLAN_ONLY = envBool("PICASTLE_PLAN_ONLY", cli.planOnly);
 const REPAIR_ON_VERIFY_FAIL = envBool("PICASTLE_REPAIR_ON_VERIFY_FAIL", true);
 const PUSH = envBool("PICASTLE_PUSH", !cli.noPush);
 const OPEN_PRS = envBool("PICASTLE_OPEN_PRS", !cli.noPr);
+const STACK_PRS = envBool("PICASTLE_STACK_PRS", false);
 const PUBLISHER_AGENT = envBool("PICASTLE_PUBLISHER_AGENT", true);
 const REVIEW_REPAIR_CYCLES = envInt("PICASTLE_REVIEW_REPAIR_CYCLES", 10);
 const REVIEW_CONCURRENCY = envInt("PICASTLE_REVIEW_CONCURRENCY", CONCURRENCY);
@@ -116,11 +136,16 @@ const TEST_AGENT_OUTPUT = process.env.PICASTLE_TEST_AGENT_OUTPUT;
 if (TEST_AGENT_OUTPUT !== undefined && !process.env.NODE_TEST_CONTEXT) {
   throw new Error("PICASTLE_TEST_AGENT_OUTPUT is only available to the node:test harness");
 }
+const TEST_AGENT_COMMAND = process.env.PICASTLE_TEST_AGENT_COMMAND;
+if (TEST_AGENT_COMMAND !== undefined && !process.env.NODE_TEST_CONTEXT) {
+  throw new Error("PICASTLE_TEST_AGENT_COMMAND is only available to the node:test harness");
+}
 // gh pr list defaults to 30; no-cap Picastle runs can exceed that. Use a high,
 // bounded scan, then locally filter to same-repository Picastle and legacy
 // Sandcastle PR heads before recovery/planning. This is not an unbounded "all PRs" query.
 const OPEN_PR_SCAN_LIMIT = envInt("PICASTLE_OPEN_PR_SCAN_LIMIT", 1000);
 const OPEN_PR_JSON_FIELDS = "number,headRefName,url,isCrossRepository,headRepository,headRepositoryOwner";
+const STACK_OPEN_PR_JSON_FIELDS = "number,headRefName,baseRefName,url,body,isCrossRepository,headRepository,headRepositoryOwner";
 const WORKTREE_READY_COMMAND = env("PICASTLE_WORKTREE_READY_COMMAND", "");
 const BEFORE_PUSH_COMMAND = env("PICASTLE_BEFORE_PUSH_COMMAND", "");
 const THINKING = process.env.PICASTLE_THINKING as
@@ -144,6 +169,7 @@ console.log(`Picastle runtime: ${runtimeDir}`);
 console.log(`Pebbles queue: status=${ISSUE_STATUS}${ISSUE_LABEL ? ` label=${ISSUE_LABEL}` : ""}`);
 if (MIN_FREE_GB > 0) console.log(`Disk guardrail: require ${MIN_FREE_GB} GiB free`);
 if (CLEAN_TARGETS) console.log("Disk cleanup: per-worktree target/ cleanup enabled");
+if (STACK_PRS) console.log("Stacked PR mode: enabled for multi-issue batches");
 checkMinFreeSpace("startup");
 
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
@@ -153,9 +179,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   const recovery = recoverInterruptedRun({ readOnly: PLAN_ONLY });
   if (!PLAN_ONLY && recovery.interruptedImplementations.length > 0) {
     console.log("Recovery has interrupted implementation work; resuming before planning new work.");
-    const settled = await runWithConcurrency(recovery.interruptedImplementations, CONCURRENCY, (issue) =>
-      implementIssue(issue, iteration),
-    );
+    const settled = await resumeInterruptedImplementations(recovery.interruptedImplementations, iteration);
     const completed = settled.flatMap((outcome) => outcome.status === "fulfilled" && outcome.value ? [outcome.value] : []);
     for (const outcome of settled) {
       if (outcome.status === "rejected") console.error(`  ✗ recovery implementer failed: ${formatError(outcome.reason)}`);
@@ -197,9 +221,10 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     break;
   }
 
-  const settled = await runWithConcurrency(issues, CONCURRENCY, (issue) =>
-    implementIssue(issue, iteration),
-  );
+  const plannedWork = preparePlannedIssuesForImplementation(issues);
+  const settled = STACK_PRS && plannedWork.length > 1
+    ? await runSequentially(plannedWork, (issue) => implementIssue(issue, iteration))
+    : await runWithConcurrency(plannedWork, CONCURRENCY, (issue) => implementIssue(issue, iteration));
 
   const completed: CompletedIssue[] = [];
   for (const [i, outcome] of settled.entries()) {
@@ -260,13 +285,15 @@ function recoverInterruptedRun(options: { readOnly?: boolean } = {}): RecoveryPl
     requiredLabel: ISSUE_LABEL || undefined,
   });
   logRecoveryPlan(plan);
+  reconcileOpenStackPrs(options, dirtyStackBranches(branchInputs));
 
   if (options.readOnly) {
     return { ...plan, unpublishedBranches: [] };
   }
 
+  const refreshedPlan = refreshRecoveryPlanStackMetadata(plan);
   const unpublishedBranches: CompletedIssue[] = [];
-  for (const action of selectRecoveryActions(plan, options)) {
+  for (const action of selectRecoveryActions(refreshedPlan, options)) {
     if (action.kind === "declare-pending-closure") {
       if (declarePendingPebbleClosure(action.issueId, action.prUrl)) {
         markIssueInReview(action.issueId);
@@ -279,7 +306,7 @@ function recoverInterruptedRun(options: { readOnly?: boolean } = {}): RecoveryPl
     }
   }
 
-  return { ...plan, unpublishedBranches };
+  return { ...refreshedPlan, unpublishedBranches };
 }
 
 function declarePendingPebbleClosure(issueId: string, prRef: string): boolean {
@@ -298,7 +325,7 @@ function declarePendingPebbleClosure(issueId: string, prRef: string): boolean {
 function collectRecoveryBranches(): RecoveryBranchInput[] {
   const worktrees = collectWorktreeEntries();
   const worktreeByBranch = new Map(worktrees.filter((entry) => entry.branch).map((entry) => [entry.branch!, entry]));
-  const openPrByHead = loadOpenPrsByHead();
+  const openPrByHead = loadOpenPrRecoveryRecordsByHead();
   const issueCache = new Map<string, { title?: string; status?: string; labels?: string[]; lookup: RecoveryIssueLookup } | undefined>();
   const knownIssueIds = loadKnownIssueIdsForRecovery();
 
@@ -306,7 +333,8 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
   const localBranchNames = new Set(localBranches.map((branch) => branch.branch));
   const inputs: RecoveryBranchInput[] = localBranches.map((localBranch) => {
     assertSafeRecoveryBranchName(localBranch.branch);
-    const openPrUrl = openPrByHead.get(localBranch.branch);
+    const openPr = openPrByHead.get(localBranch.branch);
+    const openPrUrl = openPr?.url;
     const issueId = openPrUrl
       ? extractIssueIdFromOpenPrHead(localBranch.branch, knownIssueIds)
       : extractIssueIdFromBranch(localBranch.branch, knownIssueIds);
@@ -314,14 +342,8 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
     const dirty = worktree?.path && existsSync(worktree.path)
       ? run("git status --porcelain", worktree.path).stdout.trim().length > 0
       : false;
-    const aheadOutput = run(
-      `git rev-list --count ${shellQuote(BASE_BRANCH)}..${shellQuote(localBranch.branch)}`,
-      repoRoot,
-    ).stdout.trim();
-    const ahead = Number(aheadOutput);
-    if (!Number.isFinite(ahead)) {
-      throw new Error(`invalid git rev-list ahead count for ${localBranch.branch}: ${aheadOutput}`);
-    }
+    const stack = loadPersistedStackMetadata(localBranch.branch) ?? openPr?.stack;
+    const ahead = countRecoverableCommits(localBranch.branch, stack);
     const unpushed = openPrUrl ? countUnpushedCommits(localBranch.branch, ahead) : 0;
     const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
     return {
@@ -337,10 +359,11 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
       worktreePath: worktree?.path,
       openPrUrl,
       commitTime: localBranch.commitTime,
+      stack,
     };
   });
 
-  for (const [head, url] of openPrByHead) {
+  for (const [head, openPr] of openPrByHead) {
     if (!isRecognizedRecoveryPrHead(head) || localBranchNames.has(head)) continue;
     const issueId = extractIssueIdFromOpenPrHead(head, knownIssueIds);
     const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
@@ -353,11 +376,41 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
       issueLookup: issue?.lookup,
       ahead: 0,
       dirty: false,
-      openPrUrl: url,
+      openPrUrl: openPr.url,
+      stack: openPr.stack ?? loadPersistedStackMetadata(head),
     });
   }
 
   return inputs;
+}
+
+function countRecoverableCommits(branch: string, stack?: StackMetadata): number {
+  assertSafeRecoveryBranchName(branch);
+  const base = stack ? stackBaseBranch(stack) : BASE_BRANCH;
+  const baseRef = resolveRecoveryComparisonBase(base) ?? (base === BASE_BRANCH ? undefined : resolveRecoveryComparisonBase(BASE_BRANCH));
+  if (!baseRef) throw new Error(`cannot compare recovery branch ${branch}: missing base ${base}`);
+  if (baseRef !== base) {
+    console.warn(`  ⚠ recovery compare base ${base} missing for ${branch}; falling back to ${baseRef}`);
+  }
+  const aheadOutput = run(
+    `git rev-list --count ${shellQuote(baseRef)}..${shellQuote(branch)}`,
+    repoRoot,
+  ).stdout.trim();
+  const ahead = Number(aheadOutput);
+  if (!Number.isFinite(ahead)) {
+    throw new Error(`invalid git rev-list ahead count for ${branch} against ${baseRef}: ${aheadOutput}`);
+  }
+  return ahead;
+}
+
+function resolveRecoveryComparisonBase(base: string): string | undefined {
+  const exists = run(`git rev-parse --verify --quiet ${shellQuote(base)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (exists) return base;
+  if (!isRecognizedRecoveryPrHead(base)) return undefined;
+  const remoteRef = `origin/${base}`;
+  if (!isSafeRecoveryTrackingRef(remoteRef)) throw new Error(`unsafe Picastle recovery tracking ref for ${base}: ${remoteRef}`);
+  const remoteExists = run(`git rev-parse --verify --quiet ${shellQuote(remoteRef)}`, repoRoot, { allowFailure: true }).status === 0;
+  return remoteExists ? remoteRef : undefined;
 }
 
 function countUnpushedCommits(branch: string, fallbackWhenNoTracking: number): number {
@@ -423,12 +476,26 @@ function loadRepositoryIdentity(): RepositoryIdentity {
   return cachedRepositoryIdentity;
 }
 
-function loadOpenPrsByHead(): Map<string, string> {
+function loadOpenPrRecoveryRecordsByHead(): Map<string, { url: string; stack?: StackMetadata }> {
+  const openPrs = loadOpenStackPrRecords("open GitHub recovery PR list");
+  const byHead = new Map<string, { url: string; stack?: StackMetadata }>();
+  for (const pr of openPrs) {
+    byHead.set(pr.headRefName, {
+      url: pr.url || (pr.number ? String(pr.number) : pr.headRefName),
+      stack: parseStackMetadataFromBody(pr.body),
+    });
+  }
+  return byHead;
+}
+
+function loadOpenStackPrRecords(description: string): StackPrRecord[] {
   const result = run(
-    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${OPEN_PR_JSON_FIELDS}`,
+    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${STACK_OPEN_PR_JSON_FIELDS}`,
     repoRoot,
   );
-  return parseOpenPrsByHead(result.stdout, { currentRepository: loadRepositoryIdentity() });
+  const knownIssueIds = loadKnownIssueIdsForRecovery();
+  const normalized = normalizeOpenPrsJson(result.stdout, { currentRepository: loadRepositoryIdentity(), knownIssueIds });
+  return parseJsonArray(normalized, description) as StackPrRecord[];
 }
 
 function loadExistingOpenPrForIssue(issueId: string): { headRefName: string; url: string } | undefined {
@@ -438,6 +505,158 @@ function loadExistingOpenPrForIssue(issueId: string): { headRefName: string; url
     repoRoot,
   );
   return findOpenPrForIssue(result.stdout, issueId, { currentRepository: loadRepositoryIdentity(), knownIssueIds });
+}
+
+function dirtyStackBranches(branches: RecoveryBranchInput[]): Set<string> {
+  return new Set(branches.filter((branch) => branch.dirty && branch.stack).map((branch) => branch.branch));
+}
+
+function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}, dirtyBranches = new Set<string>()): void {
+  if (!OPEN_PRS) return;
+  const openPrs = loadOpenStackPrRecords("open GitHub stack PR list");
+  const retargets = planStackRetargets(openPrs, BASE_BRANCH);
+  if (options.readOnly) {
+    for (const action of retargets) logStackRetargetAction(action, true);
+    return;
+  }
+
+  const actionsByHead = new Map(retargets.map((action) => [action.headRefName, action]));
+  const applied = new Set<string>();
+  for (const group of openStackPrGroups(openPrs)) {
+    let upstreamRebased = false;
+    for (const [index, entry] of group.entries()) {
+      const action = actionsByHead.get(entry.pr.headRefName);
+      if (action) {
+        if (dirtyBranches.has(action.headRefName)) {
+          logStackReconcileDeferred(action.headRefName, action.expectedBase);
+          applied.add(action.headRefName);
+          upstreamRebased = false;
+          continue;
+        }
+        upstreamRebased = applyStackRetargetAction(action, { rebaseBranch: upstreamRebased }) || upstreamRebased;
+        applied.add(action.headRefName);
+        continue;
+      }
+
+      if (!upstreamRebased) continue;
+      const refreshedStack = relinkStackMetadata(entry.stack, {
+        baseBranch: BASE_BRANCH,
+        headBranch: entry.pr.headRefName,
+        previousBranch: group[index - 1]?.pr.headRefName,
+        nextBranch: group[index + 1]?.pr.headRefName,
+      });
+      if (dirtyBranches.has(entry.pr.headRefName)) {
+        logStackReconcileDeferred(entry.pr.headRefName, stackBaseBranch(refreshedStack));
+        upstreamRebased = false;
+        continue;
+      }
+      upstreamRebased = applyStackRetargetAction({
+        prRef: entry.pr.url || (entry.pr.number ? String(entry.pr.number) : entry.pr.headRefName),
+        headRefName: entry.pr.headRefName,
+        currentBase: entry.pr.baseRefName,
+        expectedBase: stackBaseBranch(refreshedStack),
+        stack: refreshedStack,
+        currentBody: entry.pr.body,
+        updateBase: false,
+        updateBody: true,
+        effectiveBaseChanged: false,
+      }, { rebaseBranch: true }) || upstreamRebased;
+    }
+  }
+
+  for (const action of retargets) {
+    if (applied.has(action.headRefName)) continue;
+    if (dirtyBranches.has(action.headRefName)) {
+      logStackReconcileDeferred(action.headRefName, action.expectedBase);
+      continue;
+    }
+    applyStackRetargetAction(action);
+  }
+}
+
+function logStackReconcileDeferred(headRefName: string, expectedBase: string): void {
+  console.warn(`  stack reconcile deferred: ${headRefName} base ${expectedBase} (dirty worktree; recovery will resume it first)`);
+}
+
+function logStackRetargetAction(action: StackRetargetAction, readOnly = false): void {
+  const message = action.updateBase
+    ? `  stack retarget: ${action.headRefName} base ${action.currentBase} → ${action.expectedBase}`
+    : `  stack metadata refresh: ${action.headRefName} base ${action.expectedBase}`;
+  console.log(readOnly ? `${message} (plan-only)` : message);
+}
+
+function applyStackRetargetAction(action: StackRetargetAction, options: { rebaseBranch?: boolean } = {}): boolean {
+  logStackRetargetAction(action);
+  const result = action.updateBase || action.effectiveBaseChanged || options.rebaseBranch
+    ? rebaseOpenStackPrBranch(action.headRefName, action.expectedBase, action.stack)
+    : { worktreePath: ensureExistingBranchWorktree(action.headRefName), rebased: false };
+  persistStackMetadata(action.stack);
+  const bodyFile = writeStackPrBodyRefreshFile(action);
+  const baseEdit = action.updateBase ? ` --base ${shellQuote(action.expectedBase)}` : "";
+  run(`gh pr edit ${shellQuote(action.prRef)}${baseEdit} --body-file ${shellQuote(bodyFile)}`, repoRoot);
+  const comment = stackPebblesComment(action.stack, action.prRef);
+  if (comment) postPebblesComment(result.worktreePath, action.stack.issueId, comment);
+  return result.rebased;
+}
+
+function openStackPrGroups(openPrs: StackPrRecord[]): Array<Array<{ pr: StackPrRecord; stack: StackMetadata }>> {
+  const byStackId = new Map<string, Array<{ pr: StackPrRecord; stack: StackMetadata }>>();
+  for (const pr of openPrs) {
+    const stack = parseStackMetadataFromBody(pr.body);
+    if (!stack) continue;
+    const group = byStackId.get(stack.stackId) ?? [];
+    group.push({ pr, stack });
+    byStackId.set(stack.stackId, group);
+  }
+  return [...byStackId.values()].map((group) =>
+    group.sort((a, b) => a.stack.index - b.stack.index || a.pr.headRefName.localeCompare(b.pr.headRefName)),
+  );
+}
+
+function persistStackMetadata(stack: StackMetadata): void {
+  const refreshedStack = refreshStackHeadSha(stack);
+  assertSafeRecoveryBranchName(refreshedStack.headBranch);
+  mkdirSync(stackMetadataDir, { recursive: true });
+  writeFileSync(stackMetadataPath(refreshedStack.headBranch), JSON.stringify(refreshedStack, null, 2));
+}
+
+function refreshStackHeadSha(stack: StackMetadata): StackMetadata {
+  const refreshed = { ...stack };
+  if (!refreshed.previousBranch) {
+    delete refreshed.previousHeadSha;
+    return refreshed;
+  }
+  const previousHeadSha = resolveCommitSha(refreshed.previousBranch);
+  if (previousHeadSha) refreshed.previousHeadSha = previousHeadSha;
+  return refreshed;
+}
+
+function resolveCommitSha(ref: string): string | undefined {
+  if (ref !== BASE_BRANCH && !isRecognizedRecoveryPrHead(ref)) return undefined;
+  const result = run(`git rev-parse --verify --quiet ${shellQuote(`${ref}^{commit}`)}`, repoRoot, { allowFailure: true });
+  return result.status === 0 ? result.stdout.trim() || undefined : undefined;
+}
+
+function loadPersistedStackMetadata(branch: string): StackMetadata | undefined {
+  if (!branch.startsWith("picastle/")) return undefined;
+  assertSafeRecoveryBranchName(branch);
+  const path = stackMetadataPath(branch);
+  if (!existsSync(path)) return undefined;
+  try {
+    const stack = parseStackMetadataJson(JSON.parse(readFileSync(path, "utf8")));
+    if (!stack || stack.headBranch !== branch) {
+      console.warn(`  ⚠ ignoring invalid Picastle stack metadata for ${branch}`);
+      return undefined;
+    }
+    return stack;
+  } catch (error) {
+    console.warn(`  ⚠ failed to read Picastle stack metadata for ${branch}: ${formatError(error)}`);
+    return undefined;
+  }
+}
+
+function stackMetadataPath(branch: string): string {
+  return join(stackMetadataDir, `${hashString(branch)}.json`);
 }
 
 function loadKnownIssueIdsForRecovery(): string[] {
@@ -642,8 +861,47 @@ function parseJsonArray(input: string, description: string): unknown[] {
   return parsed;
 }
 
+async function resumeInterruptedImplementations(
+  issues: RecoveryIssue[],
+  iteration: number,
+): Promise<PromiseSettledResult<CompletedIssue | undefined>[]> {
+  if (!issues.some((issue) => issue.stack)) {
+    return runWithConcurrency(issues, CONCURRENCY, (issue) => implementIssue(issue, iteration));
+  }
+
+  const ordered = orderInterruptedStackRecoveryIssues(issues);
+  console.log("Recovery contains stacked implementation work; resuming sequentially in stack order.");
+  const completedByStack = new Map<string, CompletedIssue[]>();
+  return runSequentially(ordered, async (issue) => {
+    const completed = await implementIssue(issue, iteration);
+    if (completed?.stack) {
+      const stackCompleted = [...(completedByStack.get(completed.stack.stackId) ?? []), completed]
+        .sort((a, b) => a.stack!.index - b.stack!.index || a.id.localeCompare(b.id));
+      completedByStack.set(completed.stack.stackId, stackCompleted);
+      rebaseStackOntoExpectedBases(stackCompleted);
+    }
+    return completed;
+  });
+}
+
+function orderInterruptedStackRecoveryIssues(issues: RecoveryIssue[]): RecoveryIssue[] {
+  return issues
+    .map((issue, position) => ({ issue, position }))
+    .sort((a, b) => {
+      const aStack = a.issue.stack;
+      const bStack = b.issue.stack;
+      if (aStack && bStack) {
+        if (aStack.stackId !== bStack.stackId) return aStack.stackId.localeCompare(bStack.stackId) || a.position - b.position;
+        return aStack.index - bStack.index || a.issue.id.localeCompare(b.issue.id) || a.position - b.position;
+      }
+      if (aStack || bStack) return aStack ? -1 : 1;
+      return a.position - b.position;
+    })
+    .map((entry) => entry.issue);
+}
+
 async function implementIssue(
-  issue: PlannedIssue,
+  issue: PlannedWorkIssue,
   iteration: number,
 ): Promise<CompletedIssue | undefined> {
   assertMutableMode("run implementer");
@@ -659,7 +917,8 @@ async function implementIssue(
       TASK_ID: issue.id,
       ISSUE_TITLE: issue.title,
       BRANCH: issue.branch,
-      BASE_BRANCH,
+      BASE_BRANCH: effectiveBaseBranch(issue),
+      STACK_CONTEXT: stackContext(issue.stack),
       ISSUE_JSON: issueJson.trim(),
       RECENT_COMMITS: recentCommits.trim(),
       PEB_PREFIX: pebCommand("").trim(),
@@ -680,7 +939,7 @@ async function implementIssue(
       console.warn(`  ⚠ ${issue.id}: worktree has uncommitted changes after implementer run`);
     }
 
-    const ahead = Number(run(`git rev-list --count ${shellQuote(BASE_BRANCH)}..HEAD`, worktreePath).stdout.trim() || "0");
+    const ahead = Number(run(`git rev-list --count ${shellQuote(effectiveBaseBranch(issue))}..HEAD`, worktreePath).stdout.trim() || "0");
     if (ahead <= 0) {
       console.log(`  - ${issue.id}: no commits produced`);
       return undefined;
@@ -703,16 +962,19 @@ async function publishCompletedIssuesWithAgent(
     `\n==> Review/repair loop handling ${completed.length} completed branch(es) with concurrency ${REVIEW_CONCURRENCY}`,
   );
 
-  const settled = await runWithConcurrency(completed, REVIEW_CONCURRENCY, async (issue) => {
-    try {
-      const approved = await reviewIssueUntilApproved(issue, iteration);
-      if (!approved) return { issue, published: false };
-      await publishApprovedIssue(issue);
-      return { issue, published: true };
-    } finally {
-      cleanWorktreeTarget(issue.worktreePath, issue.id);
-    }
-  });
+  const publishTargets = prepareCompletedIssuesForPublishing(completed);
+  const settled = STACK_PRS && publishTargets.length > 1
+    ? await reviewAndPublishStackWithAgent(publishTargets, iteration)
+    : await runWithConcurrency(publishTargets, REVIEW_CONCURRENCY, async (issue) => {
+      try {
+        const approved = await reviewIssueUntilApproved(issue, iteration);
+        if (!approved) return { issue, published: false };
+        await publishApprovedIssue(issue);
+        return { issue, published: true };
+      } finally {
+        cleanWorktreeTarget(issue.worktreePath, issue.id);
+      }
+    });
 
   for (const outcome of settled) {
     if (outcome.status === "rejected") {
@@ -720,6 +982,37 @@ async function publishCompletedIssuesWithAgent(
     } else if (!outcome.value.published) {
       console.warn(`  - ${outcome.value.issue.id}: not published`);
     }
+  }
+}
+
+async function reviewAndPublishStackWithAgent(
+  stack: CompletedIssue[],
+  iteration: number,
+): Promise<PromiseSettledResult<{ issue: CompletedIssue; published: boolean }>[]> {
+  const results: PromiseSettledResult<{ issue: CompletedIssue; published: boolean }>[] = [];
+  const approved: CompletedIssue[] = [];
+  try {
+    for (const issue of stack) {
+      const isApproved = await reviewIssueUntilApproved(issue, iteration);
+      if (!isApproved) {
+        results.push({ status: "fulfilled", value: { issue, published: false } });
+        break;
+      }
+      approved.push(issue);
+      rebaseDownstreamStackEntries(stack, issue);
+      results.push({ status: "fulfilled", value: { issue, published: false } });
+    }
+
+    if (approved.length !== stack.length) return results;
+    rebaseStackOntoExpectedBases(stack);
+    verifyStackMergeability(stack);
+    for (const issue of stack) await publishApprovedIssue(issue);
+    return stack.map((issue) => ({ status: "fulfilled", value: { issue, published: true } }));
+  } catch (reason) {
+    results.push({ status: "rejected", reason });
+    return results;
+  } finally {
+    for (const issue of stack) cleanWorktreeTarget(issue.worktreePath, issue.id);
   }
 }
 
@@ -772,7 +1065,7 @@ async function reviewCompletedIssue(
     TASK_ID: issue.id,
     ISSUE_TITLE: issue.title,
     BRANCH: issue.branch,
-    BASE_BRANCH,
+    BASE_BRANCH: effectiveBaseBranch(issue),
     WORKTREE_PATH: issue.worktreePath,
     ISSUE_JSON: issueJson.trim(),
     PEB_PREFIX: pebCommand("").trim(),
@@ -820,7 +1113,7 @@ async function repairFromReview(
     TASK_ID: issue.id,
     ISSUE_TITLE: issue.title,
     BRANCH: issue.branch,
-    BASE_BRANCH,
+    BASE_BRANCH: effectiveBaseBranch(issue),
     ISSUE_JSON: issueJson.trim(),
     REVIEW_JSON: JSON.stringify(review, null, 2),
   });
@@ -843,11 +1136,14 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
   const commandDecision = decidePublishCommandBoundary(publishDecision, { push: PUSH });
   if (publishDecision.kind === "use-existing-issue-pr") {
     console.log(`  issue already has open PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+    recordPublishedStackPosition(issue, publishDecision.existingPr.url);
     if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
       markIssueInReview(issue.id);
     }
     return;
   }
+
+  rebaseIssueStackBranchIfNeeded(issue);
 
   if (commandDecision.shouldPush) {
     runWorktreeReadyHook(issue.worktreePath);
@@ -855,15 +1151,16 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
       console.log(`  before-push: ${BEFORE_PUSH_COMMAND}`);
       run(BEFORE_PUSH_COMMAND, issue.worktreePath, { stdio: "inherit" });
     }
-    run(`git push -u origin ${shellQuote(issue.branch)}`, issue.worktreePath, {
-      stdio: "inherit",
-    });
+    pushIssueBranch(issue, publishDecision.kind === "update-existing-branch-pr");
   } else {
     console.log("PICASTLE_PUSH=0; skipping git push");
   }
 
   if (publishDecision.kind === "update-existing-branch-pr") {
+    retargetStackPrIfNeeded(issue, publishDecision.existingPr.url);
     console.log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+    recordPublishedStackPosition(issue, publishDecision.existingPr.url);
+    rebasePublishedStackDownstreamOpenPrs(issue);
     if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
       markIssueInReview(issue.id);
     }
@@ -875,12 +1172,9 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     return;
   }
 
-  const prBody = buildPrBody(issue);
-  const bodyFile = join(logsDir, `pr-body-${issue.id}.md`);
-  mkdirSync(dirname(bodyFile), { recursive: true });
-  writeFileSync(bodyFile, prBody);
+  const bodyFile = writePrBodyFile(issue);
   const prCreate = run(
-    `gh pr create --base ${shellQuote(BASE_BRANCH)} --head ${shellQuote(issue.branch)} --title ${shellQuote(prTitle(issue))} --body-file ${shellQuote(bodyFile)}`,
+    `gh pr create --base ${shellQuote(effectiveBaseBranch(issue))} --head ${shellQuote(issue.branch)} --title ${shellQuote(prTitle(issue))} --body-file ${shellQuote(bodyFile)}`,
     issue.worktreePath,
   );
   process.stdout.write(prCreate.stdout);
@@ -891,6 +1185,8 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     return;
   }
 
+  recordPublishedStackPosition(issue, prRef);
+  rebasePublishedStackDownstreamOpenPrs(issue);
   if (declarePendingPebbleClosure(issue.id, prRef)) {
     markIssueInReview(issue.id);
   }
@@ -928,7 +1224,12 @@ async function publishCompletedIssues(
   iteration: number,
 ): Promise<void> {
   assertMutableMode("publish completed issues");
-  for (const issue of completed) {
+  const publishTargets = prepareCompletedIssuesForPublishing(completed);
+  if (STACK_PRS && publishTargets.length > 1) {
+    rebaseStackOntoExpectedBases(publishTargets);
+    verifyStackMergeability(publishTargets);
+  }
+  for (const issue of publishTargets) {
     try {
       console.log(`\n==> Publishing ${issue.id} (${issue.branch})`);
 
@@ -936,18 +1237,21 @@ async function publishCompletedIssues(
       const publishDecision = decidePublishFlow(issue.branch, existingPr, { openPrs: OPEN_PRS });
       if (publishDecision.kind === "use-existing-issue-pr") {
         console.log(`  issue already has open PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+        recordPublishedStackPosition(issue, publishDecision.existingPr.url);
         if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
           markIssueInReview(issue.id);
         }
         continue;
       }
 
+      rebaseIssueStackBranchIfNeeded(issue);
+
       if (VERIFY) {
-      let verified = verifyWorktree(issue.worktreePath);
+      let verified = verifyWorktree(issue.worktreePath, effectiveBaseBranch(issue));
       if (!verified.ok && REPAIR_ON_VERIFY_FAIL) {
         console.warn("  verification failed; asking Pi to repair once");
         await repairVerificationFailure(issue, verified.output, iteration);
-        verified = verifyWorktree(issue.worktreePath);
+        verified = verifyWorktree(issue.worktreePath, effectiveBaseBranch(issue));
       }
       if (!verified.ok) {
         console.error(`  ✗ verification still failing; leaving branch unpushed: ${issue.branch}`);
@@ -965,31 +1269,31 @@ async function publishCompletedIssues(
         console.log(`  before-push: ${BEFORE_PUSH_COMMAND}`);
         run(BEFORE_PUSH_COMMAND, issue.worktreePath, { stdio: "inherit" });
       }
-      run(`git push -u origin ${shellQuote(issue.branch)}`, issue.worktreePath, {
-        stdio: "inherit",
-      });
+      pushIssueBranch(issue, publishDecision.kind === "update-existing-branch-pr");
     } else {
       console.log("PICASTLE_PUSH=0; skipping git push");
     }
 
     if (publishDecision.kind === "update-existing-branch-pr") {
+      retargetStackPrIfNeeded(issue, publishDecision.existingPr.url);
       console.log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+      recordPublishedStackPosition(issue, publishDecision.existingPr.url);
+      rebasePublishedStackDownstreamOpenPrs(issue);
       if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
         markIssueInReview(issue.id);
       }
     } else if (publishDecision.kind === "create-new-pr") {
-      const prBody = buildPrBody(issue);
-      const bodyFile = join(logsDir, `pr-body-${issue.id}.md`);
-      mkdirSync(dirname(bodyFile), { recursive: true });
-      writeFileSync(bodyFile, prBody);
+      const bodyFile = writePrBodyFile(issue);
       const prCreate = run(
-        `gh pr create --base ${shellQuote(BASE_BRANCH)} --head ${shellQuote(issue.branch)} --title ${shellQuote(prTitle(issue))} --body-file ${shellQuote(bodyFile)}`,
+        `gh pr create --base ${shellQuote(effectiveBaseBranch(issue))} --head ${shellQuote(issue.branch)} --title ${shellQuote(prTitle(issue))} --body-file ${shellQuote(bodyFile)}`,
         issue.worktreePath,
       );
       process.stdout.write(prCreate.stdout);
       process.stderr.write(prCreate.stderr);
       const prRef = extractPrRef(prCreate.stdout) || extractPrRef(prCreate.stderr);
       if (prRef) {
+        recordPublishedStackPosition(issue, prRef);
+        rebasePublishedStackDownstreamOpenPrs(issue);
         if (declarePendingPebbleClosure(issue.id, prRef)) {
           markIssueInReview(issue.id);
         }
@@ -1020,9 +1324,9 @@ function markIssueInReview(issueId: string): void {
   }
 }
 
-function verifyWorktree(worktreePath: string): { ok: boolean; output: string } {
+function verifyWorktree(worktreePath: string, baseBranch = BASE_BRANCH): { ok: boolean; output: string } {
   checkMinFreeSpace("before verification");
-  const changed = run(`git diff --name-only ${shellQuote(BASE_BRANCH)}...HEAD`, worktreePath).stdout
+  const changed = run(`git diff --name-only ${shellQuote(baseBranch)}...HEAD`, worktreePath).stdout
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
@@ -1113,6 +1417,22 @@ async function runPiAgent(args: {
     : undefined;
   if (resourceLoader) await resourceLoader.reload();
 
+  if (TEST_AGENT_COMMAND !== undefined) {
+    run(TEST_AGENT_COMMAND, args.cwd, {
+      stdio: "inherit",
+      env: {
+        PICASTLE_AGENT_NAME: args.name,
+        PICASTLE_AGENT_LOG_FILE: args.logFile,
+      },
+    });
+    const output = TEST_AGENT_OUTPUT ?? "";
+    if (output) {
+      append(args.logFile, output + "\n");
+      process.stdout.write(output + "\n");
+    }
+    return output;
+  }
+
   if (TEST_AGENT_OUTPUT !== undefined) {
     append(args.logFile, TEST_AGENT_OUTPUT + "\n");
     process.stdout.write(TEST_AGENT_OUTPUT + "\n");
@@ -1158,12 +1478,14 @@ async function runPiAgent(args: {
   }
 }
 
-function ensureIssueWorktree(issue: PlannedIssue): string {
+function ensureIssueWorktree(issue: PlannedWorkIssue): string {
   const branch = normalizeBranch(issue.branch, issue.id);
-  return ensureBranchWorktree(branch);
+  const worktreePath = ensureBranchWorktree(branch, effectiveBaseBranch(issue));
+  if (issue.stack) persistStackMetadata({ ...issue.stack, headBranch: branch });
+  return worktreePath;
 }
 
-function ensureBranchWorktree(branch: string): string {
+function ensureBranchWorktree(branch: string, startPoint = BASE_BRANCH): string {
   assertMutableMode("create or attach worktree");
   assertSafeRecoveryBranchName(branch);
   const existing = collectWorktreeEntries().find((entry) => entry.branch === branch && existsSync(entry.path));
@@ -1181,7 +1503,7 @@ function ensureBranchWorktree(branch: string): string {
     });
   } else {
     run(
-      `git worktree add -b ${shellQuote(branch)} ${shellQuote(worktreePath)} ${shellQuote(BASE_BRANCH)}`,
+      `git worktree add -b ${shellQuote(branch)} ${shellQuote(worktreePath)} ${shellQuote(startPoint)}`,
       repoRoot,
       { stdio: "inherit" },
     );
@@ -1275,10 +1597,49 @@ function prTitle(issue: PlannedIssue): string {
   return issue.title.length <= 70 ? issue.title : `${issue.title.slice(0, 67)}...`;
 }
 
+function writePrBodyFile(issue: CompletedIssue): string {
+  const bodyFile = join(logsDir, `pr-body-${issue.id}.md`);
+  mkdirSync(dirname(bodyFile), { recursive: true });
+  writeFileSync(bodyFile, buildPrBody(issue));
+  return bodyFile;
+}
+
+function writeStackPrBodyRefreshFile(action: StackRetargetAction): string {
+  const bodyFile = join(logsDir, `pr-body-stack-refresh-${hashString(action.headRefName)}.md`);
+  mkdirSync(dirname(bodyFile), { recursive: true });
+  writeFileSync(bodyFile, upsertStackPrBodySection(action.currentBody, refreshStackHeadSha(action.stack)));
+  return bodyFile;
+}
+
+function retargetStackPrIfNeeded(issue: CompletedIssue, prRef: string): void {
+  if (!issue.stack) return;
+  const bodyFile = writePrBodyFile(issue);
+  run(
+    `gh pr edit ${shellQuote(prRef)} --base ${shellQuote(effectiveBaseBranch(issue))} --body-file ${shellQuote(bodyFile)}`,
+    issue.worktreePath,
+  );
+}
+
+function recordPublishedStackPosition(issue: CompletedIssue, prRef: string): void {
+  const comment = stackPebblesComment(issue.stack, prRef);
+  if (comment) postPebblesComment(issue.worktreePath, issue.id, comment);
+}
+
+function postPebblesComment(worktreePath: string, issueId: string, body: string): void {
+  const result = run(pebCommand(`comment add ${shellQuote(issueId)} ${shellQuote(body)}`), repoRoot, {
+    allowFailure: true,
+  });
+  if (result.status === 0) return;
+
+  console.warn(`  ⚠ failed to post Pebbles comment for ${issueId}: ${result.stderr || result.stdout}`);
+  writePendingComment(worktreePath, issueId, body);
+}
+
 function buildPrBody(issue: CompletedIssue): string {
+  const stackSection = stackPrBodySection(issue.stack ? refreshStackHeadSha(issue.stack) : undefined);
   return `> *This PR was produced by an autonomous Picastle run from the agent brief on pebbles issue ${issue.id}.*
 
-## Summary
+${stackSection}## Summary
 
 Implements the Picastle-selected pebbles issue:
 
@@ -1339,6 +1700,311 @@ function cleanWorktreeTarget(worktreePath: string, issueId: string): void {
   }).stdout.trim() || "unknown size";
   console.log(`  cleaning ${issueId} target/ (${size})`);
   rmSync(targetDir, { recursive: true, force: true });
+}
+
+function preparePlannedIssuesForImplementation(issues: PlannedIssue[]): PlannedWorkIssue[] {
+  return STACK_PRS && issues.length > 1 ? stackIssues(issues, BASE_BRANCH) : issues;
+}
+
+function prepareCompletedIssuesForPublishing(completed: CompletedIssue[]): CompletedIssue[] {
+  const ordered = STACK_PRS && completed.length > 1
+    ? preservedCompletedStack(completed) ?? stackIssues(completed, BASE_BRANCH).map((issue, index) => ({ ...issue, worktreePath: completed[index]!.worktreePath }))
+    : completed;
+  return refreshCompletedStackMetadata(ordered);
+}
+
+function refreshCompletedStackMetadata(completed: CompletedIssue[]): CompletedIssue[] {
+  return refreshIssueStackMetadata(completed, "open GitHub stack PR list for recovery publishing");
+}
+
+function refreshRecoveryPlanStackMetadata(plan: RecoveryPlan): RecoveryPlan {
+  return {
+    ...plan,
+    interruptedImplementations: refreshIssueStackMetadata(plan.interruptedImplementations, "open GitHub stack PR list for interrupted recovery"),
+    unpublishedBranches: refreshIssueStackMetadata(plan.unpublishedBranches, "open GitHub stack PR list for unpublished recovery"),
+  };
+}
+
+function refreshIssueStackMetadata<T extends { branch: string; stack?: StackMetadata }>(issues: T[], openPrDescription: string): T[] {
+  if (!issues.some((issue) => issue.stack)) return issues;
+  const openPrs = OPEN_PRS ? loadOpenStackPrRecords(openPrDescription) : [];
+  const issueByBranch = new Map(issues.filter((issue) => issue.stack).map((issue) => [issue.branch, issue]));
+  const entries: Array<{ branch: string; stack: StackMetadata; issue?: T }> = [];
+
+  for (const pr of openPrs) {
+    if (issueByBranch.has(pr.headRefName)) continue;
+    const stack = parseStackMetadataFromBody(pr.body);
+    if (stack) entries.push({ branch: pr.headRefName, stack });
+  }
+  for (const issue of issues) {
+    if (issue.stack) entries.push({ branch: issue.branch, stack: issue.stack, issue });
+  }
+
+  const byStackId = new Map<string, Array<{ branch: string; stack: StackMetadata; issue?: T }>>();
+  for (const entry of entries) {
+    const group = byStackId.get(entry.stack.stackId) ?? [];
+    group.push(entry);
+    byStackId.set(entry.stack.stackId, group);
+  }
+
+  const refreshedByBranch = new Map<string, StackMetadata>();
+  for (const group of byStackId.values()) {
+    group.sort((a, b) => a.stack.index - b.stack.index || a.branch.localeCompare(b.branch));
+    for (const [index, entry] of group.entries()) {
+      if (!entry.issue) continue;
+      const refreshed = relinkStackMetadata(entry.stack, {
+        baseBranch: BASE_BRANCH,
+        headBranch: entry.branch,
+        previousBranch: group[index - 1]?.branch,
+        nextBranch: group[index + 1]?.branch,
+      });
+      refreshedByBranch.set(entry.branch, refreshed);
+      if (!stackMetadataEqual(entry.stack, refreshed)) {
+        console.log(`  stack metadata refresh: ${entry.branch} base ${stackBaseBranch(refreshed)}`);
+        persistStackMetadata(refreshed);
+      }
+    }
+  }
+
+  return issues.map((issue) => {
+    const stack = refreshedByBranch.get(issue.branch);
+    return stack ? { ...issue, stack } : issue;
+  });
+}
+
+function preservedCompletedStack(completed: CompletedIssue[]): CompletedIssue[] | undefined {
+  if (!completed.every((issue) => issue.stack)) return undefined;
+  const stackId = completed[0]!.stack!.stackId;
+  const total = completed[0]!.stack!.total;
+  if (total < completed.length) return undefined;
+  if (!completed.every((issue) => issue.stack!.stackId === stackId && issue.stack!.total === total)) return undefined;
+  return [...completed].sort((a, b) => a.stack!.index - b.stack!.index || a.id.localeCompare(b.id));
+}
+
+function effectiveBaseBranch(issue: PlannedWorkIssue): string {
+  return issue.stack ? stackBaseBranch(issue.stack) : BASE_BRANCH;
+}
+
+function pushIssueBranch(issue: CompletedIssue, forceWithLease: boolean): void {
+  const forceFlag = forceWithLease ? " --force-with-lease" : "";
+  run(`git push -u origin ${shellQuote(issue.branch)}${forceFlag}`, issue.worktreePath, {
+    stdio: "inherit",
+  });
+}
+
+function rebaseDownstreamStackEntries(stack: CompletedIssue[], upstream: CompletedIssue): void {
+  const index = stack.findIndex((issue) => issue.branch === upstream.branch);
+  if (index < 0 || index >= stack.length - 1) return;
+  rebaseStackOntoExpectedBases(stack.slice(index + 1));
+}
+
+function rebaseStackOntoExpectedBases(stack: CompletedIssue[]): void {
+  for (const issue of stack) {
+    rebaseIssueStackBranchIfNeeded(issue);
+  }
+}
+
+function rebaseIssueStackBranchIfNeeded(issue: CompletedIssue): void {
+  if (!issue.stack) return;
+  rebaseBranchWorktree(issue.worktreePath, issue.branch, effectiveBaseBranch(issue), {
+    oldUpstream: issue.stack.previousHeadSha,
+  });
+  persistStackMetadata(issue.stack);
+}
+
+function rebasePublishedStackDownstreamOpenPrs(issue: CompletedIssue): void {
+  if (!issue.stack || !OPEN_PRS) return;
+  const openPrs = loadOpenStackPrRecords("open GitHub stack PR list for downstream stack rebase");
+  const entries = openPrs
+    .map((pr) => ({ pr, stack: parseStackMetadataFromBody(pr.body) }))
+    .filter((entry): entry is { pr: StackPrRecord; stack: StackMetadata } => entry.stack?.stackId === issue.stack!.stackId);
+
+  const publishedIndex = entries.findIndex((entry) => entry.pr.headRefName === issue.branch);
+  if (publishedIndex >= 0) {
+    entries[publishedIndex] = { ...entries[publishedIndex]!, stack: issue.stack };
+  } else {
+    entries.push({ pr: { headRefName: issue.branch }, stack: issue.stack });
+  }
+
+  entries.sort((a, b) => a.stack.index - b.stack.index || a.pr.headRefName.localeCompare(b.pr.headRefName));
+  const start = entries.findIndex((entry) => entry.pr.headRefName === issue.branch);
+  if (start < 0 || start >= entries.length - 1) return;
+
+  for (let index = start + 1; index < entries.length; index += 1) {
+    const entry = entries[index]!;
+    const refreshedStack = relinkStackMetadata(entry.stack, {
+      baseBranch: issue.stack.baseBranch,
+      headBranch: entry.pr.headRefName,
+      previousBranch: entries[index - 1]?.pr.headRefName,
+      nextBranch: entries[index + 1]?.pr.headRefName,
+    });
+    const expectedBase = stackBaseBranch(refreshedStack);
+    if (isDirtyExistingStackWorktree(entry.pr.headRefName)) {
+      logStackReconcileDeferred(entry.pr.headRefName, expectedBase);
+      break;
+    }
+    applyStackRetargetAction({
+      prRef: entry.pr.url || (entry.pr.number ? String(entry.pr.number) : entry.pr.headRefName),
+      headRefName: entry.pr.headRefName,
+      currentBase: entry.pr.baseRefName,
+      expectedBase,
+      stack: refreshedStack,
+      currentBody: entry.pr.body,
+      updateBase: Boolean(entry.pr.baseRefName && entry.pr.baseRefName !== expectedBase),
+      updateBody: !stackMetadataEqual(entry.stack, refreshedStack),
+      effectiveBaseChanged: stackBaseBranch(entry.stack) !== expectedBase,
+    }, { rebaseBranch: true });
+  }
+}
+
+function isDirtyExistingStackWorktree(branch: string): boolean {
+  const worktree = collectWorktreeEntries().find((entry) => entry.branch === branch && existsSync(entry.path));
+  return Boolean(worktree && run("git status --porcelain", worktree.path).stdout.trim());
+}
+
+function rebaseOpenStackPrBranch(branch: string, expectedBase: string, stack?: StackMetadata): { worktreePath: string; rebased: boolean } {
+  const worktreePath = ensureExistingBranchWorktree(branch);
+  const rebased = rebaseBranchWorktree(worktreePath, branch, expectedBase, {
+    oldUpstream: stack?.previousHeadSha,
+  });
+  if (!rebased) return { worktreePath, rebased: false };
+  if (!PUSH) {
+    console.log("PICASTLE_PUSH=0; skipping force-with-lease update after stack rebase");
+    return { worktreePath, rebased: true };
+  }
+  run(`git push -u origin ${shellQuote(branch)} --force-with-lease`, worktreePath, { stdio: "inherit" });
+  return { worktreePath, rebased: true };
+}
+
+function ensureExistingBranchWorktree(branch: string): string {
+  assertSafeRecoveryBranchName(branch);
+  const branchExists = run(`git rev-parse --verify ${shellQuote(branch)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (!branchExists) {
+    const remoteRef = `origin/${branch}`;
+    if (!isSafeRecoveryTrackingRef(remoteRef)) {
+      throw new Error(`unsafe Picastle recovery tracking ref for ${branch}: ${remoteRef}`);
+    }
+    const remoteExists = run(`git rev-parse --verify --quiet ${shellQuote(remoteRef)}`, repoRoot, { allowFailure: true }).status === 0;
+    if (!remoteExists) throw new Error(`cannot rebase stack branch ${branch}: no local branch or ${remoteRef}`);
+    run(`git branch --track ${shellQuote(branch)} ${shellQuote(remoteRef)}`, repoRoot);
+  }
+  return ensureBranchWorktree(branch);
+}
+
+function rebaseBranchWorktree(
+  worktreePath: string,
+  branch: string,
+  base: string,
+  options: { oldUpstream?: string } = {},
+): boolean {
+  assertSafeRecoveryBranchName(branch);
+  const rebaseBase = resolveFreshRebaseBase(base);
+  const ancestor = run(`git merge-base --is-ancestor ${shellQuote(rebaseBase)} ${shellQuote(branch)}`, repoRoot, {
+    allowFailure: true,
+  });
+  if (ancestor.status === 0) return false;
+
+  const dirty = run("git status --porcelain", worktreePath).stdout.trim();
+  if (dirty) throw new Error(`refusing to rebase dirty stack worktree ${branch}`);
+
+  const oldUpstream = resolveSafeRebaseBoundary(options.oldUpstream, branch);
+  console.log(`  rebasing stack branch ${branch} onto ${base}`);
+  const command = oldUpstream
+    ? `git rebase --onto ${shellQuote(rebaseBase)} ${shellQuote(oldUpstream)} ${shellQuote(branch)}`
+    : `git rebase ${shellQuote(rebaseBase)}`;
+  const rebase = run(command, worktreePath, { allowFailure: true });
+  if (rebase.status !== 0) {
+    run("git rebase --abort", worktreePath, { allowFailure: true });
+    throw new Error(`failed to rebase stack branch ${branch} onto ${base}: ${rebase.stderr || rebase.stdout}`);
+  }
+  return true;
+}
+
+function resolveSafeRebaseBoundary(oldUpstream: string | undefined, branch: string): string | undefined {
+  if (!oldUpstream) return undefined;
+  if (!/^[0-9a-f]{7,40}$/i.test(oldUpstream)) return undefined;
+  const exists = run(`git rev-parse --verify --quiet ${shellQuote(`${oldUpstream}^{commit}`)}`, repoRoot, {
+    allowFailure: true,
+  }).status === 0;
+  if (!exists) return undefined;
+  const ancestor = run(`git merge-base --is-ancestor ${shellQuote(oldUpstream)} ${shellQuote(branch)}`, repoRoot, {
+    allowFailure: true,
+  });
+  return ancestor.status === 0 ? oldUpstream : undefined;
+}
+
+function resolveFreshRebaseBase(base: string): string {
+  if (base === BASE_BRANCH) {
+    const remoteBase = refreshRepositoryBaseFromOrigin(base);
+    if (remoteBase) return remoteBase;
+  }
+  const exists = run(`git rev-parse --verify --quiet ${shellQuote(base)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (exists) return base;
+  if (!isRecognizedRecoveryPrHead(base)) throw new Error(`cannot rebase stack branch: missing local base ${base}`);
+  const remoteRef = `origin/${base}`;
+  if (!isSafeRecoveryTrackingRef(remoteRef)) throw new Error(`unsafe Picastle recovery tracking ref for ${base}: ${remoteRef}`);
+  const remoteExists = run(`git rev-parse --verify --quiet ${shellQuote(remoteRef)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (!remoteExists) throw new Error(`cannot rebase stack branch: missing local base ${base} and ${remoteRef}`);
+  run(`git branch --track ${shellQuote(base)} ${shellQuote(remoteRef)}`, repoRoot);
+  return base;
+}
+
+function refreshRepositoryBaseFromOrigin(base: string): string | undefined {
+  const hasOrigin = run("git remote get-url origin", repoRoot, { allowFailure: true }).status === 0;
+  if (!hasOrigin) return undefined;
+  const validBranch = run(`git check-ref-format --branch ${shellQuote(base)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (!validBranch) throw new Error(`cannot refresh invalid repository base branch ${base}`);
+  const remoteRef = `refs/remotes/origin/${base}`;
+  const fetch = run(`git fetch --quiet origin ${shellQuote(`${base}:${remoteRef}`)}`, repoRoot, { allowFailure: true });
+  if (fetch.status !== 0) throw new Error(`failed to refresh repository base ${base} from origin: ${fetch.stderr || fetch.stdout}`);
+  const remoteExists = run(`git rev-parse --verify --quiet ${shellQuote(`${remoteRef}^{commit}`)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (!remoteExists) return undefined;
+  const localExists = run(`git rev-parse --verify --quiet ${shellQuote(`${base}^{commit}`)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (!localExists) return remoteRef;
+  const localIsStale = run(`git merge-base --is-ancestor ${shellQuote(base)} ${shellQuote(remoteRef)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (localIsStale) return remoteRef;
+  const remoteIsStale = run(`git merge-base --is-ancestor ${shellQuote(remoteRef)} ${shellQuote(base)}`, repoRoot, { allowFailure: true }).status === 0;
+  return remoteIsStale ? base : remoteRef;
+}
+
+function verifyStackMergeability(stack: CompletedIssue[]): void {
+  if (stack.length <= 1) return;
+  console.log(`  verifying stacked PR mergeability for ${stack.length} branch(es)`);
+  for (const issue of stack) {
+    const base = effectiveBaseBranch(issue);
+    const mergeBase = resolveFreshRebaseBase(base);
+    const ancestor = run(`git merge-base --is-ancestor ${shellQuote(mergeBase)} ${shellQuote(issue.branch)}`, repoRoot, {
+      allowFailure: true,
+    });
+    if (ancestor.status !== 0) {
+      throw new Error(`stack branch ${issue.branch} is not based on ${base}; rebase or recreate the stack before publishing`);
+    }
+    const mergeTree = run(`git merge-tree --write-tree ${shellQuote(mergeBase)} ${shellQuote(issue.branch)}`, repoRoot, {
+      allowFailure: true,
+    });
+    if (mergeTree.status !== 0) {
+      throw new Error(`stack branch ${issue.branch} does not merge cleanly into ${base}: ${mergeTree.stderr || mergeTree.stdout}`);
+    }
+  }
+}
+
+async function runSequentially<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = [];
+  for (const [index, item] of items.entries()) {
+    try {
+      results.push({ status: "fulfilled", value: await fn(item) });
+    } catch (reason) {
+      results.push({ status: "rejected", reason });
+      for (let rest = index + 1; rest < items.length; rest += 1) {
+        results.push({ status: "rejected", reason: new Error("skipped after earlier stacked issue failed") });
+      }
+      break;
+    }
+  }
+  return results;
 }
 
 async function runWithConcurrency<T, R>(
@@ -1438,7 +2104,7 @@ function parseArgs(args: string[]): {
     else if (arg === "--min-free-gb") parsed.minFreeGb = Number(next());
     else if (arg === "--base") parsed.base = next();
     else if (arg === "--help" || arg === "-h") {
-      console.log(`Usage: picastle [--repo PATH] [--plan-only] [--max-iterations N] [--max-issues N] [--concurrency N] [--min-free-gb N] [--base BRANCH] [--clean-targets] [--no-verify] [--no-push] [--no-pr]\n\nEnvironment: PICASTLE_PEB_REMOTE, PICASTLE_PEB_REPO, PICASTLE_ISSUE_STATUS, PICASTLE_ISSUE_LABEL, PICASTLE_MAX_ISSUES, PICASTLE_PENDING_STATUS, PICASTLE_REVIEW_STATUS, PICASTLE_PLAN_ONLY, PICASTLE_VERIFY, PICASTLE_PUSH, PICASTLE_OPEN_PRS, PICASTLE_OPEN_PR_SCAN_LIMIT, PICASTLE_PUBLISHER_AGENT, PICASTLE_REVIEW_REPAIR_CYCLES, PICASTLE_REVIEW_CONCURRENCY, PICASTLE_WORKTREE_READY_COMMAND, PICASTLE_BEFORE_PUSH_COMMAND, PICASTLE_CLEAN_TARGETS, PICASTLE_MIN_FREE_GB, PICASTLE_THINKING`);
+      console.log(`Usage: picastle [--repo PATH] [--plan-only] [--max-iterations N] [--max-issues N] [--concurrency N] [--min-free-gb N] [--base BRANCH] [--clean-targets] [--no-verify] [--no-push] [--no-pr]\n\nEnvironment: PICASTLE_PEB_REMOTE, PICASTLE_PEB_REPO, PICASTLE_ISSUE_STATUS, PICASTLE_ISSUE_LABEL, PICASTLE_MAX_ISSUES, PICASTLE_PENDING_STATUS, PICASTLE_REVIEW_STATUS, PICASTLE_PLAN_ONLY, PICASTLE_VERIFY, PICASTLE_PUSH, PICASTLE_OPEN_PRS, PICASTLE_STACK_PRS, PICASTLE_OPEN_PR_SCAN_LIMIT, PICASTLE_PUBLISHER_AGENT, PICASTLE_REVIEW_REPAIR_CYCLES, PICASTLE_REVIEW_CONCURRENCY, PICASTLE_WORKTREE_READY_COMMAND, PICASTLE_BEFORE_PUSH_COMMAND, PICASTLE_CLEAN_TARGETS, PICASTLE_MIN_FREE_GB, PICASTLE_THINKING`);
       process.exit(0);
     } else {
       die(`unknown argument: ${arg}`);

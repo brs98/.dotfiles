@@ -96,6 +96,7 @@ repair/implementer path instead of running branch-controlled code.
 - `PICASTLE_PEB_REPO=ricekit`
 - `PICASTLE_PUSH=1`
 - `PICASTLE_OPEN_PRS=1`
+- `PICASTLE_STACK_PRS=1` publishes multi-issue batches as an ordered stack, with PR N targeting PR N-1
 - `PICASTLE_PUBLISHER_AGENT=1` uses the review/repair/publish pipeline for Sandcastle parity
 - `PICASTLE_REVIEW_REPAIR_CYCLES=10` max reviewer ↔ implementer repair loops
 - `PICASTLE_REVIEW_CONCURRENCY=$PICASTLE_CONCURRENCY` parallel review/publish workers
@@ -141,6 +142,8 @@ it asks the planner for new work. Recovery is handled first:
 - clean open-PR branches with no unpushed commits have their Pebbles
   closure/review state reconciled only after the Pebble lookup succeeds and the
   Pebble is still in the ready queue
+- open PRs with Picastle stack markers are retargeted to the nearest previous
+  still-open stack entry (or the base branch after upstream stack entries merge)
 - dirty open-PR branches with confirmed ready-queue Pebbles are resumed through
   implementation; clean open-PR branches with unpushed commits are
   reviewed/published so the existing PR is updated

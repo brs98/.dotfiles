@@ -1,3 +1,5 @@
+import type { StackMetadata } from "./stack.mjs";
+
 export type RecoveryIssueLookup =
   | { state: "found" }
   | { state: "not_found"; message?: string }
@@ -7,7 +9,9 @@ export type RepositoryIdentity = { owner: string; name: string };
 export type OpenPrRecord = {
   number?: number;
   headRefName: string;
+  baseRefName?: string;
   url: string;
+  body?: string;
   isCrossRepository?: boolean;
   headRepositoryOwner?: string;
   headRepositoryName?: string;
@@ -45,6 +49,7 @@ export type RecoveryBranchInput = {
   worktreePath?: string;
   openPrUrl?: string;
   commitTime?: number;
+  stack?: StackMetadata;
 };
 
 export type RecoveryReadinessPolicy = {
@@ -59,6 +64,7 @@ export type RecoveryIssue = {
   title: string;
   branch: string;
   worktreePath?: string;
+  stack?: StackMetadata;
 };
 
 export type RecoveryBranchDecision = RecoveryBranchInput & {
@@ -187,7 +193,7 @@ export function buildRecoveryPlan(
     }
 
     if (branch.openPrUrl && !branch.dirty && unpushed === 0) {
-      plan.alreadyPublished.push({ id: issueId, title, branch: branch.branch, worktreePath: branch.worktreePath, prUrl: branch.openPrUrl });
+      plan.alreadyPublished.push({ id: issueId, title, branch: branch.branch, worktreePath: branch.worktreePath, ...(branch.stack ? { stack: branch.stack } : {}), prUrl: branch.openPrUrl });
       plan.blockedIssueIds.add(issueId);
       continue;
     }
@@ -220,6 +226,7 @@ export function buildRecoveryPlan(
       title: selected.title ?? selected.issueId,
       branch: selected.branch,
       worktreePath: selected.worktreePath,
+      ...(selected.stack ? { stack: selected.stack } : {}),
     };
     if (selected.dirty) {
       plan.interruptedImplementations.push(issue);
@@ -523,7 +530,9 @@ function parseOpenPrRecords(stdout: string, options: OpenPrParseOptions = {}): O
     return {
       ...(Number.isFinite(number) ? { number } : {}),
       headRefName: record.headRefName,
+      ...(typeof record.baseRefName === "string" && record.baseRefName.length > 0 ? { baseRefName: record.baseRefName } : {}),
       url: record.url,
+      ...(typeof record.body === "string" ? { body: record.body } : {}),
       ...(typeof record.isCrossRepository === "boolean" ? { isCrossRepository: record.isCrossRepository } : {}),
       ...extractHeadRepositoryIdentity(record),
     };
@@ -636,6 +645,9 @@ function compareRecoveryCandidates(a: RecoveryBranchDecision, b: RecoveryBranchD
 }
 
 function compareRecoveryIssues(a: RecoveryIssue, b: RecoveryIssue): number {
+  if (a.stack?.stackId && a.stack.stackId === b.stack?.stackId) {
+    return a.stack.index - b.stack.index || a.id.localeCompare(b.id) || a.branch.localeCompare(b.branch);
+  }
   return a.id.localeCompare(b.id) || a.branch.localeCompare(b.branch);
 }
 
