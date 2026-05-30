@@ -577,7 +577,7 @@ function logStackRetargetAction(action: StackRetargetAction, readOnly = false): 
 
 function applyStackRetargetAction(action: StackRetargetAction, options: { rebaseBranch?: boolean } = {}): boolean {
   logStackRetargetAction(action);
-  const result = action.updateBase || options.rebaseBranch
+  const result = action.updateBase || action.effectiveBaseChanged || options.rebaseBranch
     ? rebaseOpenStackPrBranch(action.headRefName, action.expectedBase)
     : { worktreePath: ensureExistingBranchWorktree(action.headRefName), rebased: false };
   persistStackMetadata(action.stack);
@@ -1811,6 +1811,7 @@ function rebasePublishedStackDownstreamOpenPrs(issue: CompletedIssue): void {
       currentBody: entry.pr.body,
       updateBase: Boolean(entry.pr.baseRefName && entry.pr.baseRefName !== expectedBase),
       updateBody: !stackMetadataEqual(entry.stack, refreshedStack),
+      effectiveBaseChanged: stackBaseBranch(entry.stack) !== expectedBase,
     }, { rebaseBranch: true });
   }
 }

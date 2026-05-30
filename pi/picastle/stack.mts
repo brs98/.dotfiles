@@ -30,6 +30,7 @@ export type StackRetargetAction = {
   currentBody?: string;
   updateBase: boolean;
   updateBody: boolean;
+  effectiveBaseChanged: boolean;
 };
 
 const STACK_MARKER_START = "<!-- picastle-stack";
@@ -143,6 +144,7 @@ export function planStackRetargets(openPrs: StackPrRecord[], baseBranch: string)
         nextBranch: entry.stack.nextBranch,
       });
       const expectedBase = stackBaseBranch(refreshedStack);
+      const effectiveBaseChanged = stackBaseBranch(entry.stack) !== expectedBase;
       const updateBase = Boolean(entry.pr.baseRefName && entry.pr.baseRefName !== expectedBase);
       const updateBody = !stackMetadataEqual(entry.stack, refreshedStack);
       if (updateBase || updateBody) {
@@ -155,6 +157,7 @@ export function planStackRetargets(openPrs: StackPrRecord[], baseBranch: string)
           currentBody: entry.pr.body,
           updateBase,
           updateBody,
+          effectiveBaseChanged,
         });
       }
     }
