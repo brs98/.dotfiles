@@ -5,6 +5,7 @@ import {
   parseStackMetadataFromBody,
   planStackRetargets,
   stackBaseBranch,
+  upsertStackPrBodySection,
   stackContext,
   stackIssues,
   stackPebblesComment,
@@ -90,4 +91,47 @@ test("ignores malformed or non-stack PR bodies when planning retargets", () => {
     ),
     [],
   );
+});
+
+test("refreshes stack body metadata when an upstream stack PR is gone", () => {
+  const [first, second, third] = stackIssues(
+    [
+      { id: "repo-aaa", title: "A", branch: "picastle/repo-aaa-a" },
+      { id: "repo-bbb", title: "B", branch: "picastle/repo-bbb-b" },
+      { id: "repo-ccc", title: "C", branch: "picastle/repo-ccc-c" },
+    ],
+    "main",
+  );
+
+  const actions = planStackRetargets(
+    [
+      {
+        number: 2,
+        headRefName: second!.branch,
+        baseRefName: first!.branch,
+        url: "https://github.com/acme/repo/pull/2",
+        body: stackPrBodySection(second!.stack),
+      },
+      {
+        number: 3,
+        headRefName: third!.branch,
+        baseRefName: third!.stack.previousBranch,
+        url: "https://github.com/acme/repo/pull/3",
+        body: stackPrBodySection(third!.stack),
+      },
+    ],
+    "main",
+  );
+
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0]!.expectedBase, "main");
+  assert.equal(actions[0]!.stack.previousBranch, undefined);
+  assert.equal(actions[0]!.stack.nextBranch, third!.branch);
+  assert.equal(actions[0]!.updateBody, true);
+
+  const originalBody = `${stackPrBodySection(second!.stack)}## Summary\n\nKeep this text.\n`;
+  const refreshedBody = upsertStackPrBodySection(originalBody, actions[0]!.stack);
+  assert.match(refreshedBody, /Base: `main`/);
+  assert.doesNotMatch(refreshedBody, /Previous: `picastle\/repo-aaa-a`/);
+  assert.match(refreshedBody, /## Summary\n\nKeep this text/);
 });

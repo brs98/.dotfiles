@@ -54,13 +54,17 @@ import {
   parseStackMetadataFromBody,
   parseStackMetadataJson,
   planStackRetargets,
+  relinkStackMetadata,
   stackBaseBranch,
   stackContext,
+  stackMetadataEqual,
   stackIssues,
   stackPebblesComment,
   stackPrBodySection,
+  upsertStackPrBodySection,
   type StackMetadata,
   type StackPrRecord,
+  type StackRetargetAction,
 } from "./stack.mjs";
 type PlannedWorkIssue = PlannedIssue & { stack?: StackMetadata };
 type CompletedIssue = PlannedWorkIssue & { worktreePath: string };
@@ -284,8 +288,9 @@ function recoverInterruptedRun(options: { readOnly?: boolean } = {}): RecoveryPl
     return { ...plan, unpublishedBranches: [] };
   }
 
+  const refreshedPlan = refreshRecoveryPlanStackMetadata(plan);
   const unpublishedBranches: CompletedIssue[] = [];
-  for (const action of selectRecoveryActions(plan, options)) {
+  for (const action of selectRecoveryActions(refreshedPlan, options)) {
     if (action.kind === "declare-pending-closure") {
       if (declarePendingPebbleClosure(action.issueId, action.prUrl)) {
         markIssueInReview(action.issueId);
@@ -298,7 +303,7 @@ function recoverInterruptedRun(options: { readOnly?: boolean } = {}): RecoveryPl
     }
   }
 
-  return { ...plan, unpublishedBranches };
+  return { ...refreshedPlan, unpublishedBranches };
 }
 
 function declarePendingPebbleClosure(issueId: string, prRef: string): boolean {
@@ -446,13 +451,7 @@ function loadRepositoryIdentity(): RepositoryIdentity {
 }
 
 function loadOpenPrRecoveryRecordsByHead(): Map<string, { url: string; stack?: StackMetadata }> {
-  const result = run(
-    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${STACK_OPEN_PR_JSON_FIELDS}`,
-    repoRoot,
-  );
-  const knownIssueIds = loadKnownIssueIdsForRecovery();
-  const normalized = normalizeOpenPrsJson(result.stdout, { currentRepository: loadRepositoryIdentity(), knownIssueIds });
-  const openPrs = parseJsonArray(normalized, "open GitHub recovery PR list") as StackPrRecord[];
+  const openPrs = loadOpenStackPrRecords("open GitHub recovery PR list");
   const byHead = new Map<string, { url: string; stack?: StackMetadata }>();
   for (const pr of openPrs) {
     byHead.set(pr.headRefName, {
@@ -461,6 +460,16 @@ function loadOpenPrRecoveryRecordsByHead(): Map<string, { url: string; stack?: S
     });
   }
   return byHead;
+}
+
+function loadOpenStackPrRecords(description: string): StackPrRecord[] {
+  const result = run(
+    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${STACK_OPEN_PR_JSON_FIELDS}`,
+    repoRoot,
+  );
+  const knownIssueIds = loadKnownIssueIdsForRecovery();
+  const normalized = normalizeOpenPrsJson(result.stdout, { currentRepository: loadRepositoryIdentity(), knownIssueIds });
+  return parseJsonArray(normalized, description) as StackPrRecord[];
 }
 
 function loadExistingOpenPrForIssue(issueId: string): { headRefName: string; url: string } | undefined {
@@ -474,24 +483,25 @@ function loadExistingOpenPrForIssue(issueId: string): { headRefName: string; url
 
 function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}): void {
   if (!OPEN_PRS) return;
-  const knownIssueIds = loadKnownIssueIdsForRecovery();
-  const result = run(
-    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${STACK_OPEN_PR_JSON_FIELDS}`,
-    repoRoot,
-  );
-  const openPrs = parseJsonArray(
-    normalizeOpenPrsJson(result.stdout, { currentRepository: loadRepositoryIdentity(), knownIssueIds }),
-    "open GitHub stack PR list",
-  ) as StackPrRecord[];
+  const openPrs = loadOpenStackPrRecords("open GitHub stack PR list");
   const retargets = planStackRetargets(openPrs, BASE_BRANCH);
   for (const action of retargets) {
-    const message = `  stack retarget: ${action.headRefName} base ${action.currentBase} → ${action.expectedBase}`;
+    const message = action.updateBase
+      ? `  stack retarget: ${action.headRefName} base ${action.currentBase} → ${action.expectedBase}`
+      : `  stack metadata refresh: ${action.headRefName} base ${action.expectedBase}`;
     if (options.readOnly) {
       console.log(`${message} (plan-only)`);
     } else {
       console.log(message);
-      rebaseOpenStackPrBranch(action.headRefName, action.expectedBase);
-      run(`gh pr edit ${shellQuote(action.prRef)} --base ${shellQuote(action.expectedBase)}`, repoRoot);
+      const worktreePath = action.updateBase
+        ? rebaseOpenStackPrBranch(action.headRefName, action.expectedBase)
+        : ensureExistingBranchWorktree(action.headRefName);
+      persistStackMetadata(action.stack);
+      const bodyFile = writeStackPrBodyRefreshFile(action);
+      const baseEdit = action.updateBase ? ` --base ${shellQuote(action.expectedBase)}` : "";
+      run(`gh pr edit ${shellQuote(action.prRef)}${baseEdit} --body-file ${shellQuote(bodyFile)}`, repoRoot);
+      const comment = stackPebblesComment(action.stack, action.prRef);
+      if (comment) writePendingComment(worktreePath, action.stack.issueId, comment);
     }
   }
 }
@@ -969,6 +979,8 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     return;
   }
 
+  rebaseIssueStackBranchIfNeeded(issue);
+
   if (commandDecision.shouldPush) {
     runWorktreeReadyHook(issue.worktreePath);
     if (BEFORE_PUSH_COMMAND) {
@@ -1065,6 +1077,8 @@ async function publishCompletedIssues(
         }
         continue;
       }
+
+      rebaseIssueStackBranchIfNeeded(issue);
 
       if (VERIFY) {
       let verified = verifyWorktree(issue.worktreePath, effectiveBaseBranch(issue));
@@ -1406,6 +1420,13 @@ function writePrBodyFile(issue: CompletedIssue): string {
   return bodyFile;
 }
 
+function writeStackPrBodyRefreshFile(action: StackRetargetAction): string {
+  const bodyFile = join(logsDir, `pr-body-stack-refresh-${hashString(action.headRefName)}.md`);
+  mkdirSync(dirname(bodyFile), { recursive: true });
+  writeFileSync(bodyFile, upsertStackPrBodySection(action.currentBody, action.stack));
+  return bodyFile;
+}
+
 function retargetStackPrIfNeeded(issue: CompletedIssue, prRef: string): void {
   if (!issue.stack) return;
   const bodyFile = writePrBodyFile(issue);
@@ -1492,11 +1513,69 @@ function preparePlannedIssuesForImplementation(issues: PlannedIssue[]): PlannedW
 }
 
 function prepareCompletedIssuesForPublishing(completed: CompletedIssue[]): CompletedIssue[] {
-  if (!STACK_PRS || completed.length <= 1) return completed;
-  const preserved = preservedCompletedStack(completed);
-  if (preserved) return preserved;
-  const stack = stackIssues(completed, BASE_BRANCH);
-  return stack.map((issue, index) => ({ ...issue, worktreePath: completed[index]!.worktreePath }));
+  const ordered = STACK_PRS && completed.length > 1
+    ? preservedCompletedStack(completed) ?? stackIssues(completed, BASE_BRANCH).map((issue, index) => ({ ...issue, worktreePath: completed[index]!.worktreePath }))
+    : completed;
+  return refreshCompletedStackMetadata(ordered);
+}
+
+function refreshCompletedStackMetadata(completed: CompletedIssue[]): CompletedIssue[] {
+  return refreshIssueStackMetadata(completed, "open GitHub stack PR list for recovery publishing");
+}
+
+function refreshRecoveryPlanStackMetadata(plan: RecoveryPlan): RecoveryPlan {
+  return {
+    ...plan,
+    interruptedImplementations: refreshIssueStackMetadata(plan.interruptedImplementations, "open GitHub stack PR list for interrupted recovery"),
+    unpublishedBranches: refreshIssueStackMetadata(plan.unpublishedBranches, "open GitHub stack PR list for unpublished recovery"),
+  };
+}
+
+function refreshIssueStackMetadata<T extends { branch: string; stack?: StackMetadata }>(issues: T[], openPrDescription: string): T[] {
+  if (!issues.some((issue) => issue.stack)) return issues;
+  const openPrs = OPEN_PRS ? loadOpenStackPrRecords(openPrDescription) : [];
+  const issueByBranch = new Map(issues.filter((issue) => issue.stack).map((issue) => [issue.branch, issue]));
+  const entries: Array<{ branch: string; stack: StackMetadata; issue?: T }> = [];
+
+  for (const pr of openPrs) {
+    if (issueByBranch.has(pr.headRefName)) continue;
+    const stack = parseStackMetadataFromBody(pr.body);
+    if (stack) entries.push({ branch: pr.headRefName, stack });
+  }
+  for (const issue of issues) {
+    if (issue.stack) entries.push({ branch: issue.branch, stack: issue.stack, issue });
+  }
+
+  const byStackId = new Map<string, Array<{ branch: string; stack: StackMetadata; issue?: T }>>();
+  for (const entry of entries) {
+    const group = byStackId.get(entry.stack.stackId) ?? [];
+    group.push(entry);
+    byStackId.set(entry.stack.stackId, group);
+  }
+
+  const refreshedByBranch = new Map<string, StackMetadata>();
+  for (const group of byStackId.values()) {
+    group.sort((a, b) => a.stack.index - b.stack.index || a.branch.localeCompare(b.branch));
+    for (const [index, entry] of group.entries()) {
+      if (!entry.issue) continue;
+      const refreshed = relinkStackMetadata(entry.stack, {
+        baseBranch: BASE_BRANCH,
+        headBranch: entry.branch,
+        previousBranch: group[index - 1]?.branch,
+        nextBranch: entry.stack.nextBranch,
+      });
+      refreshedByBranch.set(entry.branch, refreshed);
+      if (!stackMetadataEqual(entry.stack, refreshed)) {
+        console.log(`  stack metadata refresh: ${entry.branch} base ${stackBaseBranch(refreshed)}`);
+        persistStackMetadata(refreshed);
+      }
+    }
+  }
+
+  return issues.map((issue) => {
+    const stack = refreshedByBranch.get(issue.branch);
+    return stack ? { ...issue, stack } : issue;
+  });
 }
 
 function preservedCompletedStack(completed: CompletedIssue[]): CompletedIssue[] | undefined {
@@ -1527,19 +1606,25 @@ function rebaseDownstreamStackEntries(stack: CompletedIssue[], upstream: Complet
 
 function rebaseStackOntoExpectedBases(stack: CompletedIssue[]): void {
   for (const issue of stack) {
-    rebaseBranchWorktree(issue.worktreePath, issue.branch, effectiveBaseBranch(issue));
+    rebaseIssueStackBranchIfNeeded(issue);
   }
 }
 
-function rebaseOpenStackPrBranch(branch: string, expectedBase: string): void {
+function rebaseIssueStackBranchIfNeeded(issue: CompletedIssue): void {
+  if (!issue.stack) return;
+  rebaseBranchWorktree(issue.worktreePath, issue.branch, effectiveBaseBranch(issue));
+}
+
+function rebaseOpenStackPrBranch(branch: string, expectedBase: string): string {
   const worktreePath = ensureExistingBranchWorktree(branch);
   const rebased = rebaseBranchWorktree(worktreePath, branch, expectedBase);
-  if (!rebased) return;
+  if (!rebased) return worktreePath;
   if (!PUSH) {
     console.log("PICASTLE_PUSH=0; skipping force-with-lease update after stack rebase");
-    return;
+    return worktreePath;
   }
   run(`git push -u origin ${shellQuote(branch)} --force-with-lease`, worktreePath, { stdio: "inherit" });
+  return worktreePath;
 }
 
 function ensureExistingBranchWorktree(branch: string): string {

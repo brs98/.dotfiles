@@ -1908,6 +1908,193 @@ exit 1
   assert.match(ghTrace, /pr create --base picastle\/dotfiles-bbb-second --head picastle\/dotfiles-ccc-third/);
 });
 
+test("unpublished stack recovery clears merged upstream predecessors before creating PR", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-stacked-merged-upstream-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], { cwd: repo, encoding: "utf8" });
+
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-aaa-upstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "a.txt"), "upstream\n");
+  execFileSync("git", ["add", "a.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "dotfiles-aaa\n\nCloses: dotfiles-aaa"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "b.txt"), "downstream\n");
+  execFileSync("git", ["add", "b.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "dotfiles-bbb\n\nCloses: dotfiles-bbb"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "main"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "a.txt"), "upstream\n");
+  execFileSync("git", ["add", "a.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "squash upstream"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["branch", "-D", "picastle/dotfiles-aaa-upstream"], { cwd: repo, encoding: "utf8" });
+
+  const xdgCache = join(tempRoot, "cache");
+  const stackDir = join(xdgCache, "picastle", safeRepoIdForTest(realpathSync(repo)), "stacks");
+  mkdirSync(stackDir, { recursive: true });
+  const staleStack = {
+    stackId: "dotfiles-aaa-dotfiles-bbb",
+    index: 2,
+    total: 2,
+    issueId: "dotfiles-bbb",
+    headBranch: "picastle/dotfiles-bbb-downstream",
+    baseBranch: "main",
+    previousBranch: "picastle/dotfiles-aaa-upstream",
+  };
+  writeFileSync(join(stackDir, `${hashStringForTest(staleStack.headBranch)}.json`), JSON.stringify(staleStack));
+
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+  const gh = join(fakeBin, "gh");
+  writeFileSync(gh, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'; exit 0; fi
+if [[ "$1 $2" == "pr list" ]]; then printf '%s\n' '[]'; exit 0; fi
+if [[ "$1 $2" == "pr create" ]]; then
+  args=" $* "
+  body_file=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in --body-file) body_file="$2"; shift 2 ;; *) shift ;; esac
+  done
+  if [[ "$args" == *" --base main "* && "$args" == *" --head picastle/dotfiles-bbb-downstream "* ]]; then
+    if grep -q 'Previous:' "$body_file"; then echo "stale stack previous branch in PR body" >&2; exit 3; fi
+    printf '%s\n' 'https://github.com/acme/repo/pull/20'
+    exit 0
+  fi
+  echo "unexpected recovered downstream gh pr create invocation: $args" >&2
+  exit 2
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`);
+  chmodSync(gh, 0o755);
+
+  const peb = join(fakeBin, "peb");
+  writeFileSync(peb, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then printf '%s\n' '{"data":[{"id":"dotfiles-bbb"}]}'; exit 0; fi
+if [[ "$1" == "show" ]]; then printf '%s\n' '{"data":{"title":"Downstream","status":"ready_for_agent"}}'; exit 0; fi
+if [[ "$1 $2" == "closes add" || "$1" == "update" || "$1 $2" == "comment add" ]]; then printf '%s\n' 'ok'; exit 0; fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`);
+  chmodSync(peb, 0o755);
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: xdgCache,
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_PUBLISHER_AGENT: "0",
+      PICASTLE_PUSH: "0",
+      PICASTLE_VERIFY: "0",
+      PICASTLE_STACK_PRS: "1",
+    },
+  });
+
+  assert.match(output, /stack metadata refresh: picastle\/dotfiles-bbb-downstream base main/);
+  assert.match(output, /rebasing stack branch picastle\/dotfiles-bbb-downstream onto main/);
+  assert.match(readFileSync(ghLog, "utf8"), /pr create --base main --head picastle\/dotfiles-bbb-downstream/);
+  assert.doesNotThrow(() => execFileSync("git", ["merge-base", "--is-ancestor", "main", "picastle/dotfiles-bbb-downstream"], { cwd: repo }));
+});
+
+test("plan-only recovery spots dirty open downstream stack PRs after merged upstream", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-dirty-open-stack-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-aaa-upstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "a.txt"), "upstream\n");
+  execFileSync("git", ["add", "a.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "dotfiles-aaa"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "b.txt"), "downstream\n");
+  execFileSync("git", ["add", "b.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "dotfiles-bbb"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "main"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "a.txt"), "upstream\n");
+  execFileSync("git", ["add", "a.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "squash upstream"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["branch", "-D", "picastle/dotfiles-aaa-upstream"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "dirty.txt"), "uncommitted downstream repair\n");
+
+  const stackBody = `<!-- picastle-stack\n${JSON.stringify({
+    stackId: "dotfiles-aaa-dotfiles-bbb",
+    index: 2,
+    total: 2,
+    issueId: "dotfiles-bbb",
+    headBranch: "picastle/dotfiles-bbb-downstream",
+    baseBranch: "main",
+    previousBranch: "picastle/dotfiles-aaa-upstream",
+  })}\n-->`;
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+  const gh = join(fakeBin, "gh");
+  writeFileSync(gh, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'; exit 0; fi
+if [[ "$1 $2" == "pr list" ]]; then cat <<'JSON'
+[{"number":22,"headRefName":"picastle/dotfiles-bbb-downstream","baseRefName":"picastle/dotfiles-aaa-upstream","url":"https://github.com/acme/repo/pull/22","body":${JSON.stringify(stackBody)},"isCrossRepository":false,"headRepository":{"name":"repo"},"headRepositoryOwner":{"login":"acme"}}]
+JSON
+exit 0; fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`);
+  chmodSync(gh, 0o755);
+  const peb = join(fakeBin, "peb");
+  writeFileSync(peb, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then printf '%s\n' '{"data":[{"id":"dotfiles-bbb","title":"Downstream","status":"ready_for_agent"}]}'; exit 0; fi
+if [[ "$1" == "show" ]]; then printf '%s\n' '{"data":{"title":"Downstream","status":"ready_for_agent"}}'; exit 0; fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`);
+  chmodSync(peb, 0o755);
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1", "--plan-only"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_STACK_PRS: "1",
+    },
+  });
+
+  assert.match(output, /Recovery scan: 1 interrupted/);
+  assert.match(output, /stack retarget: picastle\/dotfiles-bbb-downstream base picastle\/dotfiles-aaa-upstream → main \(plan-only\)/);
+  assert.doesNotMatch(readFileSync(ghLog, "utf8"), /pr edit/);
+});
+
 test("stack reconciliation rebases downstream branches before retargeting merged upstream PRs", () => {
   const packageDir = dirname(fileURLToPath(import.meta.url));
   const tempRoot = mkdtempSync(join(tmpdir(), "picastle-stack-rebase-"));

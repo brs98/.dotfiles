@@ -27,6 +27,9 @@ export type StackRetargetAction = {
   currentBase?: string;
   expectedBase: string;
   stack: StackMetadata;
+  currentBody?: string;
+  updateBase: boolean;
+  updateBody: boolean;
 };
 
 const STACK_MARKER_START = "<!-- picastle-stack";
@@ -132,23 +135,73 @@ export function planStackRetargets(openPrs: StackPrRecord[], baseBranch: string)
   const actions: StackRetargetAction[] = [];
   for (const group of byStackId.values()) {
     group.sort((a, b) => a.stack.index - b.stack.index || a.pr.headRefName.localeCompare(b.pr.headRefName));
-    let previousOpenHead: string | undefined;
-    for (const entry of group) {
-      const expectedBase = previousOpenHead ?? baseBranch;
-      if (entry.pr.baseRefName && entry.pr.baseRefName !== expectedBase) {
+    for (const [index, entry] of group.entries()) {
+      const refreshedStack = relinkStackMetadata(entry.stack, {
+        baseBranch,
+        headBranch: entry.pr.headRefName,
+        previousBranch: group[index - 1]?.pr.headRefName,
+        nextBranch: entry.stack.nextBranch,
+      });
+      const expectedBase = stackBaseBranch(refreshedStack);
+      const updateBase = Boolean(entry.pr.baseRefName && entry.pr.baseRefName !== expectedBase);
+      const updateBody = !stackMetadataEqual(entry.stack, refreshedStack);
+      if (updateBase || updateBody) {
         actions.push({
           prRef: entry.pr.url || (entry.pr.number ? String(entry.pr.number) : entry.pr.headRefName),
           headRefName: entry.pr.headRefName,
           currentBase: entry.pr.baseRefName,
           expectedBase,
-          stack: entry.stack,
+          stack: refreshedStack,
+          currentBody: entry.pr.body,
+          updateBase,
+          updateBody,
         });
       }
-      previousOpenHead = entry.pr.headRefName;
     }
   }
 
   return actions;
+}
+
+export function upsertStackPrBodySection(body: string | undefined, stack: StackMetadata): string {
+  const section = stackPrBodySection(stack).trimEnd();
+  if (!body) return `${section}\n`;
+  const start = body.indexOf(STACK_MARKER_START);
+  if (start < 0) return `${section}\n\n${body}`;
+
+  const markerEnd = body.indexOf(STACK_MARKER_END, start);
+  if (markerEnd < 0) return `${section}\n\n${body}`;
+  const afterMarker = markerEnd + STACK_MARKER_END.length;
+  const nextHeading = body.slice(afterMarker).match(/\n## (?!Stack\b)/);
+  const end = nextHeading?.index === undefined ? body.length : afterMarker + nextHeading.index;
+  return `${body.slice(0, start)}${section}${body.slice(end)}`;
+}
+
+export function relinkStackMetadata(
+  stack: StackMetadata,
+  links: { baseBranch: string; headBranch?: string; previousBranch?: string; nextBranch?: string },
+): StackMetadata {
+  const relinked: StackMetadata = {
+    ...stack,
+    headBranch: links.headBranch ?? stack.headBranch,
+    baseBranch: links.baseBranch,
+  };
+  if (links.previousBranch) relinked.previousBranch = links.previousBranch;
+  else delete relinked.previousBranch;
+  if (links.nextBranch) relinked.nextBranch = links.nextBranch;
+  else delete relinked.nextBranch;
+  return relinked;
+}
+
+export function stackMetadataEqual(a: StackMetadata, b: StackMetadata): boolean {
+  return a.stackId === b.stackId &&
+    a.index === b.index &&
+    a.total === b.total &&
+    a.issueId === b.issueId &&
+    a.headBranch === b.headBranch &&
+    a.baseBranch === b.baseBranch &&
+    a.previousBranch === b.previousBranch &&
+    a.nextBranch === b.nextBranch;
 }
 
 function defaultStackId(issues: PlannedIssue[]): string {
