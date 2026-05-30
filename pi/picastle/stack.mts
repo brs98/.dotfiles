@@ -95,6 +95,10 @@ export function stackPebblesComment(stack: StackMetadata | undefined, prRef: str
   return lines.join("\n");
 }
 
+export function parseStackMetadataJson(value: unknown): StackMetadata | undefined {
+  return normalizeStackMetadata(value);
+}
+
 export function parseStackMetadataFromBody(body: string | undefined): StackMetadata | undefined {
   if (!body) return undefined;
   const start = body.indexOf(STACK_MARKER_START);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -30,6 +30,7 @@ import {
   validatePlannedIssueSelections,
   type RecoveryBranchInput,
 } from "./recovery.mjs";
+import type { StackMetadata } from "./stack.mjs";
 
 test("extracts pebble ids before realistic branch slugs during recovery", () => {
   assert.equal(extractIssueIdFromBranch("picastle/ricekit-394-fix-old"), "ricekit-394");
@@ -355,6 +356,53 @@ test("does not treat open PR branches as already published when pebble lookup is
   ]);
   assert.equal(plan.blockedIssueIds.has("dotfiles-yi5"), true);
   assert.equal(plan.blockedIssueIds.has("dotfiles-zzz"), true);
+});
+
+test("recovery preserves persisted stack order instead of issue-id sort", () => {
+  const stack = (index: number, issueId: string, headBranch: string, previousBranch?: string): StackMetadata => ({
+    stackId: "dotfiles-zzz-dotfiles-aaa-dotfiles-mmm",
+    index,
+    total: 3,
+    issueId,
+    headBranch,
+    baseBranch: "main",
+    ...(previousBranch ? { previousBranch } : {}),
+  });
+  const plan = buildRecoveryPlan(
+    [
+      {
+        branch: "picastle/dotfiles-aaa-second",
+        issueId: "dotfiles-aaa",
+        title: "Second in planner order",
+        issueStatus: "ready_for_agent",
+        ahead: 1,
+        dirty: false,
+        stack: stack(2, "dotfiles-aaa", "picastle/dotfiles-aaa-second", "picastle/dotfiles-zzz-first"),
+      },
+      {
+        branch: "picastle/dotfiles-mmm-third",
+        issueId: "dotfiles-mmm",
+        title: "Third in planner order",
+        issueStatus: "ready_for_agent",
+        ahead: 1,
+        dirty: false,
+        stack: stack(3, "dotfiles-mmm", "picastle/dotfiles-mmm-third", "picastle/dotfiles-aaa-second"),
+      },
+      {
+        branch: "picastle/dotfiles-zzz-first",
+        issueId: "dotfiles-zzz",
+        title: "First in planner order",
+        issueStatus: "ready_for_agent",
+        ahead: 1,
+        dirty: false,
+        stack: stack(1, "dotfiles-zzz", "picastle/dotfiles-zzz-first"),
+      },
+    ],
+    "ready_for_agent",
+  );
+
+  assert.deepEqual(plan.unpublishedBranches.map((issue) => issue.id), ["dotfiles-zzz", "dotfiles-aaa", "dotfiles-mmm"]);
+  assert.equal(plan.unpublishedBranches[1]!.stack?.previousBranch, "picastle/dotfiles-zzz-first");
 });
 
 test("recovery treats legacy open issues with the policy ready label as ready", () => {
@@ -1573,6 +1621,249 @@ exit 1
   assert.match(pebTrace, /comment add dotfiles-bbb Picastle published stacked PR 2\/3/);
   assert.match(pebTrace, /comment add dotfiles-ccc Picastle published stacked PR 3\/3/);
 });
+
+test("stack recovery republishes in persisted stack order with original bases", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-stacked-recovery-order-"));
+  const repo = join(tempRoot, "repo");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+
+  const branches = [
+    ["picastle/dotfiles-zzz-first", "z.txt", "dotfiles-zzz"],
+    ["picastle/dotfiles-aaa-second", "a.txt", "dotfiles-aaa"],
+    ["picastle/dotfiles-mmm-third", "m.txt", "dotfiles-mmm"],
+  ] as const;
+  for (const [branch, file, issueId] of branches) {
+    execFileSync("git", ["checkout", "-b", branch], { cwd: repo, encoding: "utf8" });
+    writeFileSync(join(repo, file), `${issueId}\n`);
+    execFileSync("git", ["add", file], { cwd: repo, encoding: "utf8" });
+    execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", `${issueId}\n\nCloses: ${issueId}`], {
+      cwd: repo,
+      encoding: "utf8",
+    });
+  }
+  execFileSync("git", ["checkout", "main"], { cwd: repo, encoding: "utf8" });
+
+  const xdgCache = join(tempRoot, "cache");
+  const stackDir = join(xdgCache, "picastle", safeRepoIdForTest(realpathSync(repo)), "stacks");
+  mkdirSync(stackDir, { recursive: true });
+  const stackId = "dotfiles-zzz-dotfiles-aaa-dotfiles-mmm";
+  const metadata = branches.map(([branch, , issueId], index) => ({
+    stackId,
+    index: index + 1,
+    total: branches.length,
+    issueId,
+    headBranch: branch,
+    baseBranch: "main",
+    ...(index > 0 ? { previousBranch: branches[index - 1]![0] } : {}),
+    ...(index < branches.length - 1 ? { nextBranch: branches[index + 1]![0] } : {}),
+  }));
+  for (const stack of metadata) {
+    writeFileSync(join(stackDir, `${hashStringForTest(stack.headBranch)}.json`), JSON.stringify(stack));
+  }
+
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+
+  const gh = join(fakeBin, "gh");
+  writeFileSync(
+    gh,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then
+  printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'
+  exit 0
+fi
+if [[ "$1 $2" == "pr list" ]]; then
+  printf '%s\n' '[]'
+  exit 0
+fi
+if [[ "$1 $2" == "pr create" ]]; then
+  args=" $* "
+  if [[ "$args" == *" --base main "* && "$args" == *" --head picastle/dotfiles-zzz-first "* ]]; then
+    printf '%s\n' 'https://github.com/acme/repo/pull/10'
+    exit 0
+  fi
+  if [[ "$args" == *" --base picastle/dotfiles-zzz-first "* && "$args" == *" --head picastle/dotfiles-aaa-second "* ]]; then
+    printf '%s\n' 'https://github.com/acme/repo/pull/11'
+    exit 0
+  fi
+  if [[ "$args" == *" --base picastle/dotfiles-aaa-second "* && "$args" == *" --head picastle/dotfiles-mmm-third "* ]]; then
+    printf '%s\n' 'https://github.com/acme/repo/pull/12'
+    exit 0
+  fi
+  echo "unexpected recovered stacked gh pr create invocation: $*" >&2
+  exit 2
+fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(gh, 0o755);
+
+  const peb = join(fakeBin, "peb");
+  writeFileSync(
+    peb,
+    `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then
+  printf '%s\n' '{"data":[{"id":"dotfiles-aaa"},{"id":"dotfiles-mmm"},{"id":"dotfiles-zzz"}]}'
+  exit 0
+fi
+if [[ "$1" == "show" ]]; then
+  case "$2" in
+    dotfiles-aaa) printf '%s\n' '{"data":{"title":"Second","status":"ready_for_agent"}}'; exit 0 ;;
+    dotfiles-mmm) printf '%s\n' '{"data":{"title":"Third","status":"ready_for_agent"}}'; exit 0 ;;
+    dotfiles-zzz) printf '%s\n' '{"data":{"title":"First","status":"ready_for_agent"}}'; exit 0 ;;
+  esac
+fi
+if [[ "$1 $2" == "closes add" || "$1" == "update" || "$1 $2" == "comment add" ]]; then
+  printf '%s\n' 'ok'
+  exit 0
+fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`,
+  );
+  chmodSync(peb, 0o755);
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: xdgCache,
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_PUBLISHER_AGENT: "0",
+      PICASTLE_PUSH: "0",
+      PICASTLE_VERIFY: "0",
+      PICASTLE_STACK_PRS: "1",
+    },
+  });
+
+  assert.match(output, /Recovery has unpublished local branches/);
+  const ghTrace = readFileSync(ghLog, "utf8");
+  assert.match(ghTrace, /pr create --base main --head picastle\/dotfiles-zzz-first/);
+  assert.match(ghTrace, /pr create --base picastle\/dotfiles-zzz-first --head picastle\/dotfiles-aaa-second/);
+  assert.match(ghTrace, /pr create --base picastle\/dotfiles-aaa-second --head picastle\/dotfiles-mmm-third/);
+});
+
+test("stack reconciliation rebases downstream branches before retargeting merged upstream PRs", () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url));
+  const tempRoot = mkdtempSync(join(tmpdir(), "picastle-stack-rebase-"));
+  const repo = join(tempRoot, "repo");
+  const origin = join(tempRoot, "origin.git");
+  const fakeBin = join(tempRoot, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+
+  execFileSync("git", ["init", "--bare", origin], { encoding: "utf8" });
+  execFileSync("git", ["init", "--initial-branch=main", repo], { encoding: "utf8" });
+  execFileSync("git", ["remote", "add", "origin", origin], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "README.md"), "# test repo\n");
+  execFileSync("git", ["add", "README.md"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "initial"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["push", "-u", "origin", "main"], { cwd: repo, encoding: "utf8" });
+
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-aaa-upstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "a.txt"), "upstream\n");
+  execFileSync("git", ["add", "a.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "dotfiles-aaa"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "-b", "picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "b.txt"), "downstream\n");
+  execFileSync("git", ["add", "b.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "dotfiles-bbb"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["push", "-u", "origin", "picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["checkout", "main"], { cwd: repo, encoding: "utf8" });
+  writeFileSync(join(repo, "a.txt"), "upstream\n");
+  execFileSync("git", ["add", "a.txt"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["-c", "user.name=Picastle Test", "-c", "user.email=test@example.com", "commit", "-m", "squash upstream"], { cwd: repo, encoding: "utf8" });
+  execFileSync("git", ["branch", "-D", "picastle/dotfiles-aaa-upstream"], { cwd: repo, encoding: "utf8" });
+
+  const stackBody = `<!-- picastle-stack\n${JSON.stringify({
+    stackId: "dotfiles-aaa-dotfiles-bbb",
+    index: 2,
+    total: 2,
+    issueId: "dotfiles-bbb",
+    headBranch: "picastle/dotfiles-bbb-downstream",
+    baseBranch: "main",
+    previousBranch: "picastle/dotfiles-aaa-upstream",
+  })}\n-->`;
+  const ghLog = join(tempRoot, "gh.log");
+  const pebLog = join(tempRoot, "peb.log");
+  const bash = join(fakeBin, "bash");
+  writeFileSync(bash, "#!/bin/sh\nexec /bin/bash --noprofile --norc \"$@\"\n");
+  chmodSync(bash, 0o755);
+  const gh = join(fakeBin, "gh");
+  writeFileSync(gh, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "repo view" ]]; then printf '%s\n' '{"name":"repo","owner":{"login":"acme"}}'; exit 0; fi
+if [[ "$1 $2" == "pr list" ]]; then cat <<'JSON'
+[{"number":22,"headRefName":"picastle/dotfiles-bbb-downstream","baseRefName":"picastle/dotfiles-aaa-upstream","url":"https://github.com/acme/repo/pull/22","body":${JSON.stringify(stackBody)},"isCrossRepository":false,"headRepository":{"name":"repo"},"headRepositoryOwner":{"login":"acme"}}]
+JSON
+exit 0; fi
+if [[ "$1 $2" == "pr edit" ]]; then exit 0; fi
+echo "unexpected gh invocation: $*" >&2
+exit 1
+`);
+  chmodSync(gh, 0o755);
+  const peb = join(fakeBin, "peb");
+  writeFileSync(peb, `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$PEB_LOG"
+if [[ "$1" == "list" ]]; then printf '%s\n' '{"data":[{"id":"dotfiles-bbb"}]}'; exit 0; fi
+if [[ "$1" == "show" ]]; then printf '%s\n' '{"data":{"title":"Downstream","status":"ready_for_agent"}}'; exit 0; fi
+if [[ "$1 $2" == "closes add" || "$1" == "update" ]]; then printf '%s\n' 'ok'; exit 0; fi
+echo "unexpected peb invocation: $*" >&2
+exit 1
+`);
+  chmodSync(peb, 0o755);
+
+  const output = execFileSync(join(packageDir, "node_modules", ".bin", "tsx"), ["main.mts", "--repo", repo, "--max-iterations", "1"], {
+    cwd: packageDir,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+      GH_LOG: ghLog,
+      PEB_LOG: pebLog,
+      XDG_CACHE_HOME: join(tempRoot, "cache"),
+      PICASTLE_PEB_REMOTE: "",
+      PICASTLE_PEB_REPO: "",
+      PICASTLE_MAX_ISSUES: "0",
+      PICASTLE_STACK_PRS: "1",
+    },
+  });
+
+  assert.match(output, /rebasing stack branch picastle\/dotfiles-bbb-downstream onto main/);
+  assert.doesNotThrow(() => execFileSync("git", ["merge-base", "--is-ancestor", "main", "picastle/dotfiles-bbb-downstream"], { cwd: repo }));
+  assert.equal(execFileSync("git", ["rev-parse", "picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" }), execFileSync("git", ["rev-parse", "origin/picastle/dotfiles-bbb-downstream"], { cwd: repo, encoding: "utf8" }));
+  assert.match(readFileSync(ghLog, "utf8"), /pr edit https:\/\/github\.com\/acme\/repo\/pull\/22 --base main/);
+});
+
+function hashStringForTest(input: string): string {
+  let hash = 5381;
+  for (const char of input) hash = ((hash << 5) + hash + char.charCodeAt(0)) >>> 0;
+  return hash.toString(36);
+}
+
+function safeRepoIdForTest(root: string): string {
+  return root.replace(/^\//, "").replace(/[^a-zA-Z0-9._-]+/g, "-");
+}
 
 test("runtime recovery fails closed on malformed open PR discovery without mutating pebbles", () => {
   const packageDir = dirname(fileURLToPath(import.meta.url));

@@ -34,7 +34,6 @@ import {
   normalizeOpenPrsJson,
   pebClosureRegistrationSucceeded,
   parseKnownIssueIdsJson,
-  parseOpenPrsByHead,
   selectRecoveryActions,
   validatePlannedIssueSelections,
   type RecoveryBranchInput,
@@ -52,6 +51,8 @@ import {
 } from "./planner-output.mjs";
 import { createReviewerAgentTooling, createReviewerResourceLoader } from "./review-session.mts";
 import {
+  parseStackMetadataFromBody,
+  parseStackMetadataJson,
   planStackRetargets,
   stackBaseBranch,
   stackContext,
@@ -100,8 +101,10 @@ const cacheRoot = process.env.XDG_CACHE_HOME || join(requireHome(), ".cache");
 const runtimeDir = join(cacheRoot, "picastle", safeRepoId(repoRoot));
 const logsDir = join(runtimeDir, "logs");
 const worktreesDir = join(runtimeDir, "worktrees");
+const stackMetadataDir = join(runtimeDir, "stacks");
 mkdirSync(logsDir, { recursive: true });
 mkdirSync(worktreesDir, { recursive: true });
+mkdirSync(stackMetadataDir, { recursive: true });
 
 const policy = loadPebblesPolicy(repoRoot);
 const queuePolicy = deriveQueuePolicy(policy);
@@ -314,7 +317,7 @@ function declarePendingPebbleClosure(issueId: string, prRef: string): boolean {
 function collectRecoveryBranches(): RecoveryBranchInput[] {
   const worktrees = collectWorktreeEntries();
   const worktreeByBranch = new Map(worktrees.filter((entry) => entry.branch).map((entry) => [entry.branch!, entry]));
-  const openPrByHead = loadOpenPrsByHead();
+  const openPrByHead = loadOpenPrRecoveryRecordsByHead();
   const issueCache = new Map<string, { title?: string; status?: string; labels?: string[]; lookup: RecoveryIssueLookup } | undefined>();
   const knownIssueIds = loadKnownIssueIdsForRecovery();
 
@@ -322,7 +325,8 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
   const localBranchNames = new Set(localBranches.map((branch) => branch.branch));
   const inputs: RecoveryBranchInput[] = localBranches.map((localBranch) => {
     assertSafeRecoveryBranchName(localBranch.branch);
-    const openPrUrl = openPrByHead.get(localBranch.branch);
+    const openPr = openPrByHead.get(localBranch.branch);
+    const openPrUrl = openPr?.url;
     const issueId = openPrUrl
       ? extractIssueIdFromOpenPrHead(localBranch.branch, knownIssueIds)
       : extractIssueIdFromBranch(localBranch.branch, knownIssueIds);
@@ -353,10 +357,11 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
       worktreePath: worktree?.path,
       openPrUrl,
       commitTime: localBranch.commitTime,
+      stack: loadPersistedStackMetadata(localBranch.branch) ?? openPr?.stack,
     };
   });
 
-  for (const [head, url] of openPrByHead) {
+  for (const [head, openPr] of openPrByHead) {
     if (!isRecognizedRecoveryPrHead(head) || localBranchNames.has(head)) continue;
     const issueId = extractIssueIdFromOpenPrHead(head, knownIssueIds);
     const issue = issueId ? readIssueForRecovery(issueId, issueCache) : undefined;
@@ -369,7 +374,8 @@ function collectRecoveryBranches(): RecoveryBranchInput[] {
       issueLookup: issue?.lookup,
       ahead: 0,
       dirty: false,
-      openPrUrl: url,
+      openPrUrl: openPr.url,
+      stack: openPr.stack ?? loadPersistedStackMetadata(head),
     });
   }
 
@@ -439,12 +445,22 @@ function loadRepositoryIdentity(): RepositoryIdentity {
   return cachedRepositoryIdentity;
 }
 
-function loadOpenPrsByHead(): Map<string, string> {
+function loadOpenPrRecoveryRecordsByHead(): Map<string, { url: string; stack?: StackMetadata }> {
   const result = run(
-    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${OPEN_PR_JSON_FIELDS}`,
+    `gh pr list --state open --limit ${OPEN_PR_SCAN_LIMIT} --json ${STACK_OPEN_PR_JSON_FIELDS}`,
     repoRoot,
   );
-  return parseOpenPrsByHead(result.stdout, { currentRepository: loadRepositoryIdentity() });
+  const knownIssueIds = loadKnownIssueIdsForRecovery();
+  const normalized = normalizeOpenPrsJson(result.stdout, { currentRepository: loadRepositoryIdentity(), knownIssueIds });
+  const openPrs = parseJsonArray(normalized, "open GitHub recovery PR list") as StackPrRecord[];
+  const byHead = new Map<string, { url: string; stack?: StackMetadata }>();
+  for (const pr of openPrs) {
+    byHead.set(pr.headRefName, {
+      url: pr.url || (pr.number ? String(pr.number) : pr.headRefName),
+      stack: parseStackMetadataFromBody(pr.body),
+    });
+  }
+  return byHead;
 }
 
 function loadExistingOpenPrForIssue(issueId: string): { headRefName: string; url: string } | undefined {
@@ -474,9 +490,38 @@ function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}): void {
       console.log(`${message} (plan-only)`);
     } else {
       console.log(message);
+      rebaseOpenStackPrBranch(action.headRefName, action.expectedBase);
       run(`gh pr edit ${shellQuote(action.prRef)} --base ${shellQuote(action.expectedBase)}`, repoRoot);
     }
   }
+}
+
+function persistStackMetadata(stack: StackMetadata): void {
+  assertSafeRecoveryBranchName(stack.headBranch);
+  mkdirSync(stackMetadataDir, { recursive: true });
+  writeFileSync(stackMetadataPath(stack.headBranch), JSON.stringify(stack, null, 2));
+}
+
+function loadPersistedStackMetadata(branch: string): StackMetadata | undefined {
+  if (!branch.startsWith("picastle/")) return undefined;
+  assertSafeRecoveryBranchName(branch);
+  const path = stackMetadataPath(branch);
+  if (!existsSync(path)) return undefined;
+  try {
+    const stack = parseStackMetadataJson(JSON.parse(readFileSync(path, "utf8")));
+    if (!stack || stack.headBranch !== branch) {
+      console.warn(`  ⚠ ignoring invalid Picastle stack metadata for ${branch}`);
+      return undefined;
+    }
+    return stack;
+  } catch (error) {
+    console.warn(`  ⚠ failed to read Picastle stack metadata for ${branch}: ${formatError(error)}`);
+    return undefined;
+  }
+}
+
+function stackMetadataPath(branch: string): string {
+  return join(stackMetadataDir, `${hashString(branch)}.json`);
 }
 
 function loadKnownIssueIdsForRecovery(): string[] {
@@ -780,10 +825,12 @@ async function reviewAndPublishStackWithAgent(
         break;
       }
       approved.push(issue);
+      rebaseDownstreamStackEntries(stack, issue);
       results.push({ status: "fulfilled", value: { issue, published: false } });
     }
 
     if (approved.length !== stack.length) return results;
+    rebaseStackOntoExpectedBases(stack);
     verifyStackMergeability(stack);
     for (const issue of stack) await publishApprovedIssue(issue);
     return stack.map((issue) => ({ status: "fulfilled", value: { issue, published: true } }));
@@ -928,9 +975,7 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
       console.log(`  before-push: ${BEFORE_PUSH_COMMAND}`);
       run(BEFORE_PUSH_COMMAND, issue.worktreePath, { stdio: "inherit" });
     }
-    run(`git push -u origin ${shellQuote(issue.branch)}`, issue.worktreePath, {
-      stdio: "inherit",
-    });
+    pushIssueBranch(issue, publishDecision.kind === "update-existing-branch-pr");
   } else {
     console.log("PICASTLE_PUSH=0; skipping git push");
   }
@@ -1002,7 +1047,10 @@ async function publishCompletedIssues(
 ): Promise<void> {
   assertMutableMode("publish completed issues");
   const publishTargets = prepareCompletedIssuesForPublishing(completed);
-  if (STACK_PRS && publishTargets.length > 1) verifyStackMergeability(publishTargets);
+  if (STACK_PRS && publishTargets.length > 1) {
+    rebaseStackOntoExpectedBases(publishTargets);
+    verifyStackMergeability(publishTargets);
+  }
   for (const issue of publishTargets) {
     try {
       console.log(`\n==> Publishing ${issue.id} (${issue.branch})`);
@@ -1041,9 +1089,7 @@ async function publishCompletedIssues(
         console.log(`  before-push: ${BEFORE_PUSH_COMMAND}`);
         run(BEFORE_PUSH_COMMAND, issue.worktreePath, { stdio: "inherit" });
       }
-      run(`git push -u origin ${shellQuote(issue.branch)}`, issue.worktreePath, {
-        stdio: "inherit",
-      });
+      pushIssueBranch(issue, publishDecision.kind === "update-existing-branch-pr");
     } else {
       console.log("PICASTLE_PUSH=0; skipping git push");
     }
@@ -1236,7 +1282,9 @@ async function runPiAgent(args: {
 
 function ensureIssueWorktree(issue: PlannedWorkIssue): string {
   const branch = normalizeBranch(issue.branch, issue.id);
-  return ensureBranchWorktree(branch, effectiveBaseBranch(issue));
+  const worktreePath = ensureBranchWorktree(branch, effectiveBaseBranch(issue));
+  if (issue.stack) persistStackMetadata({ ...issue.stack, headBranch: branch });
+  return worktreePath;
 }
 
 function ensureBranchWorktree(branch: string, startPoint = BASE_BRANCH): string {
@@ -1445,12 +1493,97 @@ function preparePlannedIssuesForImplementation(issues: PlannedIssue[]): PlannedW
 
 function prepareCompletedIssuesForPublishing(completed: CompletedIssue[]): CompletedIssue[] {
   if (!STACK_PRS || completed.length <= 1) return completed;
+  const preserved = preservedCompletedStack(completed);
+  if (preserved) return preserved;
   const stack = stackIssues(completed, BASE_BRANCH);
   return stack.map((issue, index) => ({ ...issue, worktreePath: completed[index]!.worktreePath }));
 }
 
+function preservedCompletedStack(completed: CompletedIssue[]): CompletedIssue[] | undefined {
+  if (!completed.every((issue) => issue.stack)) return undefined;
+  const stackId = completed[0]!.stack!.stackId;
+  if (!completed.every((issue) => issue.stack!.stackId === stackId && issue.stack!.total === completed.length)) return undefined;
+  return [...completed].sort((a, b) => a.stack!.index - b.stack!.index || a.id.localeCompare(b.id));
+}
+
 function effectiveBaseBranch(issue: PlannedWorkIssue): string {
   return issue.stack ? stackBaseBranch(issue.stack) : BASE_BRANCH;
+}
+
+function pushIssueBranch(issue: CompletedIssue, forceWithLease: boolean): void {
+  const forceFlag = forceWithLease ? " --force-with-lease" : "";
+  run(`git push -u origin ${shellQuote(issue.branch)}${forceFlag}`, issue.worktreePath, {
+    stdio: "inherit",
+  });
+}
+
+function rebaseDownstreamStackEntries(stack: CompletedIssue[], upstream: CompletedIssue): void {
+  const index = stack.findIndex((issue) => issue.branch === upstream.branch);
+  if (index < 0 || index >= stack.length - 1) return;
+  rebaseStackOntoExpectedBases(stack.slice(index + 1));
+}
+
+function rebaseStackOntoExpectedBases(stack: CompletedIssue[]): void {
+  for (const issue of stack) {
+    rebaseBranchWorktree(issue.worktreePath, issue.branch, effectiveBaseBranch(issue));
+  }
+}
+
+function rebaseOpenStackPrBranch(branch: string, expectedBase: string): void {
+  const worktreePath = ensureExistingBranchWorktree(branch);
+  const rebased = rebaseBranchWorktree(worktreePath, branch, expectedBase);
+  if (!rebased) return;
+  if (!PUSH) {
+    console.log("PICASTLE_PUSH=0; skipping force-with-lease update after stack rebase");
+    return;
+  }
+  run(`git push -u origin ${shellQuote(branch)} --force-with-lease`, worktreePath, { stdio: "inherit" });
+}
+
+function ensureExistingBranchWorktree(branch: string): string {
+  assertSafeRecoveryBranchName(branch);
+  const branchExists = run(`git rev-parse --verify ${shellQuote(branch)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (!branchExists) {
+    const remoteRef = `origin/${branch}`;
+    if (!isSafeRecoveryTrackingRef(remoteRef)) {
+      throw new Error(`unsafe Picastle recovery tracking ref for ${branch}: ${remoteRef}`);
+    }
+    const remoteExists = run(`git rev-parse --verify --quiet ${shellQuote(remoteRef)}`, repoRoot, { allowFailure: true }).status === 0;
+    if (!remoteExists) throw new Error(`cannot rebase stack branch ${branch}: no local branch or ${remoteRef}`);
+    run(`git branch --track ${shellQuote(branch)} ${shellQuote(remoteRef)}`, repoRoot);
+  }
+  return ensureBranchWorktree(branch);
+}
+
+function rebaseBranchWorktree(worktreePath: string, branch: string, base: string): boolean {
+  assertSafeRecoveryBranchName(branch);
+  ensureLocalRebaseBase(base);
+  const ancestor = run(`git merge-base --is-ancestor ${shellQuote(base)} ${shellQuote(branch)}`, repoRoot, {
+    allowFailure: true,
+  });
+  if (ancestor.status === 0) return false;
+
+  const dirty = run("git status --porcelain", worktreePath).stdout.trim();
+  if (dirty) throw new Error(`refusing to rebase dirty stack worktree ${branch}`);
+
+  console.log(`  rebasing stack branch ${branch} onto ${base}`);
+  const rebase = run(`git rebase ${shellQuote(base)}`, worktreePath, { allowFailure: true });
+  if (rebase.status !== 0) {
+    run("git rebase --abort", worktreePath, { allowFailure: true });
+    throw new Error(`failed to rebase stack branch ${branch} onto ${base}: ${rebase.stderr || rebase.stdout}`);
+  }
+  return true;
+}
+
+function ensureLocalRebaseBase(base: string): void {
+  const exists = run(`git rev-parse --verify --quiet ${shellQuote(base)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (exists) return;
+  if (!isRecognizedRecoveryPrHead(base)) throw new Error(`cannot rebase stack branch: missing local base ${base}`);
+  const remoteRef = `origin/${base}`;
+  if (!isSafeRecoveryTrackingRef(remoteRef)) throw new Error(`unsafe Picastle recovery tracking ref for ${base}: ${remoteRef}`);
+  const remoteExists = run(`git rev-parse --verify --quiet ${shellQuote(remoteRef)}`, repoRoot, { allowFailure: true }).status === 0;
+  if (!remoteExists) throw new Error(`cannot rebase stack branch: missing local base ${base} and ${remoteRef}`);
+  run(`git branch --track ${shellQuote(base)} ${shellQuote(remoteRef)}`, repoRoot);
 }
 
 function verifyStackMergeability(stack: CompletedIssue[]): void {
