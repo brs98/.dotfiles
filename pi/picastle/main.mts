@@ -485,25 +485,72 @@ function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}): void {
   if (!OPEN_PRS) return;
   const openPrs = loadOpenStackPrRecords("open GitHub stack PR list");
   const retargets = planStackRetargets(openPrs, BASE_BRANCH);
-  for (const action of retargets) {
-    const message = action.updateBase
-      ? `  stack retarget: ${action.headRefName} base ${action.currentBase} → ${action.expectedBase}`
-      : `  stack metadata refresh: ${action.headRefName} base ${action.expectedBase}`;
-    if (options.readOnly) {
-      console.log(`${message} (plan-only)`);
-    } else {
-      console.log(message);
-      const worktreePath = action.updateBase
-        ? rebaseOpenStackPrBranch(action.headRefName, action.expectedBase)
-        : ensureExistingBranchWorktree(action.headRefName);
-      persistStackMetadata(action.stack);
-      const bodyFile = writeStackPrBodyRefreshFile(action);
-      const baseEdit = action.updateBase ? ` --base ${shellQuote(action.expectedBase)}` : "";
-      run(`gh pr edit ${shellQuote(action.prRef)}${baseEdit} --body-file ${shellQuote(bodyFile)}`, repoRoot);
-      const comment = stackPebblesComment(action.stack, action.prRef);
-      if (comment) writePendingComment(worktreePath, action.stack.issueId, comment);
+  if (options.readOnly) {
+    for (const action of retargets) logStackRetargetAction(action, true);
+    return;
+  }
+
+  const actionsByHead = new Map(retargets.map((action) => [action.headRefName, action]));
+  const applied = new Set<string>();
+  for (const group of openStackPrGroups(openPrs)) {
+    let upstreamRebased = false;
+    for (const [index, entry] of group.entries()) {
+      const action = actionsByHead.get(entry.pr.headRefName);
+      if (action) {
+        upstreamRebased = applyStackRetargetAction(action, { rebaseBranch: upstreamRebased }) || upstreamRebased;
+        applied.add(action.headRefName);
+        continue;
+      }
+
+      if (!upstreamRebased) continue;
+      const refreshedStack = relinkStackMetadata(entry.stack, {
+        baseBranch: BASE_BRANCH,
+        headBranch: entry.pr.headRefName,
+        previousBranch: group[index - 1]?.pr.headRefName,
+        nextBranch: entry.stack.nextBranch,
+      });
+      upstreamRebased = rebaseOpenStackPrBranch(entry.pr.headRefName, stackBaseBranch(refreshedStack)).rebased || upstreamRebased;
     }
   }
+
+  for (const action of retargets) {
+    if (!applied.has(action.headRefName)) applyStackRetargetAction(action);
+  }
+}
+
+function logStackRetargetAction(action: StackRetargetAction, readOnly = false): void {
+  const message = action.updateBase
+    ? `  stack retarget: ${action.headRefName} base ${action.currentBase} → ${action.expectedBase}`
+    : `  stack metadata refresh: ${action.headRefName} base ${action.expectedBase}`;
+  console.log(readOnly ? `${message} (plan-only)` : message);
+}
+
+function applyStackRetargetAction(action: StackRetargetAction, options: { rebaseBranch?: boolean } = {}): boolean {
+  logStackRetargetAction(action);
+  const result = action.updateBase || options.rebaseBranch
+    ? rebaseOpenStackPrBranch(action.headRefName, action.expectedBase)
+    : { worktreePath: ensureExistingBranchWorktree(action.headRefName), rebased: false };
+  persistStackMetadata(action.stack);
+  const bodyFile = writeStackPrBodyRefreshFile(action);
+  const baseEdit = action.updateBase ? ` --base ${shellQuote(action.expectedBase)}` : "";
+  run(`gh pr edit ${shellQuote(action.prRef)}${baseEdit} --body-file ${shellQuote(bodyFile)}`, repoRoot);
+  const comment = stackPebblesComment(action.stack, action.prRef);
+  if (comment) writePendingComment(result.worktreePath, action.stack.issueId, comment);
+  return result.rebased;
+}
+
+function openStackPrGroups(openPrs: StackPrRecord[]): Array<Array<{ pr: StackPrRecord; stack: StackMetadata }>> {
+  const byStackId = new Map<string, Array<{ pr: StackPrRecord; stack: StackMetadata }>>();
+  for (const pr of openPrs) {
+    const stack = parseStackMetadataFromBody(pr.body);
+    if (!stack) continue;
+    const group = byStackId.get(stack.stackId) ?? [];
+    group.push({ pr, stack });
+    byStackId.set(stack.stackId, group);
+  }
+  return [...byStackId.values()].map((group) =>
+    group.sort((a, b) => a.stack.index - b.stack.index || a.pr.headRefName.localeCompare(b.pr.headRefName)),
+  );
 }
 
 function persistStackMetadata(stack: StackMetadata): void {
@@ -1615,16 +1662,16 @@ function rebaseIssueStackBranchIfNeeded(issue: CompletedIssue): void {
   rebaseBranchWorktree(issue.worktreePath, issue.branch, effectiveBaseBranch(issue));
 }
 
-function rebaseOpenStackPrBranch(branch: string, expectedBase: string): string {
+function rebaseOpenStackPrBranch(branch: string, expectedBase: string): { worktreePath: string; rebased: boolean } {
   const worktreePath = ensureExistingBranchWorktree(branch);
   const rebased = rebaseBranchWorktree(worktreePath, branch, expectedBase);
-  if (!rebased) return worktreePath;
+  if (!rebased) return { worktreePath, rebased: false };
   if (!PUSH) {
     console.log("PICASTLE_PUSH=0; skipping force-with-lease update after stack rebase");
-    return worktreePath;
+    return { worktreePath, rebased: true };
   }
   run(`git push -u origin ${shellQuote(branch)} --force-with-lease`, worktreePath, { stdio: "inherit" });
-  return worktreePath;
+  return { worktreePath, rebased: true };
 }
 
 function ensureExistingBranchWorktree(branch: string): string {
