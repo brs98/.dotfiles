@@ -58,6 +58,9 @@ const RICEKIT_PROFILE: PicastleProfile = {
   env: {
     PICASTLE_PEB_REMOTE: "pi",
     PICASTLE_PEB_REPO: "ricekit",
+    PICASTLE_CLEAN_TARGETS: "1",
+    PICASTLE_MIN_FREE_GB: "40",
+    PICASTLE_CONCURRENCY: "2",
     PICASTLE_WORKTREE_READY_COMMAND:
       "npm install && npm --prefix ui install && npm --prefix e2e install",
     PICASTLE_BEFORE_PUSH_COMMAND: "bash scripts/bundle-rust-binaries.sh",
