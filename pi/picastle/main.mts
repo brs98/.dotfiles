@@ -119,6 +119,7 @@ export type PicastleRunOptions = {
   env?: NodeJS.ProcessEnv;
   signal?: AbortSignal;
   runPrep?: boolean;
+  onOutput?: (chunk: string, stream: "stdout" | "stderr") => void;
 };
 
 export type PicastleRunResult = {
@@ -171,6 +172,10 @@ let MIN_FREE_GB: number;
 let cachedRepositoryIdentity: RepositoryIdentity | undefined;
 let authStorage: ReturnType<typeof AuthStorage.create>;
 let modelRegistry: ReturnType<typeof ModelRegistry.create>;
+let outputSink: (chunk: string, stream: "stdout" | "stderr") => void = (chunk, stream) => {
+  if (stream === "stderr") process.stderr.write(chunk);
+  else process.stdout.write(chunk);
+};
 
 export async function runPicastle(
   argv: string[] = process.argv.slice(2),
@@ -179,6 +184,10 @@ export async function runPicastle(
   cli = parseArgs(argv);
   runtimeEnv = { ...process.env, ...(options.env ?? {}) };
   abortSignal = options.signal;
+  outputSink = options.onOutput ?? ((chunk, stream) => {
+    if (stream === "stderr") process.stderr.write(chunk);
+    else process.stdout.write(chunk);
+  });
   checkAbort();
 
   startCwd = cli.repo ? resolve(cli.repo) : options.cwd ? resolve(options.cwd) : process.cwd();
@@ -238,12 +247,12 @@ export async function runPicastle(
   authStorage = AuthStorage.create();
   modelRegistry = ModelRegistry.create(authStorage);
 
-  console.log(`Picastle repo: ${repoRoot}`);
-  console.log(`Picastle runtime: ${runtimeDir}`);
-  console.log(`Pebbles queue: status=${ISSUE_STATUS}${ISSUE_LABEL ? ` label=${ISSUE_LABEL}` : ""}`);
-  if (MIN_FREE_GB > 0) console.log(`Disk guardrail: require ${MIN_FREE_GB} GiB free`);
-  if (CLEAN_TARGETS) console.log("Disk cleanup: per-worktree target/ cleanup enabled");
-  if (STACK_PRS) console.log("Stacked PR mode: enabled for multi-issue batches");
+  log(`Picastle repo: ${repoRoot}`);
+  log(`Picastle runtime: ${runtimeDir}`);
+  log(`Pebbles queue: status=${ISSUE_STATUS}${ISSUE_LABEL ? ` label=${ISSUE_LABEL}` : ""}`);
+  if (MIN_FREE_GB > 0) log(`Disk guardrail: require ${MIN_FREE_GB} GiB free`);
+  if (CLEAN_TARGETS) log("Disk cleanup: per-worktree target/ cleanup enabled");
+  if (STACK_PRS) log("Stacked PR mode: enabled for multi-issue batches");
   checkMinFreeSpace("startup");
 
   let iterationsStarted = 0;
@@ -251,15 +260,15 @@ export async function runPicastle(
     iterationsStarted = iteration;
     checkAbort();
     checkMinFreeSpace(`iteration ${iteration} start`);
-    console.log(`\n=== Picastle iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
+    log(`\n=== Picastle iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
 
     const recovery = recoverInterruptedRun({ readOnly: PLAN_ONLY });
     if (!PLAN_ONLY && recovery.interruptedImplementations.length > 0) {
-      console.log("Recovery has interrupted implementation work; resuming before planning new work.");
+      log("Recovery has interrupted implementation work; resuming before planning new work.");
       const settled = await resumeInterruptedImplementations(recovery.interruptedImplementations, iteration);
       const completed = settled.flatMap((outcome) => outcome.status === "fulfilled" && outcome.value ? [outcome.value] : []);
       for (const outcome of settled) {
-        if (outcome.status === "rejected") console.error(`  ✗ recovery implementer failed: ${formatError(outcome.reason)}`);
+        if (outcome.status === "rejected") logError(`  ✗ recovery implementer failed: ${formatError(outcome.reason)}`);
       }
       if (completed.length > 0) {
         if (PUBLISHER_AGENT) await publishCompletedIssuesWithAgent(completed, iteration);
@@ -270,7 +279,7 @@ export async function runPicastle(
     }
 
     if (!PLAN_ONLY && recovery.unpublishedBranches.length > 0) {
-      console.log("Recovery has unpublished local branches; reviewing/publishing before planning new work.");
+      log("Recovery has unpublished local branches; reviewing/publishing before planning new work.");
       if (PUBLISHER_AGENT) {
         await publishCompletedIssuesWithAgent(recovery.unpublishedBranches, iteration);
       } else {
@@ -282,19 +291,19 @@ export async function runPicastle(
 
     const plan = await planIssues(iteration, recovery.blockedIssueIds);
     const issues = plan.issues;
-    for (const line of formatPlannerBlockedSummary(plan)) console.log(line);
+    for (const line of formatPlannerBlockedSummary(plan)) log(line);
     if (issues.length === 0) {
-      console.log("No unblocked issues to work on. Exiting.");
+      log("No unblocked issues to work on. Exiting.");
       break;
     }
 
-    console.log(`Planning complete. ${issues.length} issue(s) selected:`);
+    log(`Planning complete. ${issues.length} issue(s) selected:`);
     for (const issue of issues) {
-      console.log(`  ${issue.id}: ${issue.title} → ${issue.branch}`);
+      log(`  ${issue.id}: ${issue.title} → ${issue.branch}`);
     }
 
     if (PLAN_ONLY) {
-      console.log("PICASTLE_PLAN_ONLY=1; stopping before worktree creation/implementation.");
+      log("PICASTLE_PLAN_ONLY=1; stopping before worktree creation/implementation.");
       break;
     }
 
@@ -307,14 +316,14 @@ export async function runPicastle(
     for (const [i, outcome] of settled.entries()) {
       const issue = issues[i]!;
       if (outcome.status === "rejected") {
-        console.error(`  ✗ ${issue.id} failed: ${formatError(outcome.reason)}`);
+        logError(`  ✗ ${issue.id} failed: ${formatError(outcome.reason)}`);
         continue;
       }
       if (outcome.value) completed.push(outcome.value);
     }
 
-    console.log(`\nExecution complete. ${completed.length} branch(es) with commits:`);
-    for (const issue of completed) console.log(`  ${issue.branch}`);
+    log(`\nExecution complete. ${completed.length} branch(es) with commits:`);
+    for (const issue of completed) log(`  ${issue.branch}`);
 
     if (completed.length > 0) {
       if (PUBLISHER_AGENT) {
@@ -327,7 +336,7 @@ export async function runPicastle(
     runPendingFanIn();
   }
 
-  console.log("\nPicastle done.");
+  log("\nPicastle done.");
   return { repoRoot, runtimeDir, iterationsStarted };
 }
 
@@ -335,8 +344,8 @@ function runPrep(argv: string[]): void {
   const args = argv.map(shellQuote).join(" ");
   const command = `bash ${shellQuote(join(scriptRoot, "scripts", "prep.sh"))}${args ? ` ${args}` : ""}`;
   const prep = run(command, startCwd, { allowFailure: true });
-  if (prep.stdout) process.stdout.write(prep.stdout);
-  if (prep.stderr) process.stderr.write(prep.stderr);
+  if (prep.stdout) writeOut(prep.stdout);
+  if (prep.stderr) writeErr(prep.stderr);
 }
 
 function checkAbort(): void {
@@ -346,13 +355,37 @@ function checkAbort(): void {
   throw error;
 }
 
+function log(...args: unknown[]): void {
+  writeOut(`${formatConsoleArgs(args)}\n`);
+}
+
+function warn(...args: unknown[]): void {
+  writeErr(`${formatConsoleArgs(args)}\n`);
+}
+
+function logError(...args: unknown[]): void {
+  writeErr(`${formatConsoleArgs(args)}\n`);
+}
+
+function writeOut(chunk: string): void {
+  outputSink(chunk, "stdout");
+}
+
+function writeErr(chunk: string): void {
+  outputSink(chunk, "stderr");
+}
+
+function formatConsoleArgs(args: unknown[]): string {
+  return args.map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg))).join(" ");
+}
+
 function isDirectRun(): boolean {
   return process.argv[1] ? resolve(process.argv[1]) === fileURLToPath(import.meta.url) : false;
 }
 
 function runPendingFanIn(): void {
   if (PLAN_ONLY) {
-    console.log("PICASTLE_PLAN_ONLY=1; skipping fan-in.");
+    log("PICASTLE_PLAN_ONLY=1; skipping fan-in.");
     return;
   }
   const fanIn = run(`bash ${shellQuote(join(scriptRoot, "scripts", "apply-pending-issues.sh"))}`, repoRoot, {
@@ -361,7 +394,7 @@ function runPendingFanIn(): void {
     env: { PICASTLE_RUNTIME_DIR: runtimeDir, PICASTLE_PENDING_STATUS: PENDING_STATUS },
   });
   if (fanIn.status !== 0) {
-    console.warn(
+    warn(
       `apply-pending-issues.sh exited with code ${fanIn.status}; inspect ${runtimeDir}/*.failed.jsonl`,
     );
   }
@@ -369,11 +402,11 @@ function runPendingFanIn(): void {
 
 function recoverInterruptedRun(options: { readOnly?: boolean } = {}): RecoveryPlan & { unpublishedBranches: CompletedIssue[] } {
   if (options.readOnly) {
-    console.log("PICASTLE_PLAN_ONLY=1; recovery scan is read-only/log-only.");
+    log("PICASTLE_PLAN_ONLY=1; recovery scan is read-only/log-only.");
   } else {
     const prune = run("git worktree prune --verbose", repoRoot, { allowFailure: true });
-    if (prune.status !== 0) console.warn(`  ⚠ git worktree prune failed: ${prune.stderr || prune.stdout}`);
-    else if (prune.stdout.trim()) console.log(`Recovery pruned stale worktree metadata:\n${prune.stdout.trim()}`);
+    if (prune.status !== 0) warn(`  ⚠ git worktree prune failed: ${prune.stderr || prune.stdout}`);
+    else if (prune.stdout.trim()) log(`Recovery pruned stale worktree metadata:\n${prune.stdout.trim()}`);
   }
 
   const branchInputs = collectRecoveryBranches();
@@ -409,14 +442,14 @@ function recoverInterruptedRun(options: { readOnly?: boolean } = {}): RecoveryPl
 
 function declarePendingPebbleClosure(issueId: string, prRef: string): boolean {
   if (PLAN_ONLY) {
-    console.log(`PICASTLE_PLAN_ONLY=1; skipping peb closes add for ${issueId}.`);
+    log(`PICASTLE_PLAN_ONLY=1; skipping peb closes add for ${issueId}.`);
     return false;
   }
   const closes = run(pebCommand(`closes add ${shellQuote(issueId)} --pr ${shellQuote(prRef)}`), repoRoot, {
     allowFailure: true,
   });
   if (pebClosureRegistrationSucceeded(closes)) return true;
-  console.warn(`  ⚠ failed to declare pending pebble closure for ${issueId}: ${closes.stderr || closes.stdout}`);
+  warn(`  ⚠ failed to declare pending pebble closure for ${issueId}: ${closes.stderr || closes.stdout}`);
   return false;
 }
 
@@ -488,7 +521,7 @@ function countRecoverableCommits(branch: string, stack?: StackMetadata): number 
   const baseRef = resolveRecoveryComparisonBase(base) ?? (base === BASE_BRANCH ? undefined : resolveRecoveryComparisonBase(BASE_BRANCH));
   if (!baseRef) throw new Error(`cannot compare recovery branch ${branch}: missing base ${base}`);
   if (baseRef !== base) {
-    console.warn(`  ⚠ recovery compare base ${base} missing for ${branch}; falling back to ${baseRef}`);
+    warn(`  ⚠ recovery compare base ${base} missing for ${branch}; falling back to ${baseRef}`);
   }
   const aheadOutput = run(
     `git rev-list --count ${shellQuote(baseRef)}..${shellQuote(branch)}`,
@@ -673,14 +706,14 @@ function reconcileOpenStackPrs(options: { readOnly?: boolean } = {}, dirtyBranch
 }
 
 function logStackReconcileDeferred(headRefName: string, expectedBase: string): void {
-  console.warn(`  stack reconcile deferred: ${headRefName} base ${expectedBase} (dirty worktree; recovery will resume it first)`);
+  warn(`  stack reconcile deferred: ${headRefName} base ${expectedBase} (dirty worktree; recovery will resume it first)`);
 }
 
 function logStackRetargetAction(action: StackRetargetAction, readOnly = false): void {
   const message = action.updateBase
     ? `  stack retarget: ${action.headRefName} base ${action.currentBase} → ${action.expectedBase}`
     : `  stack metadata refresh: ${action.headRefName} base ${action.expectedBase}`;
-  console.log(readOnly ? `${message} (plan-only)` : message);
+  log(readOnly ? `${message} (plan-only)` : message);
 }
 
 function applyStackRetargetAction(action: StackRetargetAction, options: { rebaseBranch?: boolean } = {}): boolean {
@@ -743,12 +776,12 @@ function loadPersistedStackMetadata(branch: string): StackMetadata | undefined {
   try {
     const stack = parseStackMetadataJson(JSON.parse(readFileSync(path, "utf8")));
     if (!stack || stack.headBranch !== branch) {
-      console.warn(`  ⚠ ignoring invalid Picastle stack metadata for ${branch}`);
+      warn(`  ⚠ ignoring invalid Picastle stack metadata for ${branch}`);
       return undefined;
     }
     return stack;
   } catch (error) {
-    console.warn(`  ⚠ failed to read Picastle stack metadata for ${branch}: ${formatError(error)}`);
+    warn(`  ⚠ failed to read Picastle stack metadata for ${branch}: ${formatError(error)}`);
     return undefined;
   }
 }
@@ -819,7 +852,7 @@ function logRecoveryPlan(plan: RecoveryPlan): void {
   const active = plan.interruptedImplementations.length + plan.unpublishedBranches.length;
   if (active === 0 && plan.alreadyPublished.length === 0 && plan.deferredBranches.length === 0 && zeroAhead === 0) return;
 
-  console.log(
+  log(
     `Recovery scan: ${plan.interruptedImplementations.length} interrupted, ` +
       `${plan.unpublishedBranches.length} unpublished, ${plan.alreadyPublished.length} already published, ` +
       `${plan.deferredBranches.length} deferred, ${zeroAhead} zero-ahead ignored` +
@@ -827,16 +860,16 @@ function logRecoveryPlan(plan: RecoveryPlan): void {
       ".",
   );
   for (const issue of plan.interruptedImplementations) {
-    console.log(`  resume implement: ${issue.id} ${issue.branch}${issue.worktreePath ? ` (${issue.worktreePath})` : ""}`);
+    log(`  resume implement: ${issue.id} ${issue.branch}${issue.worktreePath ? ` (${issue.worktreePath})` : ""}`);
   }
   for (const issue of plan.unpublishedBranches) {
-    console.log(`  publish: ${issue.id} ${issue.branch}${issue.worktreePath ? "" : " (orphan branch; attaching worktree)"}`);
+    log(`  publish: ${issue.id} ${issue.branch}${issue.worktreePath ? "" : " (orphan branch; attaching worktree)"}`);
   }
   for (const issue of plan.alreadyPublished) {
-    console.log(`  published: ${issue.id} ${issue.branch} → ${issue.prUrl}`);
+    log(`  published: ${issue.id} ${issue.branch} → ${issue.prUrl}`);
   }
   for (const branch of plan.deferredBranches) {
-    console.warn(`  defer: ${branch.issueId} ${branch.branch}: ${branch.reason}`);
+    warn(`  defer: ${branch.issueId} ${branch.branch}: ${branch.reason}`);
   }
 }
 
@@ -968,7 +1001,7 @@ async function resumeInterruptedImplementations(
   }
 
   const ordered = orderInterruptedStackRecoveryIssues(issues);
-  console.log("Recovery contains stacked implementation work; resuming sequentially in stack order.");
+  log("Recovery contains stacked implementation work; resuming sequentially in stack order.");
   const completedByStack = new Map<string, CompletedIssue[]>();
   return runSequentially(ordered, async (issue) => {
     const completed = await implementIssue(issue, iteration);
@@ -1034,12 +1067,12 @@ async function implementIssue(
 
     const dirty = run("git status --porcelain", worktreePath).stdout.trim();
     if (dirty) {
-      console.warn(`  ⚠ ${issue.id}: worktree has uncommitted changes after implementer run`);
+      warn(`  ⚠ ${issue.id}: worktree has uncommitted changes after implementer run`);
     }
 
     const ahead = Number(run(`git rev-list --count ${shellQuote(effectiveBaseBranch(issue))}..HEAD`, worktreePath).stdout.trim() || "0");
     if (ahead <= 0) {
-      console.log(`  - ${issue.id}: no commits produced`);
+      log(`  - ${issue.id}: no commits produced`);
       return undefined;
     }
 
@@ -1056,7 +1089,7 @@ async function publishCompletedIssuesWithAgent(
   iteration: number,
 ): Promise<void> {
   assertMutableMode("review/publish completed issues");
-  console.log(
+  log(
     `\n==> Review/repair loop handling ${completed.length} completed branch(es) with concurrency ${REVIEW_CONCURRENCY}`,
   );
 
@@ -1076,9 +1109,9 @@ async function publishCompletedIssuesWithAgent(
 
   for (const outcome of settled) {
     if (outcome.status === "rejected") {
-      console.error(`  ✗ review/publish worker failed: ${formatError(outcome.reason)}`);
+      logError(`  ✗ review/publish worker failed: ${formatError(outcome.reason)}`);
     } else if (!outcome.value.published) {
-      console.warn(`  - ${outcome.value.issue.id}: not published`);
+      warn(`  - ${outcome.value.issue.id}: not published`);
     }
   }
 }
@@ -1119,11 +1152,11 @@ async function reviewIssueUntilApproved(
   iteration: number,
 ): Promise<boolean> {
   for (let pass = 1; pass <= REVIEW_REPAIR_CYCLES; pass++) {
-    console.log(`\n==> Reviewing ${issue.id} (${issue.branch}), pass ${pass}/${REVIEW_REPAIR_CYCLES}`);
+    log(`\n==> Reviewing ${issue.id} (${issue.branch}), pass ${pass}/${REVIEW_REPAIR_CYCLES}`);
     const review = await reviewCompletedIssue(issue, iteration, pass);
 
     if (review.status === "approved") {
-      console.log(`  ✓ reviewer approved ${issue.id}: ${review.summary ?? "ready"}`);
+      log(`  ✓ reviewer approved ${issue.id}: ${review.summary ?? "ready"}`);
       return true;
     }
 
@@ -1136,11 +1169,11 @@ async function reviewIssueUntilApproved(
         ...formatReviewFindings(review),
       ].join("\n");
       writePendingComment(issue.worktreePath, issue.id, body);
-      console.warn(`  ✗ reviewer blocked ${issue.id}; pending comment recorded`);
+      warn(`  ✗ reviewer blocked ${issue.id}; pending comment recorded`);
       return false;
     }
 
-    console.log(`  ↻ reviewer requested changes for ${issue.id}: ${review.summary ?? "changes requested"}`);
+    log(`  ↻ reviewer requested changes for ${issue.id}: ${review.summary ?? "changes requested"}`);
     await repairFromReview(issue, review, iteration, pass);
   }
 
@@ -1149,7 +1182,7 @@ async function reviewIssueUntilApproved(
     issue.id,
     `Picastle review did not reach approval after ${REVIEW_REPAIR_CYCLES} review/repair cycles.`,
   );
-  console.warn(`  ✗ ${issue.id} exhausted ${REVIEW_REPAIR_CYCLES} review/repair cycles`);
+  warn(`  ✗ ${issue.id} exhausted ${REVIEW_REPAIR_CYCLES} review/repair cycles`);
   return false;
 }
 
@@ -1227,13 +1260,13 @@ async function repairFromReview(
 
 async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
   assertMutableMode("publish approved issue");
-  console.log(`\n==> Publishing approved branch ${issue.id} (${issue.branch})`);
+  log(`\n==> Publishing approved branch ${issue.id} (${issue.branch})`);
 
   const existingPr = loadExistingOpenPrForIssue(issue.id);
   const publishDecision = decidePublishFlow(issue.branch, existingPr, { openPrs: OPEN_PRS });
   const commandDecision = decidePublishCommandBoundary(publishDecision, { push: PUSH });
   if (publishDecision.kind === "use-existing-issue-pr") {
-    console.log(`  issue already has open PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+    log(`  issue already has open PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
     recordPublishedStackPosition(issue, publishDecision.existingPr.url);
     if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
       markIssueInReview(issue.id);
@@ -1246,17 +1279,17 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
   if (commandDecision.shouldPush) {
     runWorktreeReadyHook(issue.worktreePath);
     if (BEFORE_PUSH_COMMAND) {
-      console.log(`  before-push: ${BEFORE_PUSH_COMMAND}`);
+      log(`  before-push: ${BEFORE_PUSH_COMMAND}`);
       run(BEFORE_PUSH_COMMAND, issue.worktreePath, { stdio: "inherit" });
     }
     pushIssueBranch(issue, publishDecision.kind === "update-existing-branch-pr");
   } else {
-    console.log("PICASTLE_PUSH=0; skipping git push");
+    log("PICASTLE_PUSH=0; skipping git push");
   }
 
   if (publishDecision.kind === "update-existing-branch-pr") {
     retargetStackPrIfNeeded(issue, publishDecision.existingPr.url);
-    console.log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+    log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
     recordPublishedStackPosition(issue, publishDecision.existingPr.url);
     rebasePublishedStackDownstreamOpenPrs(issue);
     if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
@@ -1266,7 +1299,7 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
   }
 
   if (!commandDecision.shouldCreatePr && publishDecision.kind === "skip-pr-creation") {
-    console.log("PICASTLE_OPEN_PRS=0; skipping PR creation");
+    log("PICASTLE_OPEN_PRS=0; skipping PR creation");
     return;
   }
 
@@ -1275,11 +1308,11 @@ async function publishApprovedIssue(issue: CompletedIssue): Promise<void> {
     `gh pr create --base ${shellQuote(effectiveBaseBranch(issue))} --head ${shellQuote(issue.branch)} --title ${shellQuote(prTitle(issue))} --body-file ${shellQuote(bodyFile)}`,
     issue.worktreePath,
   );
-  process.stdout.write(prCreate.stdout);
-  process.stderr.write(prCreate.stderr);
+  writeOut(prCreate.stdout);
+  writeErr(prCreate.stderr);
   const prRef = extractPrRef(prCreate.stdout) || extractPrRef(prCreate.stderr);
   if (!prRef) {
-    console.warn(`  ⚠ could not detect PR URL/number for ${issue.id}; skipping peb closes add`);
+    warn(`  ⚠ could not detect PR URL/number for ${issue.id}; skipping peb closes add`);
     return;
   }
 
@@ -1329,12 +1362,12 @@ async function publishCompletedIssues(
   }
   for (const issue of publishTargets) {
     try {
-      console.log(`\n==> Publishing ${issue.id} (${issue.branch})`);
+      log(`\n==> Publishing ${issue.id} (${issue.branch})`);
 
       const existingPr = loadExistingOpenPrForIssue(issue.id);
       const publishDecision = decidePublishFlow(issue.branch, existingPr, { openPrs: OPEN_PRS });
       if (publishDecision.kind === "use-existing-issue-pr") {
-        console.log(`  issue already has open PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+        log(`  issue already has open PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
         recordPublishedStackPosition(issue, publishDecision.existingPr.url);
         if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
           markIssueInReview(issue.id);
@@ -1347,12 +1380,12 @@ async function publishCompletedIssues(
       if (VERIFY) {
       let verified = verifyWorktree(issue.worktreePath, effectiveBaseBranch(issue));
       if (!verified.ok && REPAIR_ON_VERIFY_FAIL) {
-        console.warn("  verification failed; asking Pi to repair once");
+        warn("  verification failed; asking Pi to repair once");
         await repairVerificationFailure(issue, verified.output, iteration);
         verified = verifyWorktree(issue.worktreePath, effectiveBaseBranch(issue));
       }
       if (!verified.ok) {
-        console.error(`  ✗ verification still failing; leaving branch unpushed: ${issue.branch}`);
+        logError(`  ✗ verification still failing; leaving branch unpushed: ${issue.branch}`);
         writePendingComment(
           issue.worktreePath,
           issue.id,
@@ -1364,17 +1397,17 @@ async function publishCompletedIssues(
 
     if (PUSH) {
       if (BEFORE_PUSH_COMMAND) {
-        console.log(`  before-push: ${BEFORE_PUSH_COMMAND}`);
+        log(`  before-push: ${BEFORE_PUSH_COMMAND}`);
         run(BEFORE_PUSH_COMMAND, issue.worktreePath, { stdio: "inherit" });
       }
       pushIssueBranch(issue, publishDecision.kind === "update-existing-branch-pr");
     } else {
-      console.log("PICASTLE_PUSH=0; skipping git push");
+      log("PICASTLE_PUSH=0; skipping git push");
     }
 
     if (publishDecision.kind === "update-existing-branch-pr") {
       retargetStackPrIfNeeded(issue, publishDecision.existingPr.url);
-      console.log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
+      log(`  updated existing PR on ${publishDecision.existingPr.headRefName}: ${publishDecision.existingPr.url}`);
       recordPublishedStackPosition(issue, publishDecision.existingPr.url);
       rebasePublishedStackDownstreamOpenPrs(issue);
       if (declarePendingPebbleClosure(issue.id, publishDecision.existingPr.url)) {
@@ -1386,8 +1419,8 @@ async function publishCompletedIssues(
         `gh pr create --base ${shellQuote(effectiveBaseBranch(issue))} --head ${shellQuote(issue.branch)} --title ${shellQuote(prTitle(issue))} --body-file ${shellQuote(bodyFile)}`,
         issue.worktreePath,
       );
-      process.stdout.write(prCreate.stdout);
-      process.stderr.write(prCreate.stderr);
+      writeOut(prCreate.stdout);
+      writeErr(prCreate.stderr);
       const prRef = extractPrRef(prCreate.stdout) || extractPrRef(prCreate.stderr);
       if (prRef) {
         recordPublishedStackPosition(issue, prRef);
@@ -1396,10 +1429,10 @@ async function publishCompletedIssues(
           markIssueInReview(issue.id);
         }
       } else {
-        console.warn(`  ⚠ could not detect PR URL/number for ${issue.id}; skipping peb closes add`);
+        warn(`  ⚠ could not detect PR URL/number for ${issue.id}; skipping peb closes add`);
       }
       } else {
-        console.log("PICASTLE_OPEN_PRS=0; skipping PR creation");
+        log("PICASTLE_OPEN_PRS=0; skipping PR creation");
       }
     } finally {
       cleanWorktreeTarget(issue.worktreePath, issue.id);
@@ -1410,7 +1443,7 @@ async function publishCompletedIssues(
 
 function markIssueInReview(issueId: string): void {
   if (PLAN_ONLY) {
-    console.log(`PICASTLE_PLAN_ONLY=1; skipping mark ${issueId} ${REVIEW_STATUS}.`);
+    log(`PICASTLE_PLAN_ONLY=1; skipping mark ${issueId} ${REVIEW_STATUS}.`);
     return;
   }
   if (!REVIEW_STATUS) return;
@@ -1418,7 +1451,7 @@ function markIssueInReview(issueId: string): void {
     allowFailure: true,
   });
   if (result.status !== 0) {
-    console.warn(`  ⚠ failed to mark ${issueId} ${REVIEW_STATUS}: ${result.stderr || result.stdout}`);
+    warn(`  ⚠ failed to mark ${issueId} ${REVIEW_STATUS}: ${result.stderr || result.stdout}`);
   }
 }
 
@@ -1455,7 +1488,7 @@ function verifyWorktree(worktreePath: string, baseBranch = BASE_BRANCH): { ok: b
   let output = "";
   for (const command of commands) {
     checkMinFreeSpace(`before verification command: ${command}`);
-    console.log(`  verifying: ${command}`);
+    log(`  verifying: ${command}`);
     const result = run(command, worktreePath, { allowFailure: true });
     output += `$ ${command}\n${result.stdout}${result.stderr}\n`;
     if (result.status !== 0) return { ok: false, output };
@@ -1526,14 +1559,14 @@ async function runPiAgent(args: {
     const output = TEST_AGENT_OUTPUT ?? "";
     if (output) {
       append(args.logFile, output + "\n");
-      process.stdout.write(output + "\n");
+      writeOut(output + "\n");
     }
     return output;
   }
 
   if (TEST_AGENT_OUTPUT !== undefined) {
     append(args.logFile, TEST_AGENT_OUTPUT + "\n");
-    process.stdout.write(TEST_AGENT_OUTPUT + "\n");
+    writeOut(TEST_AGENT_OUTPUT + "\n");
     return TEST_AGENT_OUTPUT;
   }
 
@@ -1562,7 +1595,7 @@ async function runPiAgent(args: {
     ) {
       const delta = event.assistantMessageEvent.delta ?? "";
       assistantText += delta;
-      process.stdout.write(delta);
+      writeOut(delta);
     }
   });
 
@@ -1572,7 +1605,7 @@ async function runPiAgent(args: {
   try {
     checkAbort();
     await session.prompt(args.prompt);
-    process.stdout.write("\n");
+    writeOut("\n");
     return assistantText;
   } finally {
     abortSignal?.removeEventListener("abort", abortListener);
@@ -1633,7 +1666,7 @@ function runWorktreeReadyHook(worktreePath: string): void {
   checkMinFreeSpace("before worktree-ready hook");
   const marker = join(worktreePath, ".picastle", `worktree-ready-${hashString(WORKTREE_READY_COMMAND)}.done`);
   if (existsSync(marker)) return;
-  console.log(`  worktree-ready: ${WORKTREE_READY_COMMAND}`);
+  log(`  worktree-ready: ${WORKTREE_READY_COMMAND}`);
   run(WORKTREE_READY_COMMAND, worktreePath, { stdio: "inherit" });
   mkdirSync(dirname(marker), { recursive: true });
   writeFileSync(marker, new Date().toISOString());
@@ -1659,7 +1692,7 @@ function loadPebblesPolicy(root: string): PebblesPolicy | undefined {
   try {
     return JSON.parse(readFileSync(path, "utf8")) as PebblesPolicy;
   } catch (error) {
-    console.warn(`  ⚠ failed to parse pebbles-policy.json: ${formatError(error)}`);
+    warn(`  ⚠ failed to parse pebbles-policy.json: ${formatError(error)}`);
     return undefined;
   }
 }
@@ -1734,7 +1767,7 @@ function postPebblesComment(worktreePath: string, issueId: string, body: string)
   });
   if (result.status === 0) return;
 
-  console.warn(`  ⚠ failed to post Pebbles comment for ${issueId}: ${result.stderr || result.stdout}`);
+  warn(`  ⚠ failed to post Pebbles comment for ${issueId}: ${result.stderr || result.stdout}`);
   writePendingComment(worktreePath, issueId, body);
 }
 
@@ -1792,7 +1825,7 @@ function cleanWorktreeTarget(worktreePath: string, issueId: string): void {
     resolvedWorktreePath !== resolvedWorktreesDir &&
     !resolvedWorktreePath.startsWith(`${resolvedWorktreesDir}/`)
   ) {
-    console.warn(`  ⚠ ${issueId}: refusing to clean target outside Picastle runtime: ${worktreePath}`);
+    warn(`  ⚠ ${issueId}: refusing to clean target outside Picastle runtime: ${worktreePath}`);
     return;
   }
 
@@ -1801,7 +1834,7 @@ function cleanWorktreeTarget(worktreePath: string, issueId: string): void {
   const size = run(`du -sh ${shellQuote(targetDir)} | awk '{print $1}'`, repoRoot, {
     allowFailure: true,
   }).stdout.trim() || "unknown size";
-  console.log(`  cleaning ${issueId} target/ (${size})`);
+  log(`  cleaning ${issueId} target/ (${size})`);
   rmSync(targetDir, { recursive: true, force: true });
 }
 
@@ -1863,7 +1896,7 @@ function refreshIssueStackMetadata<T extends { branch: string; stack?: StackMeta
       });
       refreshedByBranch.set(entry.branch, refreshed);
       if (!stackMetadataEqual(entry.stack, refreshed)) {
-        console.log(`  stack metadata refresh: ${entry.branch} base ${stackBaseBranch(refreshed)}`);
+        log(`  stack metadata refresh: ${entry.branch} base ${stackBaseBranch(refreshed)}`);
         persistStackMetadata(refreshed);
       }
     }
@@ -1972,7 +2005,7 @@ function rebaseOpenStackPrBranch(branch: string, expectedBase: string, stack?: S
   });
   if (!rebased) return { worktreePath, rebased: false };
   if (!PUSH) {
-    console.log("PICASTLE_PUSH=0; skipping force-with-lease update after stack rebase");
+    log("PICASTLE_PUSH=0; skipping force-with-lease update after stack rebase");
     return { worktreePath, rebased: true };
   }
   run(`git push -u origin ${shellQuote(branch)} --force-with-lease`, worktreePath, { stdio: "inherit" });
@@ -2011,7 +2044,7 @@ function rebaseBranchWorktree(
   if (dirty) throw new Error(`refusing to rebase dirty stack worktree ${branch}`);
 
   const oldUpstream = resolveSafeRebaseBoundary(options.oldUpstream, branch);
-  console.log(`  rebasing stack branch ${branch} onto ${base}`);
+  log(`  rebasing stack branch ${branch} onto ${base}`);
   const command = oldUpstream
     ? `git rebase --onto ${shellQuote(rebaseBase)} ${shellQuote(oldUpstream)} ${shellQuote(branch)}`
     : `git rebase ${shellQuote(rebaseBase)}`;
@@ -2072,7 +2105,7 @@ function refreshRepositoryBaseFromOrigin(base: string): string | undefined {
 
 function verifyStackMergeability(stack: CompletedIssue[]): void {
   if (stack.length <= 1) return;
-  console.log(`  verifying stacked PR mergeability for ${stack.length} branch(es)`);
+  log(`  verifying stacked PR mergeability for ${stack.length} branch(es)`);
   for (const issue of stack) {
     const base = effectiveBaseBranch(issue);
     const mergeBase = resolveFreshRebaseBase(base);
@@ -2138,7 +2171,7 @@ function run(
   cwd: string,
   opts: { allowFailure?: boolean; stdio?: "pipe" | "inherit"; env?: Record<string, string> } = {},
 ): ShResult {
-  const result = spawnSync("bash", ["-lc", command], {
+  const result = spawnSync("bash", ["--noprofile", "--norc", "-c", command], {
     cwd,
     encoding: "utf8",
     stdio: opts.stdio === "inherit" ? "inherit" : "pipe",
@@ -2284,7 +2317,7 @@ if (isDirectRun()) {
       stream.write(`${error.message}\n`);
       process.exitCode = error.exitCode;
     } else {
-      console.error(formatError(error));
+      logError(formatError(error));
       process.exitCode = 1;
     }
   }

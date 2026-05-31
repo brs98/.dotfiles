@@ -33,7 +33,13 @@ type PicastleRunState = {
 type PicastleModule = {
   runPicastle: (
     argv: string[],
-    options: { cwd?: string; env?: NodeJS.ProcessEnv; signal?: AbortSignal; runPrep?: boolean },
+    options: {
+      cwd?: string;
+      env?: NodeJS.ProcessEnv;
+      signal?: AbortSignal;
+      runPrep?: boolean;
+      onOutput?: (chunk: string, stream: "stdout" | "stderr") => void;
+    },
   ) => Promise<{ repoRoot: string; runtimeDir: string; iterationsStarted: number }>;
 };
 
@@ -170,13 +176,14 @@ export default function picastleExtension(pi: ExtensionAPI) {
 
       activeRun = (async () => {
         try {
-          const result = await capturePicastleOutput(logPath, async () => {
+          const result = await capturePicastleOutput(logPath, async (onOutput) => {
             const module = (await import(pathToFileURL(PICASTLE_MAIN).href)) as PicastleModule;
             return await module.runPicastle(cliArgs, {
               cwd: repo,
               env,
               signal: ctx.signal,
               runPrep: true,
+              onOutput,
             });
           });
           latestRun = {
@@ -202,7 +209,7 @@ export default function picastleExtension(pi: ExtensionAPI) {
         }
       })();
 
-      await activeRun;
+      return;
     },
   });
 }
@@ -248,7 +255,7 @@ How to help:
 
 async function capturePicastleOutput<T>(
   logPath: string,
-  fn: () => Promise<T>,
+  fn: (onOutput: (chunk: string, stream: "stdout" | "stderr") => void) => Promise<T>,
 ): Promise<{ value: T; output: string }> {
   let output = "";
   const append = (text: string) => {
@@ -256,66 +263,13 @@ async function capturePicastleOutput<T>(
     writeFileSync(logPath, output);
   };
 
-  const originalLog = console.log;
-  const originalWarn = console.warn;
-  const originalError = console.error;
-  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
-  const originalStderrWrite = process.stderr.write.bind(process.stderr);
-
-  console.log = (...args: unknown[]) => append(`${formatConsoleArgs(args)}\n`);
-  console.warn = (...args: unknown[]) => append(`${formatConsoleArgs(args)}\n`);
-  console.error = (...args: unknown[]) => append(`${formatConsoleArgs(args)}\n`);
-  (process.stdout.write as unknown as (
-    chunk: unknown,
-    encoding?: unknown,
-    cb?: unknown,
-  ) => boolean) = (chunk, encoding, cb) => {
-    append(bufferToString(chunk, encoding));
-    if (typeof cb === "function") cb();
-    return true;
-  };
-  (process.stderr.write as unknown as (
-    chunk: unknown,
-    encoding?: unknown,
-    cb?: unknown,
-  ) => boolean) = (chunk, encoding, cb) => {
-    append(bufferToString(chunk, encoding));
-    if (typeof cb === "function") cb();
-    return true;
-  };
-
-  try {
-    append(`# /picastle\n# started: ${new Date().toISOString()}\n\n`);
-    const value = await fn();
-    return { value, output };
-  } finally {
-    console.log = originalLog;
-    console.warn = originalWarn;
-    console.error = originalError;
-    process.stdout.write = originalStdoutWrite;
-    process.stderr.write = originalStderrWrite;
-  }
+  append(`# /picastle\n# started: ${new Date().toISOString()}\n\n`);
+  const value = await fn((chunk) => append(chunk));
+  return { value, output };
 }
 
 function appendLog(logPath: string, text: string): void {
   writeFileSync(logPath, text, { flag: "a" });
-}
-
-function formatConsoleArgs(args: unknown[]): string {
-  return args.map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg))).join(" ");
-}
-
-function bufferToString(chunk: unknown, encoding: unknown): string {
-  if (typeof chunk === "string") return chunk;
-  if (chunk instanceof Uint8Array)
-    return Buffer.from(chunk).toString(
-      typeof encoding === "string" ? BufferEncoding(encoding) : undefined,
-    );
-  return String(chunk);
-}
-
-function BufferEncoding(value: string): BufferEncoding | undefined {
-  return Buffer.isEncoding(value) ? (value as BufferEncoding) : undefined;
 }
 
 function parsePicastleArgs(args: string): ParsedPicastleArgs {
