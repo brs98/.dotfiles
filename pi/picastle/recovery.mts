@@ -1,4 +1,4 @@
-import type { StackMetadata } from "./stack.mjs";
+import type { StackMetadata } from "./stack.mts";
 
 export type RecoveryIssueLookup =
   | { state: "found" }

@@ -1,9 +1,10 @@
-import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 
 type PicastleProfile = {
   repo: string;
@@ -18,7 +19,25 @@ type ParsedPicastleArgs = {
   passthrough: string[];
 };
 
-const PICASTLE_BIN = join(homedir(), ".dotfiles", "pi", "picastle", "bin", "picastle");
+type PicastleRunState = {
+  repo: string;
+  logPath: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: "running" | "finished" | "failed";
+  runtimeDir?: string;
+  iterationsStarted?: number;
+  error?: string;
+};
+
+type PicastleModule = {
+  runPicastle: (
+    argv: string[],
+    options: { cwd?: string; env?: NodeJS.ProcessEnv; signal?: AbortSignal; runPrep?: boolean },
+  ) => Promise<{ repoRoot: string; runtimeDir: string; iterationsStarted: number }>;
+};
+
+const PICASTLE_MAIN = join(homedir(), ".dotfiles", "pi", "picastle", "main.mts");
 const LOG_DIR = join(homedir(), ".cache", "picastle", "pi-command-logs");
 
 const DOTFILES_PROFILE: PicastleProfile = {
@@ -46,6 +65,55 @@ const PROFILES: Record<string, PicastleProfile> = {
 };
 
 export default function picastleExtension(pi: ExtensionAPI) {
+  let latestRun: PicastleRunState | undefined;
+  let activeRun: Promise<void> | undefined;
+
+  pi.registerTool({
+    name: "picastle_status",
+    label: "Picastle Status",
+    description: "Inspect the latest /picastle run status and a bounded tail of its log.",
+    parameters: Type.Object({
+      tailChars: Type.Optional(
+        Type.Number({ description: "Log tail size. Defaults to 4000, max 12000." }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      const tailChars = Math.max(0, Math.min(Number(params.tailChars ?? 4000), 12000));
+      if (!latestRun) {
+        return {
+          content: [{ type: "text", text: "No Picastle run has started in this Pi session." }],
+          details: undefined,
+        };
+      }
+
+      const logTail = existsSync(latestRun.logPath)
+        ? tail(readFileSync(latestRun.logPath, "utf8"), tailChars)
+        : "<log not found>";
+      return {
+        content: [
+          {
+            type: "text",
+            text: [
+              `status: ${latestRun.status}`,
+              `repo: ${latestRun.repo}`,
+              `log: ${latestRun.logPath}`,
+              latestRun.runtimeDir ? `runtime: ${latestRun.runtimeDir}` : undefined,
+              latestRun.iterationsStarted !== undefined
+                ? `iterations started: ${latestRun.iterationsStarted}`
+                : undefined,
+              latestRun.error ? `error: ${latestRun.error}` : undefined,
+              "",
+              logTail,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          },
+        ],
+        details: latestRun,
+      };
+    },
+  });
+
   pi.registerCommand("picastle", {
     description: "Run the Picastle autonomous Pebbles issue runner",
     handler: async (args, ctx) => {
@@ -55,8 +123,17 @@ export default function picastleExtension(pi: ExtensionAPI) {
         return;
       }
 
-      if (!existsSync(PICASTLE_BIN)) {
-        notify(ctx, `Picastle binary not found: ${PICASTLE_BIN}`, "error");
+      if (activeRun) {
+        notify(
+          ctx,
+          "Picastle is already running in this Pi session. Use picastle_status for progress.",
+          "warning",
+        );
+        return;
+      }
+
+      if (!existsSync(PICASTLE_MAIN)) {
+        notify(ctx, `Picastle runner not found: ${PICASTLE_MAIN}`, "error");
         return;
       }
 
@@ -66,9 +143,7 @@ export default function picastleExtension(pi: ExtensionAPI) {
         ? parsed.passthrough
         : [...parsed.passthrough, "--repo", repo];
 
-      const cliArgs = parsed.planOnly
-        ? ensurePlanOnlyArgs(passthrough)
-        : passthrough;
+      const cliArgs = parsed.planOnly ? ensurePlanOnlyArgs(passthrough) : passthrough;
       const env = {
         ...process.env,
         ...inferProfileEnv(repo),
@@ -78,21 +153,169 @@ export default function picastleExtension(pi: ExtensionAPI) {
       };
 
       mkdirSync(LOG_DIR, { recursive: true });
-      const logPath = join(LOG_DIR, `picastle-${new Date().toISOString().replace(/[:.]/g, "-")}.log`);
+      const logPath = join(
+        LOG_DIR,
+        `picastle-${new Date().toISOString().replace(/[:.]/g, "-")}.log`,
+      );
+      latestRun = {
+        repo,
+        logPath,
+        startedAt: new Date().toISOString(),
+        status: "running",
+      };
+
+      sendPicastleBrief(pi, { repo, logPath, cliArgs, env, profile: parsed.profile });
       notify(ctx, `Picastle started for ${shortPath(repo)}\nLog: ${logPath}`, "info");
       if (ctx.hasUI) ctx.ui.setStatus("picastle", "running");
 
-      try {
-        const result = await runPicastle(cliArgs, repo, env, logPath, ctx.signal);
-        const summary = result.exitCode === 0 ? "Picastle finished" : `Picastle failed (${result.exitCode})`;
-        notify(ctx, `${summary}\nLog: ${logPath}\n\n${tail(result.output, 2400)}`, result.exitCode === 0 ? "info" : "error");
-      } catch (error) {
-        notify(ctx, `Picastle command failed: ${formatError(error)}\nLog: ${logPath}`, "error");
-      } finally {
-        if (ctx.hasUI) ctx.ui.setStatus("picastle", undefined);
-      }
+      activeRun = (async () => {
+        try {
+          const result = await capturePicastleOutput(logPath, async () => {
+            const module = (await import(pathToFileURL(PICASTLE_MAIN).href)) as PicastleModule;
+            return await module.runPicastle(cliArgs, {
+              cwd: repo,
+              env,
+              signal: ctx.signal,
+              runPrep: true,
+            });
+          });
+          latestRun = {
+            ...latestRun!,
+            status: "finished",
+            finishedAt: new Date().toISOString(),
+            runtimeDir: result.value.runtimeDir,
+            iterationsStarted: result.value.iterationsStarted,
+          };
+          notify(ctx, `Picastle finished\nLog: ${logPath}\n\n${tail(result.output, 2400)}`, "info");
+        } catch (error) {
+          latestRun = {
+            ...latestRun!,
+            status: "failed",
+            finishedAt: new Date().toISOString(),
+            error: formatError(error),
+          };
+          appendLog(logPath, `\nPicastle command failed: ${formatError(error)}\n`);
+          notify(ctx, `Picastle command failed: ${formatError(error)}\nLog: ${logPath}`, "error");
+        } finally {
+          if (ctx.hasUI) ctx.ui.setStatus("picastle", undefined);
+          activeRun = undefined;
+        }
+      })();
+
+      await activeRun;
     },
   });
+}
+
+function sendPicastleBrief(
+  pi: ExtensionAPI,
+  run: {
+    repo: string;
+    logPath: string;
+    cliArgs: string[];
+    env: NodeJS.ProcessEnv;
+    profile?: string;
+  },
+): void {
+  pi.sendMessage(
+    {
+      customType: "picastle-session-brief",
+      display: true,
+      content: `Picastle has started as a first-class Pi extension command.
+
+Repository: ${run.repo}
+Log: ${run.logPath}
+Profile: ${run.profile ?? "<none>"}
+Command args: ${run.cliArgs.map(shellQuote).join(" ") || "<none>"}
+Queue: status=${run.env.PICASTLE_ISSUE_STATUS ?? "policy/default"}${run.env.PICASTLE_ISSUE_LABEL ? ` label=${run.env.PICASTLE_ISSUE_LABEL}` : ""}
+Default loop: Picastle plans, implements, reviews/publishes, fans in pending Pebbles intents, then plans again until no unblocked issues remain or PICASTLE_MAX_ITERATIONS is reached (default 20).
+
+How to help:
+- Use the picastle_status tool to inspect the latest run and bounded log tail.
+- Treat Pebbles as the source of truth. Picastle worktrees live under ~/.cache/picastle/<repo>/worktrees.
+- Do not mutate Picastle worktrees, branches, PRs, or Pebbles state unless the user explicitly asks for intervention.
+- If Picastle stops or fails, inspect the log/runtime directory, identify the phase (recovery/planner/implementer/reviewer/publisher/fan-in), and propose the smallest recovery step.`,
+      details: {
+        repo: run.repo,
+        logPath: run.logPath,
+        cliArgs: run.cliArgs,
+        profile: run.profile,
+      },
+    },
+    { deliverAs: "nextTurn" },
+  );
+}
+
+async function capturePicastleOutput<T>(
+  logPath: string,
+  fn: () => Promise<T>,
+): Promise<{ value: T; output: string }> {
+  let output = "";
+  const append = (text: string) => {
+    output += text;
+    writeFileSync(logPath, output);
+  };
+
+  const originalLog = console.log;
+  const originalWarn = console.warn;
+  const originalError = console.error;
+  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+  const originalStderrWrite = process.stderr.write.bind(process.stderr);
+
+  console.log = (...args: unknown[]) => append(`${formatConsoleArgs(args)}\n`);
+  console.warn = (...args: unknown[]) => append(`${formatConsoleArgs(args)}\n`);
+  console.error = (...args: unknown[]) => append(`${formatConsoleArgs(args)}\n`);
+  (process.stdout.write as unknown as (
+    chunk: unknown,
+    encoding?: unknown,
+    cb?: unknown,
+  ) => boolean) = (chunk, encoding, cb) => {
+    append(bufferToString(chunk, encoding));
+    if (typeof cb === "function") cb();
+    return true;
+  };
+  (process.stderr.write as unknown as (
+    chunk: unknown,
+    encoding?: unknown,
+    cb?: unknown,
+  ) => boolean) = (chunk, encoding, cb) => {
+    append(bufferToString(chunk, encoding));
+    if (typeof cb === "function") cb();
+    return true;
+  };
+
+  try {
+    append(`# /picastle\n# started: ${new Date().toISOString()}\n\n`);
+    const value = await fn();
+    return { value, output };
+  } finally {
+    console.log = originalLog;
+    console.warn = originalWarn;
+    console.error = originalError;
+    process.stdout.write = originalStdoutWrite;
+    process.stderr.write = originalStderrWrite;
+  }
+}
+
+function appendLog(logPath: string, text: string): void {
+  writeFileSync(logPath, text, { flag: "a" });
+}
+
+function formatConsoleArgs(args: unknown[]): string {
+  return args.map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg))).join(" ");
+}
+
+function bufferToString(chunk: unknown, encoding: unknown): string {
+  if (typeof chunk === "string") return chunk;
+  if (chunk instanceof Uint8Array)
+    return Buffer.from(chunk).toString(
+      typeof encoding === "string" ? BufferEncoding(encoding) : undefined,
+    );
+  return String(chunk);
+}
+
+function BufferEncoding(value: string): BufferEncoding | undefined {
+  return Buffer.isEncoding(value) ? (value as BufferEncoding) : undefined;
 }
 
 function parsePicastleArgs(args: string): ParsedPicastleArgs {
@@ -205,7 +428,9 @@ function hasRepoArg(args: string[]): boolean {
 }
 
 function ensurePlanOnlyArgs(args: string[]): string[] {
-  const hasMaxIterations = args.some((arg) => arg === "--max-iterations" || arg.startsWith("--max-iterations="));
+  const hasMaxIterations = args.some(
+    (arg) => arg === "--max-iterations" || arg.startsWith("--max-iterations="),
+  );
   return hasMaxIterations ? args : [...args, "--max-iterations", "1"];
 }
 
@@ -216,37 +441,11 @@ function inferProfileEnv(repo: string): Record<string, string> {
   return {};
 }
 
-async function runPicastle(
-  args: string[],
-  cwd: string,
-  env: NodeJS.ProcessEnv,
-  logPath: string,
-  signal: AbortSignal | undefined,
-): Promise<{ exitCode: number; output: string }> {
-  return await new Promise((resolvePromise, reject) => {
-    const child = spawn(PICASTLE_BIN, args, {
-      cwd,
-      env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let output = `$ ${PICASTLE_BIN} ${args.map(shellQuote).join(" ")}\n`;
-    const append = (chunk: Buffer) => {
-      output += chunk.toString();
-      writeFileSync(logPath, output);
-    };
-    child.stdout.on("data", append);
-    child.stderr.on("data", append);
-    child.on("error", reject);
-    child.on("close", (code, signalName) => {
-      if (signalName) output += `\nPicastle terminated by ${signalName}\n`;
-      writeFileSync(logPath, output);
-      resolvePromise({ exitCode: code ?? 1, output });
-    });
-    signal?.addEventListener("abort", () => child.kill("SIGTERM"), { once: true });
-  });
-}
-
-function notify(ctx: ExtensionCommandContext, message: string, level: "info" | "warning" | "error"): void {
+function notify(
+  ctx: ExtensionCommandContext,
+  message: string,
+  level: "info" | "warning" | "error",
+): void {
   if (ctx.hasUI) ctx.ui.notify(message, level);
   else console.log(message);
 }
@@ -262,7 +461,9 @@ Examples:
 
 Profiles:
   dotfiles  sets --repo ~/.dotfiles and Pebbles remote dotfiles
-  ricekit   sets --repo ~/personal/ricekit.git/main plus RiceKit setup hooks`;
+  ricekit   sets --repo ~/personal/ricekit.git/main plus RiceKit setup hooks
+
+The default Picastle runner repeats plan → implement → review/publish → fan-in until no unblocked pebbles remain, capped by PICASTLE_MAX_ITERATIONS=20 unless overridden.`;
 }
 
 function tail(text: string, maxChars: number): string {

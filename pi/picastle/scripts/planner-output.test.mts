@@ -4,7 +4,7 @@ import {
   formatPlannerBlockedSummary,
   parsePlannerContext,
   parsePlannerPlan,
-} from "../planner-output.mjs";
+} from "../planner-output.mts";
 
 const candidates = [
   { id: "repo-abc", title: "fix(auth): stale token", status: "ready_for_agent" },

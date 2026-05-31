@@ -1,4 +1,4 @@
-import type { PlannedIssue } from "./planner-output.mjs";
+import type { PlannedIssue } from "./planner-output.mts";
 
 export type StackMetadata = {
   stackId: string;

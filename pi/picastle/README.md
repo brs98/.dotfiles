@@ -2,7 +2,9 @@
 
 Picastle is a Docker-free Sandcastle-style orchestrator powered by the Pi SDK.
 It lives in dotfiles, runs from any git repo, uses host git worktrees, reads
-Pebbles issues, and opens GitHub PRs for review.
+Pebbles issues, and opens GitHub PRs for review. The global `/picastle` Pi
+extension invokes the same SDK runner directly, adds session context for the
+chat agent, and exposes `picastle_status` for bounded log/status inspection.
 
 ## Install
 
@@ -18,7 +20,13 @@ export PATH="$HOME/.dotfiles/pi/picastle/bin:$PATH"
 
 ## Run
 
-From a target repository:
+From inside Pi, prefer the first-class extension command:
+
+```txt
+/picastle
+```
+
+From a target repository shell:
 
 ```bash
 picastle
@@ -35,6 +43,11 @@ Planner-only smoke test:
 ```bash
 PICASTLE_PEB_REMOTE=pi PICASTLE_PEB_REPO=ricekit picastle --plan-only --max-iterations 1
 ```
+
+By default, Picastle follows the old Sandcastle outer-loop paradigm: plan,
+implement, review/publish, fan in pending Pebbles intents, then plan again. It
+stops when the planner finds no unblocked issues or when `PICASTLE_MAX_ITERATIONS`
+/ `--max-iterations` is reached. The default cap is 20 iterations.
 
 ## Policy support
 
@@ -84,7 +97,7 @@ repair/implementer path instead of running branch-controlled code.
 ## Useful knobs
 
 - `PICASTLE_CONCURRENCY=3`
-- `PICASTLE_MAX_ITERATIONS=10`
+- `PICASTLE_MAX_ITERATIONS=20`
 - `PICASTLE_MAX_ISSUES=0` max issues per planning cycle; `0` means no limit
 - `PICASTLE_ISSUE_STATUS=ready_for_agent`
 - `PICASTLE_ISSUE_LABEL=` optional extra label filter

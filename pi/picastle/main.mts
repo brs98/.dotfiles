@@ -41,7 +41,7 @@ import {
   type RecoveryIssueLookup,
   type RecoveryPlan,
   type RepositoryIdentity,
-} from "./recovery.mjs";
+} from "./recovery.mts";
 import {
   formatPlannerBlockedSummary,
   normalizeBranch,
@@ -49,7 +49,7 @@ import {
   parsePlannerPlan,
   type PlannedIssue,
   type PlannerDecision,
-} from "./planner-output.mjs";
+} from "./planner-output.mts";
 import { createReviewerAgentTooling, createReviewerResourceLoader } from "./review-session.mts";
 import {
   parseStackMetadataFromBody,
@@ -66,7 +66,7 @@ import {
   type StackMetadata,
   type StackPrRecord,
   type StackRetargetAction,
-} from "./stack.mjs";
+} from "./stack.mts";
 type PlannedWorkIssue = PlannedIssue & { stack?: StackMetadata };
 type CompletedIssue = PlannedWorkIssue & { worktreePath: string };
 type ReviewStatus = "approved" | "changes_requested" | "blocked";
@@ -97,160 +97,258 @@ type QueuePolicy = {
   reviewPolicyLabel?: string;
 };
 
-const cli = parseArgs(process.argv.slice(2));
 const scriptRoot = dirname(fileURLToPath(import.meta.url));
-const startCwd = cli.repo ? resolve(cli.repo) : process.cwd();
-const repoRoot = run("git rev-parse --show-toplevel", startCwd).stdout.trim();
-const repoName = repoRoot.split("/").filter(Boolean).at(-1) ?? "repo";
-const cacheRoot = process.env.XDG_CACHE_HOME || join(requireHome(), ".cache");
-const runtimeDir = join(cacheRoot, "picastle", safeRepoId(repoRoot));
-const logsDir = join(runtimeDir, "logs");
-const worktreesDir = join(runtimeDir, "worktrees");
-const stackMetadataDir = join(runtimeDir, "stacks");
-mkdirSync(logsDir, { recursive: true });
-mkdirSync(worktreesDir, { recursive: true });
-mkdirSync(stackMetadataDir, { recursive: true });
+const BYTES_PER_GIB = 1024 ** 3;
 
-const policy = loadPebblesPolicy(repoRoot);
-const queuePolicy = deriveQueuePolicy(policy);
+type CliOptions = {
+  repo?: string;
+  planOnly: boolean;
+  noVerify: boolean;
+  noPush: boolean;
+  noPr: boolean;
+  cleanTargets?: boolean;
+  maxIterations?: number;
+  maxIssues?: number;
+  concurrency?: number;
+  minFreeGb?: number;
+  base?: string;
+};
 
-const BASE_BRANCH = env("PICASTLE_BASE_BRANCH", cli.base ?? "main");
-const ISSUE_STATUS = env("PICASTLE_ISSUE_STATUS", queuePolicy.status);
-const ISSUE_LABEL = env("PICASTLE_ISSUE_LABEL", "");
-const PENDING_STATUS = env("PICASTLE_PENDING_STATUS", queuePolicy.pendingStatus);
-const REVIEW_STATUS = env("PICASTLE_REVIEW_STATUS", queuePolicy.reviewStatus);
-const PEB_GLOBAL_ARGS = buildPebGlobalArgs();
-const MAX_ITERATIONS = envNonNegativeInt("PICASTLE_MAX_ITERATIONS", cli.maxIterations ?? 10);
-const MAX_ISSUES = envNonNegativeInt("PICASTLE_MAX_ISSUES", cli.maxIssues ?? 0);
-const CONCURRENCY = envInt("PICASTLE_CONCURRENCY", cli.concurrency ?? 3);
-const VERIFY = envBool("PICASTLE_VERIFY", !cli.noVerify);
-const PLAN_ONLY = envBool("PICASTLE_PLAN_ONLY", cli.planOnly);
-const REPAIR_ON_VERIFY_FAIL = envBool("PICASTLE_REPAIR_ON_VERIFY_FAIL", true);
-const PUSH = envBool("PICASTLE_PUSH", !cli.noPush);
-const OPEN_PRS = envBool("PICASTLE_OPEN_PRS", !cli.noPr);
-const STACK_PRS = envBool("PICASTLE_STACK_PRS", false);
-const PUBLISHER_AGENT = envBool("PICASTLE_PUBLISHER_AGENT", true);
-const REVIEW_REPAIR_CYCLES = envInt("PICASTLE_REVIEW_REPAIR_CYCLES", 10);
-const REVIEW_CONCURRENCY = envInt("PICASTLE_REVIEW_CONCURRENCY", CONCURRENCY);
-const TEST_AGENT_OUTPUT = process.env.PICASTLE_TEST_AGENT_OUTPUT;
-if (TEST_AGENT_OUTPUT !== undefined && !process.env.NODE_TEST_CONTEXT) {
-  throw new Error("PICASTLE_TEST_AGENT_OUTPUT is only available to the node:test harness");
-}
-const TEST_AGENT_COMMAND = process.env.PICASTLE_TEST_AGENT_COMMAND;
-if (TEST_AGENT_COMMAND !== undefined && !process.env.NODE_TEST_CONTEXT) {
-  throw new Error("PICASTLE_TEST_AGENT_COMMAND is only available to the node:test harness");
-}
-// gh pr list defaults to 30; no-cap Picastle runs can exceed that. Use a high,
-// bounded scan, then locally filter to same-repository Picastle and legacy
-// Sandcastle PR heads before recovery/planning. This is not an unbounded "all PRs" query.
-const OPEN_PR_SCAN_LIMIT = envInt("PICASTLE_OPEN_PR_SCAN_LIMIT", 1000);
+export type PicastleRunOptions = {
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  signal?: AbortSignal;
+  runPrep?: boolean;
+};
+
+export type PicastleRunResult = {
+  repoRoot: string;
+  runtimeDir: string;
+  iterationsStarted: number;
+};
+
+let cli: CliOptions;
+let runtimeEnv: NodeJS.ProcessEnv = process.env;
+let abortSignal: AbortSignal | undefined;
+let startCwd: string;
+let repoRoot: string;
+let repoName: string;
+let cacheRoot: string;
+let runtimeDir: string;
+let logsDir: string;
+let worktreesDir: string;
+let stackMetadataDir: string;
+let policy: PebblesPolicy;
+let queuePolicy: QueuePolicy;
+let BASE_BRANCH: string;
+let ISSUE_STATUS: string;
+let ISSUE_LABEL: string;
+let PENDING_STATUS: string;
+let REVIEW_STATUS: string;
+let PEB_GLOBAL_ARGS: string;
+let MAX_ITERATIONS: number;
+let MAX_ISSUES: number;
+let CONCURRENCY: number;
+let VERIFY: boolean;
+let PLAN_ONLY: boolean;
+let REPAIR_ON_VERIFY_FAIL: boolean;
+let PUSH: boolean;
+let OPEN_PRS: boolean;
+let STACK_PRS: boolean;
+let PUBLISHER_AGENT: boolean;
+let REVIEW_REPAIR_CYCLES: number;
+let REVIEW_CONCURRENCY: number;
+let TEST_AGENT_OUTPUT: string | undefined;
+let TEST_AGENT_COMMAND: string | undefined;
+let OPEN_PR_SCAN_LIMIT: number;
 const OPEN_PR_JSON_FIELDS = "number,headRefName,url,isCrossRepository,headRepository,headRepositoryOwner";
 const STACK_OPEN_PR_JSON_FIELDS = "number,headRefName,baseRefName,url,body,isCrossRepository,headRepository,headRepositoryOwner";
-const WORKTREE_READY_COMMAND = env("PICASTLE_WORKTREE_READY_COMMAND", "");
-const BEFORE_PUSH_COMMAND = env("PICASTLE_BEFORE_PUSH_COMMAND", "");
-const THINKING = process.env.PICASTLE_THINKING as
-  | "off"
-  | "minimal"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh"
-  | undefined;
-const CLEAN_TARGETS = envBool("PICASTLE_CLEAN_TARGETS", cli.cleanTargets ?? false);
-const MIN_FREE_GB = envNonNegativeNumber("PICASTLE_MIN_FREE_GB", cli.minFreeGb ?? 0);
-const BYTES_PER_GIB = 1024 ** 3;
+let WORKTREE_READY_COMMAND: string;
+let BEFORE_PUSH_COMMAND: string;
+let THINKING: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | undefined;
+let CLEAN_TARGETS: boolean;
+let MIN_FREE_GB: number;
 let cachedRepositoryIdentity: RepositoryIdentity | undefined;
+let authStorage: ReturnType<typeof AuthStorage.create>;
+let modelRegistry: ReturnType<typeof ModelRegistry.create>;
 
-const authStorage = AuthStorage.create();
-const modelRegistry = ModelRegistry.create(authStorage);
+export async function runPicastle(
+  argv: string[] = process.argv.slice(2),
+  options: PicastleRunOptions = {},
+): Promise<PicastleRunResult> {
+  cli = parseArgs(argv);
+  runtimeEnv = { ...process.env, ...(options.env ?? {}) };
+  abortSignal = options.signal;
+  checkAbort();
 
-console.log(`Picastle repo: ${repoRoot}`);
-console.log(`Picastle runtime: ${runtimeDir}`);
-console.log(`Pebbles queue: status=${ISSUE_STATUS}${ISSUE_LABEL ? ` label=${ISSUE_LABEL}` : ""}`);
-if (MIN_FREE_GB > 0) console.log(`Disk guardrail: require ${MIN_FREE_GB} GiB free`);
-if (CLEAN_TARGETS) console.log("Disk cleanup: per-worktree target/ cleanup enabled");
-if (STACK_PRS) console.log("Stacked PR mode: enabled for multi-issue batches");
-checkMinFreeSpace("startup");
+  startCwd = cli.repo ? resolve(cli.repo) : options.cwd ? resolve(options.cwd) : process.cwd();
+  if (options.runPrep) runPrep(argv);
 
-for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
-  checkMinFreeSpace(`iteration ${iteration} start`);
-  console.log(`\n=== Picastle iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
+  repoRoot = run("git rev-parse --show-toplevel", startCwd).stdout.trim();
+  repoName = repoRoot.split("/").filter(Boolean).at(-1) ?? "repo";
+  cacheRoot = runtimeEnv.XDG_CACHE_HOME || join(requireHome(), ".cache");
+  runtimeDir = join(cacheRoot, "picastle", safeRepoId(repoRoot));
+  logsDir = join(runtimeDir, "logs");
+  worktreesDir = join(runtimeDir, "worktrees");
+  stackMetadataDir = join(runtimeDir, "stacks");
+  mkdirSync(logsDir, { recursive: true });
+  mkdirSync(worktreesDir, { recursive: true });
+  mkdirSync(stackMetadataDir, { recursive: true });
 
-  const recovery = recoverInterruptedRun({ readOnly: PLAN_ONLY });
-  if (!PLAN_ONLY && recovery.interruptedImplementations.length > 0) {
-    console.log("Recovery has interrupted implementation work; resuming before planning new work.");
-    const settled = await resumeInterruptedImplementations(recovery.interruptedImplementations, iteration);
-    const completed = settled.flatMap((outcome) => outcome.status === "fulfilled" && outcome.value ? [outcome.value] : []);
-    for (const outcome of settled) {
-      if (outcome.status === "rejected") console.error(`  ✗ recovery implementer failed: ${formatError(outcome.reason)}`);
-    }
-    if (completed.length > 0) {
-      if (PUBLISHER_AGENT) await publishCompletedIssuesWithAgent(completed, iteration);
-      else await publishCompletedIssues(completed, iteration);
-    }
-    runPendingFanIn();
-    continue;
+  policy = loadPebblesPolicy(repoRoot);
+  queuePolicy = deriveQueuePolicy(policy);
+
+  BASE_BRANCH = env("PICASTLE_BASE_BRANCH", cli.base ?? "main");
+  ISSUE_STATUS = env("PICASTLE_ISSUE_STATUS", queuePolicy.status);
+  ISSUE_LABEL = env("PICASTLE_ISSUE_LABEL", "");
+  PENDING_STATUS = env("PICASTLE_PENDING_STATUS", queuePolicy.pendingStatus);
+  REVIEW_STATUS = env("PICASTLE_REVIEW_STATUS", queuePolicy.reviewStatus);
+  PEB_GLOBAL_ARGS = buildPebGlobalArgs();
+  MAX_ITERATIONS = envNonNegativeInt("PICASTLE_MAX_ITERATIONS", cli.maxIterations ?? 20);
+  MAX_ISSUES = envNonNegativeInt("PICASTLE_MAX_ISSUES", cli.maxIssues ?? 0);
+  CONCURRENCY = envInt("PICASTLE_CONCURRENCY", cli.concurrency ?? 3);
+  VERIFY = envBool("PICASTLE_VERIFY", !cli.noVerify);
+  PLAN_ONLY = envBool("PICASTLE_PLAN_ONLY", cli.planOnly);
+  REPAIR_ON_VERIFY_FAIL = envBool("PICASTLE_REPAIR_ON_VERIFY_FAIL", true);
+  PUSH = envBool("PICASTLE_PUSH", !cli.noPush);
+  OPEN_PRS = envBool("PICASTLE_OPEN_PRS", !cli.noPr);
+  STACK_PRS = envBool("PICASTLE_STACK_PRS", false);
+  PUBLISHER_AGENT = envBool("PICASTLE_PUBLISHER_AGENT", true);
+  REVIEW_REPAIR_CYCLES = envInt("PICASTLE_REVIEW_REPAIR_CYCLES", 10);
+  REVIEW_CONCURRENCY = envInt("PICASTLE_REVIEW_CONCURRENCY", CONCURRENCY);
+  TEST_AGENT_OUTPUT = runtimeEnv.PICASTLE_TEST_AGENT_OUTPUT;
+  if (TEST_AGENT_OUTPUT !== undefined && !runtimeEnv.NODE_TEST_CONTEXT) {
+    throw new Error("PICASTLE_TEST_AGENT_OUTPUT is only available to the node:test harness");
   }
-
-  if (!PLAN_ONLY && recovery.unpublishedBranches.length > 0) {
-    console.log("Recovery has unpublished local branches; reviewing/publishing before planning new work.");
-    if (PUBLISHER_AGENT) {
-      await publishCompletedIssuesWithAgent(recovery.unpublishedBranches, iteration);
-    } else {
-      await publishCompletedIssues(recovery.unpublishedBranches, iteration);
-    }
-    runPendingFanIn();
-    continue;
+  TEST_AGENT_COMMAND = runtimeEnv.PICASTLE_TEST_AGENT_COMMAND;
+  if (TEST_AGENT_COMMAND !== undefined && !runtimeEnv.NODE_TEST_CONTEXT) {
+    throw new Error("PICASTLE_TEST_AGENT_COMMAND is only available to the node:test harness");
   }
+  // gh pr list defaults to 30; no-cap Picastle runs can exceed that. Use a high,
+  // bounded scan, then locally filter to same-repository Picastle and legacy
+  // Sandcastle PR heads before recovery/planning. This is not an unbounded "all PRs" query.
+  OPEN_PR_SCAN_LIMIT = envInt("PICASTLE_OPEN_PR_SCAN_LIMIT", 1000);
+  WORKTREE_READY_COMMAND = env("PICASTLE_WORKTREE_READY_COMMAND", "");
+  BEFORE_PUSH_COMMAND = env("PICASTLE_BEFORE_PUSH_COMMAND", "");
+  THINKING = runtimeEnv.PICASTLE_THINKING as typeof THINKING;
+  CLEAN_TARGETS = envBool("PICASTLE_CLEAN_TARGETS", cli.cleanTargets ?? false);
+  MIN_FREE_GB = envNonNegativeNumber("PICASTLE_MIN_FREE_GB", cli.minFreeGb ?? 0);
+  cachedRepositoryIdentity = undefined;
 
-  const plan = await planIssues(iteration, recovery.blockedIssueIds);
-  const issues = plan.issues;
-  for (const line of formatPlannerBlockedSummary(plan)) console.log(line);
-  if (issues.length === 0) {
-    console.log("No unblocked issues to work on. Exiting.");
-    break;
-  }
+  authStorage = AuthStorage.create();
+  modelRegistry = ModelRegistry.create(authStorage);
 
-  console.log(`Planning complete. ${issues.length} issue(s) selected:`);
-  for (const issue of issues) {
-    console.log(`  ${issue.id}: ${issue.title} → ${issue.branch}`);
-  }
+  console.log(`Picastle repo: ${repoRoot}`);
+  console.log(`Picastle runtime: ${runtimeDir}`);
+  console.log(`Pebbles queue: status=${ISSUE_STATUS}${ISSUE_LABEL ? ` label=${ISSUE_LABEL}` : ""}`);
+  if (MIN_FREE_GB > 0) console.log(`Disk guardrail: require ${MIN_FREE_GB} GiB free`);
+  if (CLEAN_TARGETS) console.log("Disk cleanup: per-worktree target/ cleanup enabled");
+  if (STACK_PRS) console.log("Stacked PR mode: enabled for multi-issue batches");
+  checkMinFreeSpace("startup");
 
-  if (PLAN_ONLY) {
-    console.log("PICASTLE_PLAN_ONLY=1; stopping before worktree creation/implementation.");
-    break;
-  }
+  let iterationsStarted = 0;
+  for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
+    iterationsStarted = iteration;
+    checkAbort();
+    checkMinFreeSpace(`iteration ${iteration} start`);
+    console.log(`\n=== Picastle iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
 
-  const plannedWork = preparePlannedIssuesForImplementation(issues);
-  const settled = STACK_PRS && plannedWork.length > 1
-    ? await runSequentially(plannedWork, (issue) => implementIssue(issue, iteration))
-    : await runWithConcurrency(plannedWork, CONCURRENCY, (issue) => implementIssue(issue, iteration));
-
-  const completed: CompletedIssue[] = [];
-  for (const [i, outcome] of settled.entries()) {
-    const issue = issues[i]!;
-    if (outcome.status === "rejected") {
-      console.error(`  ✗ ${issue.id} failed: ${formatError(outcome.reason)}`);
+    const recovery = recoverInterruptedRun({ readOnly: PLAN_ONLY });
+    if (!PLAN_ONLY && recovery.interruptedImplementations.length > 0) {
+      console.log("Recovery has interrupted implementation work; resuming before planning new work.");
+      const settled = await resumeInterruptedImplementations(recovery.interruptedImplementations, iteration);
+      const completed = settled.flatMap((outcome) => outcome.status === "fulfilled" && outcome.value ? [outcome.value] : []);
+      for (const outcome of settled) {
+        if (outcome.status === "rejected") console.error(`  ✗ recovery implementer failed: ${formatError(outcome.reason)}`);
+      }
+      if (completed.length > 0) {
+        if (PUBLISHER_AGENT) await publishCompletedIssuesWithAgent(completed, iteration);
+        else await publishCompletedIssues(completed, iteration);
+      }
+      runPendingFanIn();
       continue;
     }
-    if (outcome.value) completed.push(outcome.value);
-  }
 
-  console.log(`\nExecution complete. ${completed.length} branch(es) with commits:`);
-  for (const issue of completed) console.log(`  ${issue.branch}`);
-
-  if (completed.length > 0) {
-    if (PUBLISHER_AGENT) {
-      await publishCompletedIssuesWithAgent(completed, iteration);
-    } else {
-      await publishCompletedIssues(completed, iteration);
+    if (!PLAN_ONLY && recovery.unpublishedBranches.length > 0) {
+      console.log("Recovery has unpublished local branches; reviewing/publishing before planning new work.");
+      if (PUBLISHER_AGENT) {
+        await publishCompletedIssuesWithAgent(recovery.unpublishedBranches, iteration);
+      } else {
+        await publishCompletedIssues(recovery.unpublishedBranches, iteration);
+      }
+      runPendingFanIn();
+      continue;
     }
+
+    const plan = await planIssues(iteration, recovery.blockedIssueIds);
+    const issues = plan.issues;
+    for (const line of formatPlannerBlockedSummary(plan)) console.log(line);
+    if (issues.length === 0) {
+      console.log("No unblocked issues to work on. Exiting.");
+      break;
+    }
+
+    console.log(`Planning complete. ${issues.length} issue(s) selected:`);
+    for (const issue of issues) {
+      console.log(`  ${issue.id}: ${issue.title} → ${issue.branch}`);
+    }
+
+    if (PLAN_ONLY) {
+      console.log("PICASTLE_PLAN_ONLY=1; stopping before worktree creation/implementation.");
+      break;
+    }
+
+    const plannedWork = preparePlannedIssuesForImplementation(issues);
+    const settled = STACK_PRS && plannedWork.length > 1
+      ? await runSequentially(plannedWork, (issue) => implementIssue(issue, iteration))
+      : await runWithConcurrency(plannedWork, CONCURRENCY, (issue) => implementIssue(issue, iteration));
+
+    const completed: CompletedIssue[] = [];
+    for (const [i, outcome] of settled.entries()) {
+      const issue = issues[i]!;
+      if (outcome.status === "rejected") {
+        console.error(`  ✗ ${issue.id} failed: ${formatError(outcome.reason)}`);
+        continue;
+      }
+      if (outcome.value) completed.push(outcome.value);
+    }
+
+    console.log(`\nExecution complete. ${completed.length} branch(es) with commits:`);
+    for (const issue of completed) console.log(`  ${issue.branch}`);
+
+    if (completed.length > 0) {
+      if (PUBLISHER_AGENT) {
+        await publishCompletedIssuesWithAgent(completed, iteration);
+      } else {
+        await publishCompletedIssues(completed, iteration);
+      }
+    }
+
+    runPendingFanIn();
   }
 
-  runPendingFanIn();
+  console.log("\nPicastle done.");
+  return { repoRoot, runtimeDir, iterationsStarted };
 }
 
-console.log("\nPicastle done.");
+function runPrep(argv: string[]): void {
+  const args = argv.map(shellQuote).join(" ");
+  const command = `bash ${shellQuote(join(scriptRoot, "scripts", "prep.sh"))}${args ? ` ${args}` : ""}`;
+  const prep = run(command, startCwd, { allowFailure: true });
+  if (prep.stdout) process.stdout.write(prep.stdout);
+  if (prep.stderr) process.stderr.write(prep.stderr);
+}
+
+function checkAbort(): void {
+  if (!abortSignal?.aborted) return;
+  const error = new Error("Picastle run aborted");
+  error.name = "AbortError";
+  throw error;
+}
+
+function isDirectRun(): boolean {
+  return process.argv[1] ? resolve(process.argv[1]) === fileURLToPath(import.meta.url) : false;
+}
 
 function runPendingFanIn(): void {
   if (PLAN_ONLY) {
@@ -1468,11 +1566,16 @@ async function runPiAgent(args: {
     }
   });
 
+  const abortListener = () => session.dispose();
+  abortSignal?.addEventListener("abort", abortListener, { once: true });
+
   try {
+    checkAbort();
     await session.prompt(args.prompt);
     process.stdout.write("\n");
     return assistantText;
   } finally {
+    abortSignal?.removeEventListener("abort", abortListener);
     unsubscribe();
     session.dispose();
   }
@@ -2040,7 +2143,7 @@ function run(
     encoding: "utf8",
     stdio: opts.stdio === "inherit" ? "inherit" : "pipe",
     maxBuffer: 1024 * 1024 * 20,
-    env: { ...process.env, ...(opts.env ?? {}) },
+    env: { ...runtimeEnv, ...(opts.env ?? {}) },
   });
   const status = result.status === null ? 1 : result.status;
   const stdout = typeof result.stdout === "string" ? result.stdout : "";
@@ -2061,12 +2164,12 @@ function extractPrRef(output: string): string | undefined {
 
 function buildPebGlobalArgs(): string {
   const parts: string[] = [];
-  if (process.env.PICASTLE_PEB_ARGS) parts.push(process.env.PICASTLE_PEB_ARGS);
-  if (process.env.PICASTLE_PEB_REMOTE) {
-    parts.push("--remote", shellQuote(process.env.PICASTLE_PEB_REMOTE));
+  if (runtimeEnv.PICASTLE_PEB_ARGS) parts.push(runtimeEnv.PICASTLE_PEB_ARGS);
+  if (runtimeEnv.PICASTLE_PEB_REMOTE) {
+    parts.push("--remote", shellQuote(runtimeEnv.PICASTLE_PEB_REMOTE));
   }
-  if (process.env.PICASTLE_PEB_REPO) {
-    parts.push("-R", shellQuote(process.env.PICASTLE_PEB_REPO));
+  if (runtimeEnv.PICASTLE_PEB_REPO) {
+    parts.push("-R", shellQuote(runtimeEnv.PICASTLE_PEB_REPO));
   }
   return parts.join(" ");
 }
@@ -2075,20 +2178,24 @@ function pebCommand(subcommand: string): string {
   return ["peb", PEB_GLOBAL_ARGS, subcommand].filter(Boolean).join(" ");
 }
 
-function parseArgs(args: string[]): {
-  repo?: string;
-  planOnly: boolean;
-  noVerify: boolean;
-  noPush: boolean;
-  noPr: boolean;
-  cleanTargets?: boolean;
-  maxIterations?: number;
-  maxIssues?: number;
-  concurrency?: number;
-  minFreeGb?: number;
-  base?: string;
-} {
-  const parsed = { planOnly: false, noVerify: false, noPush: false, noPr: false } as ReturnType<typeof parseArgs>;
+const PICASTLE_USAGE = `Usage: picastle [--repo PATH] [--plan-only] [--max-iterations N] [--max-issues N] [--concurrency N] [--min-free-gb N] [--base BRANCH] [--clean-targets] [--no-verify] [--no-push] [--no-pr]\n\nEnvironment: PICASTLE_PEB_REMOTE, PICASTLE_PEB_REPO, PICASTLE_ISSUE_STATUS, PICASTLE_ISSUE_LABEL, PICASTLE_MAX_ISSUES, PICASTLE_PENDING_STATUS, PICASTLE_REVIEW_STATUS, PICASTLE_PLAN_ONLY, PICASTLE_VERIFY, PICASTLE_PUSH, PICASTLE_OPEN_PRS, PICASTLE_STACK_PRS, PICASTLE_OPEN_PR_SCAN_LIMIT, PICASTLE_PUBLISHER_AGENT, PICASTLE_REVIEW_REPAIR_CYCLES, PICASTLE_REVIEW_CONCURRENCY, PICASTLE_WORKTREE_READY_COMMAND, PICASTLE_BEFORE_PUSH_COMMAND, PICASTLE_CLEAN_TARGETS, PICASTLE_MIN_FREE_GB, PICASTLE_THINKING`;
+
+class PicastleCliExit extends Error {
+  readonly exitCode: number;
+
+  constructor(message: string, exitCode: number) {
+    super(message);
+    this.exitCode = exitCode;
+    this.name = "PicastleCliExit";
+  }
+}
+
+function isPicastleCliExit(error: unknown): error is PicastleCliExit {
+  return error instanceof Error && error.name === "PicastleCliExit" && "exitCode" in error;
+}
+
+function parseArgs(args: string[]): CliOptions {
+  const parsed: CliOptions = { planOnly: false, noVerify: false, noPush: false, noPr: false };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     const next = () => args[++i] ?? die(`missing value for ${arg}`);
@@ -2104,8 +2211,7 @@ function parseArgs(args: string[]): {
     else if (arg === "--min-free-gb") parsed.minFreeGb = Number(next());
     else if (arg === "--base") parsed.base = next();
     else if (arg === "--help" || arg === "-h") {
-      console.log(`Usage: picastle [--repo PATH] [--plan-only] [--max-iterations N] [--max-issues N] [--concurrency N] [--min-free-gb N] [--base BRANCH] [--clean-targets] [--no-verify] [--no-push] [--no-pr]\n\nEnvironment: PICASTLE_PEB_REMOTE, PICASTLE_PEB_REPO, PICASTLE_ISSUE_STATUS, PICASTLE_ISSUE_LABEL, PICASTLE_MAX_ISSUES, PICASTLE_PENDING_STATUS, PICASTLE_REVIEW_STATUS, PICASTLE_PLAN_ONLY, PICASTLE_VERIFY, PICASTLE_PUSH, PICASTLE_OPEN_PRS, PICASTLE_STACK_PRS, PICASTLE_OPEN_PR_SCAN_LIMIT, PICASTLE_PUBLISHER_AGENT, PICASTLE_REVIEW_REPAIR_CYCLES, PICASTLE_REVIEW_CONCURRENCY, PICASTLE_WORKTREE_READY_COMMAND, PICASTLE_BEFORE_PUSH_COMMAND, PICASTLE_CLEAN_TARGETS, PICASTLE_MIN_FREE_GB, PICASTLE_THINKING`);
-      process.exit(0);
+      throw new PicastleCliExit(PICASTLE_USAGE, 0);
     } else {
       die(`unknown argument: ${arg}`);
     }
@@ -2114,8 +2220,7 @@ function parseArgs(args: string[]): {
 }
 
 function die(message: string): never {
-  console.error(message);
-  process.exit(2);
+  throw new PicastleCliExit(message, 2);
 }
 
 function shellQuote(value: string): string {
@@ -2123,32 +2228,32 @@ function shellQuote(value: string): string {
 }
 
 function env(name: string, fallback: string): string {
-  return process.env[name] || fallback;
+  return runtimeEnv[name] || fallback;
 }
 
 function envInt(name: string, fallback: number): number {
-  const raw = process.env[name];
+  const raw = runtimeEnv[name];
   if (!raw) return fallback;
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
 function envNonNegativeInt(name: string, fallback: number): number {
-  const raw = process.env[name];
+  const raw = runtimeEnv[name];
   if (!raw) return fallback;
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : fallback;
 }
 
 function envNonNegativeNumber(name: string, fallback: number): number {
-  const raw = process.env[name];
+  const raw = runtimeEnv[name];
   if (!raw) return fallback;
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function envBool(name: string, fallback: boolean): boolean {
-  const raw = process.env[name];
+  const raw = runtimeEnv[name];
   if (raw === undefined || raw === "") return fallback;
   return !["0", "false", "no", "off"].includes(raw.toLowerCase());
 }
@@ -2168,6 +2273,21 @@ function formatSpawnFailure(error: Error | undefined, signal: NodeJS.Signals | n
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+if (isDirectRun()) {
+  try {
+    await runPicastle(process.argv.slice(2));
+  } catch (error) {
+    if (isPicastleCliExit(error)) {
+      const stream = error.exitCode === 0 ? process.stdout : process.stderr;
+      stream.write(`${error.message}\n`);
+      process.exitCode = error.exitCode;
+    } else {
+      console.error(formatError(error));
+      process.exitCode = 1;
+    }
+  }
 }
 
 function serializeEvent(event: any): string | undefined {
@@ -2197,6 +2317,6 @@ function safeRepoId(root: string): string {
 }
 
 function requireHome(): string {
-  if (!process.env.HOME) throw new Error("HOME is not set");
-  return process.env.HOME;
+  if (!runtimeEnv.HOME) throw new Error("HOME is not set");
+  return runtimeEnv.HOME;
 }

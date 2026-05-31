@@ -29,8 +29,8 @@ import {
   selectRecoveryActions,
   validatePlannedIssueSelections,
   type RecoveryBranchInput,
-} from "./recovery.mjs";
-import { parseStackMetadataFromBody, type StackMetadata } from "./stack.mjs";
+} from "./recovery.mts";
+import { parseStackMetadataFromBody, type StackMetadata } from "./stack.mts";
 
 test("extracts pebble ids before realistic branch slugs during recovery", () => {
   assert.equal(extractIssueIdFromBranch("picastle/ricekit-394-fix-old"), "ricekit-394");

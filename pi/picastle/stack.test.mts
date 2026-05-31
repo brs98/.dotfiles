@@ -10,7 +10,7 @@ import {
   stackIssues,
   stackPebblesComment,
   stackPrBodySection,
-} from "./stack.mjs";
+} from "./stack.mts";
 
 test("builds ordered stack metadata and PR copy", () => {
   const [first, second, third] = stackIssues(
