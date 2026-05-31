@@ -3,7 +3,11 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { Worker } from "node:worker_threads";
 
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionCommandContext,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 type PicastleProfile = {
@@ -14,6 +18,7 @@ type PicastleProfile = {
 type ParsedPicastleArgs = {
   help: boolean;
   planOnly: boolean;
+  stop: boolean;
   profile?: string;
   env: Record<string, string>;
   passthrough: string[];
@@ -67,6 +72,44 @@ const PROFILES: Record<string, PicastleProfile> = {
 export default function picastleExtension(pi: ExtensionAPI) {
   let latestRun: PicastleRunState | undefined;
   let activeRun: Promise<void> | undefined;
+  let activeWorker: Worker | undefined;
+  let stopProgress: (() => void) | undefined;
+  let stopping = false;
+
+  const clearPicastleUi = (ctx: ExtensionContext) => {
+    ctx.ui.setStatus("picastle", undefined);
+    ctx.ui.setWidget("picastle", undefined);
+  };
+
+  const stopActiveRun = async () => {
+    stopProgress?.();
+    stopProgress = undefined;
+    const worker = activeWorker;
+    activeWorker = undefined;
+    if (worker) {
+      stopping = true;
+      await worker.terminate();
+    }
+    activeRun = undefined;
+    if (latestRun?.status === "running") {
+      latestRun = {
+        ...latestRun,
+        status: "failed",
+        finishedAt: new Date().toISOString(),
+        error: "Stopped by user or Pi session shutdown.",
+      };
+      appendLog(latestRun.logPath, "\nPicastle stopped by user or Pi session shutdown.\n");
+    }
+  };
+
+  pi.on("session_start", async (_event, ctx) => {
+    clearPicastleUi(ctx);
+  });
+
+  pi.on("session_shutdown", async (_event, ctx) => {
+    await stopActiveRun();
+    clearPicastleUi(ctx);
+  });
 
   pi.registerTool({
     name: "picastle_status",
@@ -122,6 +165,21 @@ export default function picastleExtension(pi: ExtensionAPI) {
         notify(ctx, usage(), "info");
         return;
       }
+      if (parsed.stop) {
+        if (!activeRun) {
+          clearPicastleUi(ctx);
+          notify(
+            ctx,
+            "No Picastle run is active in this Pi session. Cleared Picastle UI state.",
+            "info",
+          );
+          return;
+        }
+        await stopActiveRun();
+        clearPicastleUi(ctx);
+        notify(ctx, "Picastle stopped.", "info");
+        return;
+      }
 
       if (activeRun) {
         notify(
@@ -166,14 +224,23 @@ export default function picastleExtension(pi: ExtensionAPI) {
 
       sendPicastleBrief(pi, { repo, logPath, cliArgs, env, profile: parsed.profile });
       notify(ctx, `Picastle started for ${shortPath(repo)}\nLog: ${logPath}`, "info");
-      const stopProgress = startProgressIndicator(ctx, () => latestRun);
+      stopProgress = startProgressIndicator(ctx, () => latestRun);
 
       activeRun = (async () => {
         try {
           const result = await capturePicastleOutput(
             logPath,
             async (onOutput) =>
-              await runPicastleWorker({ cliArgs, repo, env, signal: ctx.signal, onOutput }),
+              await runPicastleWorker({
+                cliArgs,
+                repo,
+                env,
+                signal: ctx.signal,
+                onOutput,
+                onWorker: (worker) => {
+                  activeWorker = worker;
+                },
+              }),
           );
           latestRun = {
             ...latestRun!,
@@ -184,17 +251,22 @@ export default function picastleExtension(pi: ExtensionAPI) {
           };
           notify(ctx, `Picastle finished\nLog: ${logPath}\n\n${tail(result.output, 2400)}`, "info");
         } catch (error) {
-          latestRun = {
-            ...latestRun!,
-            status: "failed",
-            finishedAt: new Date().toISOString(),
-            error: formatError(error),
-          };
-          appendLog(logPath, `\nPicastle command failed: ${formatError(error)}\n`);
-          notify(ctx, `Picastle command failed: ${formatError(error)}\nLog: ${logPath}`, "error");
+          if (!stopping) {
+            latestRun = {
+              ...latestRun!,
+              status: "failed",
+              finishedAt: new Date().toISOString(),
+              error: formatError(error),
+            };
+            appendLog(logPath, `\nPicastle command failed: ${formatError(error)}\n`);
+            notify(ctx, `Picastle command failed: ${formatError(error)}\nLog: ${logPath}`, "error");
+          }
         } finally {
-          stopProgress();
+          stopProgress?.();
+          stopProgress = undefined;
+          activeWorker = undefined;
           activeRun = undefined;
+          stopping = false;
         }
       })();
 
@@ -343,6 +415,7 @@ function runPicastleWorker(args: {
   env: NodeJS.ProcessEnv;
   signal: AbortSignal | undefined;
   onOutput: (chunk: string, stream: "stdout" | "stderr") => void;
+  onWorker?: (worker: Worker) => void;
 }): Promise<PicastleRunResult> {
   return new Promise((resolvePromise, reject) => {
     const worker = new Worker(PICASTLE_WORKER_SOURCE, {
@@ -354,6 +427,7 @@ function runPicastleWorker(args: {
         env: args.env,
       },
     });
+    args.onWorker?.(worker);
     let settled = false;
 
     const cleanup = () => {
@@ -389,7 +463,11 @@ function runPicastleWorker(args: {
     });
     worker.on("error", (error) => settle(() => reject(error)));
     worker.on("exit", (code) => {
-      if (code === 0 || settled) return;
+      if (settled) return;
+      if (code === 0) {
+        settle(() => reject(new Error("Picastle worker exited before reporting completion")));
+        return;
+      }
       settle(() => reject(new Error(`Picastle worker exited with code ${code}`)));
     });
   });
@@ -422,6 +500,7 @@ function parsePicastleArgs(args: string): ParsedPicastleArgs {
   const parsed: ParsedPicastleArgs = {
     help: false,
     planOnly: false,
+    stop: false,
     env: {},
     passthrough: [],
   };
@@ -444,6 +523,10 @@ function parsePicastleArgs(args: string): ParsedPicastleArgs {
     }
     if (token === "plan" || token === "dry-run") {
       parsed.planOnly = true;
+      continue;
+    }
+    if (token === "stop" || token === "cancel") {
+      parsed.stop = true;
       continue;
     }
     if (token in PROFILES) {
@@ -556,6 +639,7 @@ Examples:
   /picastle plan
   /picastle dotfiles plan
   /picastle ricekit -- --max-iterations 1
+  /picastle stop
   /picastle -- --repo /path/to/repo
 
 Profiles:
