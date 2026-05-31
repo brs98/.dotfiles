@@ -166,7 +166,7 @@ export default function picastleExtension(pi: ExtensionAPI) {
 
       sendPicastleBrief(pi, { repo, logPath, cliArgs, env, profile: parsed.profile });
       notify(ctx, `Picastle started for ${shortPath(repo)}\nLog: ${logPath}`, "info");
-      if (ctx.hasUI) ctx.ui.setStatus("picastle", "running");
+      const stopProgress = startProgressIndicator(ctx, () => latestRun);
 
       activeRun = (async () => {
         try {
@@ -193,7 +193,7 @@ export default function picastleExtension(pi: ExtensionAPI) {
           appendLog(logPath, `\nPicastle command failed: ${formatError(error)}\n`);
           notify(ctx, `Picastle command failed: ${formatError(error)}\nLog: ${logPath}`, "error");
         } finally {
-          if (ctx.hasUI) ctx.ui.setStatus("picastle", undefined);
+          stopProgress();
           activeRun = undefined;
         }
       })();
@@ -259,6 +259,82 @@ async function capturePicastleOutput<T>(
 
 function appendLog(logPath: string, text: string): void {
   writeFileSync(logPath, text, { flag: "a" });
+}
+
+function startProgressIndicator(
+  ctx: ExtensionCommandContext,
+  getRun: () => PicastleRunState | undefined,
+): () => void {
+  if (!ctx.hasUI) return () => {};
+
+  const frames = ["◐", "◓", "◑", "◒"];
+  let frame = 0;
+  const render = () => {
+    const run = getRun();
+    if (!run) return;
+
+    const elapsed = formatElapsed(Date.now() - Date.parse(run.startedAt));
+    const latestLine = latestLogLine(run.logPath);
+    const phase = inferPhase(latestLine);
+    const spinner = frames[frame++ % frames.length];
+    ctx.ui.setStatus(
+      "picastle",
+      ctx.ui.theme.fg("accent", `${spinner} picastle ${phase} ${elapsed}`),
+    );
+    ctx.ui.setWidget("picastle", [
+      `${ctx.ui.theme.fg("accent", "🏰 Picastle running")} · ${shortPath(run.repo)} · ${elapsed}`,
+      `Phase: ${phase}${run.iterationsStarted !== undefined ? ` · iterations: ${run.iterationsStarted}` : ""}`,
+      latestLine ? `Latest: ${truncateLine(latestLine, 140)}` : `Log: ${run.logPath}`,
+    ]);
+  };
+
+  render();
+  const interval = setInterval(render, 2000);
+  interval.unref?.();
+  return () => {
+    clearInterval(interval);
+    ctx.ui.setStatus("picastle", undefined);
+    ctx.ui.setWidget("picastle", undefined);
+  };
+}
+
+function latestLogLine(logPath: string): string | undefined {
+  if (!existsSync(logPath)) return undefined;
+  const text = readFileSync(logPath, "utf8");
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .reverse()
+    .find(
+      (line) =>
+        line.length > 0 && !line.startsWith("# /picastle") && !line.startsWith("# started:"),
+    );
+}
+
+function inferPhase(line: string | undefined): string {
+  if (!line) return "starting";
+  if (line.includes("picastle-prep")) return "prep";
+  if (line.includes("Recovery") || line.includes("defer:") || line.includes("resume"))
+    return "recovery";
+  if (line.includes("Planning") || line.includes("Planner") || line.includes("<plan>"))
+    return "planning";
+  if (line.includes("Implement") || line.includes("implementer")) return "implementing";
+  if (line.includes("Reviewing") || line.includes("reviewer")) return "reviewing";
+  if (line.includes("Publishing") || line.includes("published") || line.includes("PR"))
+    return "publishing";
+  if (line.includes("Picastle done")) return "done";
+  return "running";
+}
+
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function truncateLine(line: string, maxChars: number): string {
+  return line.length <= maxChars ? line : `${line.slice(0, maxChars - 1)}…`;
 }
 
 function runPicastleWorker(args: {

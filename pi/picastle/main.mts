@@ -289,6 +289,7 @@ export async function runPicastle(
       continue;
     }
 
+    log("Planning next issues...");
     const plan = await planIssues(iteration, recovery.blockedIssueIds);
     const issues = plan.issues;
     for (const line of formatPlannerBlockedSummary(plan)) log(line);
@@ -905,6 +906,7 @@ async function planIssues(iteration: number, suppressedIssueIds: Set<string>): P
     PEB_PREFIX: pebCommand("").trim(),
   });
 
+  log("Planner agent running...");
   const stdout = await runPiAgent({
     name: `planner-${iteration}`,
     cwd: repoRoot,
@@ -1057,6 +1059,7 @@ async function implementIssue(
       PENDING_STATUS,
     });
 
+    log(`Starting implementer for ${issue.id} (${issue.branch})`);
     await runPiAgent({
       name: `implementer-${issue.id}`,
       cwd: worktreePath,
