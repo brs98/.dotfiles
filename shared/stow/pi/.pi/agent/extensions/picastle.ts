@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { Worker } from "node:worker_threads";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -30,18 +30,12 @@ type PicastleRunState = {
   error?: string;
 };
 
-type PicastleModule = {
-  runPicastle: (
-    argv: string[],
-    options: {
-      cwd?: string;
-      env?: NodeJS.ProcessEnv;
-      signal?: AbortSignal;
-      runPrep?: boolean;
-      onOutput?: (chunk: string, stream: "stdout" | "stderr") => void;
-    },
-  ) => Promise<{ repoRoot: string; runtimeDir: string; iterationsStarted: number }>;
-};
+type PicastleRunResult = { repoRoot: string; runtimeDir: string; iterationsStarted: number };
+
+type PicastleWorkerMessage =
+  | { type: "output"; chunk: string; stream: "stdout" | "stderr" }
+  | { type: "done"; result: PicastleRunResult }
+  | { type: "error"; error: string; stack?: string };
 
 const PICASTLE_MAIN = join(homedir(), ".dotfiles", "pi", "picastle", "main.mts");
 const LOG_DIR = join(homedir(), ".cache", "picastle", "pi-command-logs");
@@ -176,16 +170,11 @@ export default function picastleExtension(pi: ExtensionAPI) {
 
       activeRun = (async () => {
         try {
-          const result = await capturePicastleOutput(logPath, async (onOutput) => {
-            const module = (await import(pathToFileURL(PICASTLE_MAIN).href)) as PicastleModule;
-            return await module.runPicastle(cliArgs, {
-              cwd: repo,
-              env,
-              signal: ctx.signal,
-              runPrep: true,
-              onOutput,
-            });
-          });
+          const result = await capturePicastleOutput(
+            logPath,
+            async (onOutput) =>
+              await runPicastleWorker({ cliArgs, repo, env, signal: ctx.signal, onOutput }),
+          );
           latestRun = {
             ...latestRun!,
             status: "finished",
@@ -271,6 +260,86 @@ async function capturePicastleOutput<T>(
 function appendLog(logPath: string, text: string): void {
   writeFileSync(logPath, text, { flag: "a" });
 }
+
+function runPicastleWorker(args: {
+  cliArgs: string[];
+  repo: string;
+  env: NodeJS.ProcessEnv;
+  signal: AbortSignal | undefined;
+  onOutput: (chunk: string, stream: "stdout" | "stderr") => void;
+}): Promise<PicastleRunResult> {
+  return new Promise((resolvePromise, reject) => {
+    const worker = new Worker(PICASTLE_WORKER_SOURCE, {
+      eval: true,
+      workerData: {
+        mainPath: PICASTLE_MAIN,
+        cliArgs: args.cliArgs,
+        repo: args.repo,
+        env: args.env,
+      },
+    });
+    let settled = false;
+
+    const cleanup = () => {
+      args.signal?.removeEventListener("abort", abort);
+    };
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn();
+    };
+    const abort = () => {
+      void worker.terminate();
+      settle(() => reject(new Error("Picastle run aborted")));
+    };
+
+    args.signal?.addEventListener("abort", abort, { once: true });
+    if (args.signal?.aborted) {
+      abort();
+      return;
+    }
+
+    worker.on("message", (message: PicastleWorkerMessage) => {
+      if (message.type === "output") {
+        args.onOutput(message.chunk, message.stream);
+      } else if (message.type === "done") {
+        settle(() => resolvePromise(message.result));
+      } else if (message.type === "error") {
+        const error = new Error(message.error);
+        if (message.stack) error.stack = message.stack;
+        settle(() => reject(error));
+      }
+    });
+    worker.on("error", (error) => settle(() => reject(error)));
+    worker.on("exit", (code) => {
+      if (code === 0 || settled) return;
+      settle(() => reject(new Error(`Picastle worker exited with code ${code}`)));
+    });
+  });
+}
+
+const PICASTLE_WORKER_SOURCE = `
+  import { parentPort, workerData } from "node:worker_threads";
+  import { pathToFileURL } from "node:url";
+
+  try {
+    const module = await import(pathToFileURL(workerData.mainPath).href);
+    const result = await module.runPicastle(workerData.cliArgs, {
+      cwd: workerData.repo,
+      env: workerData.env,
+      runPrep: true,
+      onOutput: (chunk, stream) => parentPort.postMessage({ type: "output", chunk, stream }),
+    });
+    parentPort.postMessage({ type: "done", result });
+  } catch (error) {
+    parentPort.postMessage({
+      type: "error",
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+`;
 
 function parsePicastleArgs(args: string): ParsedPicastleArgs {
   const tokens = shellWords(args);
