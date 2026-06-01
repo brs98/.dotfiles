@@ -26,7 +26,7 @@ Every command supports `--json`. Use it whenever you need to parse the result. T
 
 ```sh
 peb list --status open --json | jq '.data[] | {id, title, priority}'
-peb show pebbles-abc --json     | jq '.data.dependencies'
+peb show pebbles-1 --json       | jq '.data.dependencies'
 ```
 
 Human-formatted output (no `--json`) is for the user, not for you.
@@ -80,7 +80,7 @@ peb update <id> --reopen
 
 ### Issue IDs
 
-IDs look like `pebbles-t5h` — hash-style, stable, globally unique within a workspace. Pass them verbatim between commands. Never invent or guess an ID; always derive it from a prior `peb create`, `peb list`, or `peb show` result.
+New issue IDs look like `pebbles-1` — numeric per workspace prefix, stable, and unique within a workspace. Existing hash-style IDs such as `pebbles-t5h` remain valid in migrated workspaces. Pass IDs verbatim between commands. Never invent or guess an ID; always derive it from a prior `peb create`, `peb list`, or `peb show` result.
 
 ### Field reference
 
@@ -146,8 +146,8 @@ Example:
 ```
 fix(auth): clear stale tokens on logout
 
-Closes: pebbles-abc
-Refs: pebbles-xyz
+Closes: pebbles-1
+Refs: pebbles-2
 ```
 
 Suggest `peb hook install` only if the user is using pebbles seriously in a git repo — never install it automatically.
