@@ -1,8 +1,8 @@
 ## Workflow Orchestration
 
-### Worktrees - Not Branches
+### Workspaces - Not Branches
 
-- Always use worktrees via the worktrunk skill. Don't use branches. Worktrees enable parallelized development.
+- Always use isolated workspaces via the `patchtree` skill. Don't use branches directly. Patchtree workspaces enable parallelized development with cheap native per-task directories.
 
 ### Subagent Strategy
 
