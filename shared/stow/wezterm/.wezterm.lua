@@ -160,6 +160,20 @@ local function navigate_pane_or_tab(direction)
 end
 
 local act = wezterm.action
+
+-- WezTerm's file-watcher reload doesn't repaint panes outside the active
+-- workspace; performing ReloadConfiguration after the switch refreshes them.
+local function switch_with_reload(name, spawn)
+	local switch_args = { name = name }
+	if spawn then
+		switch_args.spawn = spawn
+	end
+	return act.Multiple({
+		act.SwitchToWorkspace(switch_args),
+		act.ReloadConfiguration,
+	})
+end
+
 config.keys = { -- Create new tab
 	{
 		key = "t",
@@ -183,19 +197,14 @@ config.keys = { -- Create new tab
 	{
 		key = "1",
 		mods = "SUPER|ALT",
-		action = act.SwitchToWorkspace({
-			name = "default",
-		}),
+		action = switch_with_reload("default"),
 	},
 	-- Switch to .dotfiles workspace
 	{
 		key = "2",
 		mods = "SUPER|ALT",
-		action = act.SwitchToWorkspace({
-			name = ".dotfiles",
-			spawn = {
-				cwd = wezterm.home_dir .. "/.dotfiles",
-			},
+		action = switch_with_reload(".dotfiles", {
+			cwd = wezterm.home_dir .. "/.dotfiles",
 		}),
 	},
 	-- Switch to work workspace
@@ -223,26 +232,125 @@ config.keys = { -- Create new tab
 				-- line will be `nil` if they hit escape without entering anything
 				-- An empty string if they just hit enter
 				-- Or the actual line of text they wrote
-				if line then
-					window:perform_action(
-						act.SwitchToWorkspace({
-							name = line,
-						}),
-						pane
-					)
+				if line and line ~= "" then
+					window:perform_action(switch_with_reload(line), pane)
 				end
 			end),
 		}),
 	},
 
-	-- Show the launcher in fuzzy selection mode and have it list all workspaces
-	-- and allow activating one.
+	-- Fuzzy workspace picker. act.ShowLauncherArgs can't be intercepted to
+	-- chain a post-selection action, so build the picker via InputSelector
+	-- instead (lets us reload config after switching — see switch_with_reload).
 	{
 		key = "s",
 		mods = "SUPER|ALT",
-		action = act.ShowLauncherArgs({
-			flags = "FUZZY|WORKSPACES",
-		}),
+		action = wezterm.action_callback(function(window, pane)
+			local current = window:active_workspace()
+			-- config.colors is absent when the ricekit file didn't load
+			local palette = config.colors or {}
+			local ansi = palette.ansi or {}
+			local accent = ansi[6] or "#d399c6"
+			local muted = ansi[8] or "#808080"
+			local fg = palette.foreground or "#c0c0c0"
+			local bg = palette.background or "#000000"
+
+			local tab_counts = {}
+			for _, mw in ipairs(wezterm.mux.all_windows()) do
+				local ws = mw:get_workspace()
+				tab_counts[ws] = (tab_counts[ws] or 0) + #mw:tabs()
+			end
+
+			local names = wezterm.mux.get_workspace_names()
+			local max_len = 0
+			for _, ws in ipairs(names) do
+				if #ws > max_len then
+					max_len = #ws
+				end
+			end
+
+			local choices = {}
+			for _, ws in ipairs(names) do
+				local is_current = (ws == current)
+				local count = tab_counts[ws] or 0
+				local padded = ws .. string.rep(" ", max_len - #ws + 2)
+				local label = wezterm.format({
+					{ Foreground = { Color = is_current and accent or fg } },
+					{ Text = "▌ " },
+					{ Foreground = { Color = is_current and accent or fg } },
+					{ Attribute = { Intensity = is_current and "Bold" or "Normal" } },
+					{ Text = padded },
+					{ Attribute = { Intensity = "Normal" } },
+					{ Foreground = { Color = is_current and accent or muted } },
+					{ Text = "󰓩 " .. count .. (count == 1 and " tab" or " tabs") },
+				})
+				table.insert(choices, { id = ws, label = label })
+			end
+
+			table.insert(choices, {
+				id = "__create_new__",
+				label = wezterm.format({
+					{ Foreground = { Color = accent } },
+					{ Attribute = { Intensity = "Bold" } },
+					{ Text = "  + " },
+					{ Attribute = { Intensity = "Normal" } },
+					{ Foreground = { Color = accent } },
+					{ Text = "Create new workspace…" },
+				}),
+			})
+
+			-- OSC 10 = bg makes the InputSelector's hardcoded leading 4 spaces
+			-- invisible (cell-bg becomes bg color, matching the row surface) on
+			-- the cursor row. The visible cursor highlight then comes from the
+			-- label cells via Reverse — and my Foreground colors drive whether
+			-- accent or cream shows. Per-row OSC was attempted but parse_status_text
+			-- strips OSC from labels, so we set this once globally via description.
+			local function hex2rgb(hex)
+				return tonumber(hex:sub(2, 3), 16), tonumber(hex:sub(4, 5), 16), tonumber(hex:sub(6, 7), 16)
+			end
+			local fg_r, fg_g, fg_b = hex2rgb(fg)
+			local bg_r, bg_g, bg_b = hex2rgb(bg)
+			local description = string.format(
+				"\x1b]10;rgba:00/00/00/00\x07\x1b[38;2;%d;%d;%d;48;2;%d;%d;%dm  Workspaces\x1b[0m",
+				fg_r,
+				fg_g,
+				fg_b,
+				bg_r,
+				bg_g,
+				bg_b
+			)
+
+			window:perform_action(
+				act.InputSelector({
+					action = wezterm.action_callback(function(inner_window, inner_pane, id)
+						if id == "__create_new__" then
+							inner_window:perform_action(
+								act.PromptInputLine({
+									description = wezterm.format({
+										{ Attribute = { Intensity = "Bold" } },
+										{ Foreground = { Color = accent } },
+										{ Text = "Enter name for new workspace" },
+									}),
+									action = wezterm.action_callback(function(w, p, line)
+										if line and line ~= "" then
+											w:perform_action(switch_with_reload(line), p)
+										end
+									end),
+								}),
+								inner_pane
+							)
+						elseif id then
+							inner_window:perform_action(switch_with_reload(id), inner_pane)
+						end
+					end),
+					title = "  Workspaces",
+					description = description,
+					choices = choices,
+					fuzzy = true,
+				}),
+				pane
+			)
+		end),
 	},
 
 	{ key = "Enter", mods = "ALT", action = act.ToggleFullScreen },
