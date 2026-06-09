@@ -19,6 +19,7 @@ import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
+import { shortenHome } from "./lib/paths.js";
 
 // ── Config ───────────────────────────────────────────────────────────
 
@@ -163,11 +164,6 @@ function getRepos(): string[] {
     cachedRepos = findGitRepos();
   }
   return cachedRepos;
-}
-
-function shortenHome(path: string): string {
-  const home = homedir();
-  return path.startsWith(home) ? path.replace(home, "~") : path;
 }
 
 // ── Autocomplete ─────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,10 +7,21 @@ import * as esbuild from "esbuild";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const extensionsDir = join(scriptDir, "..");
 
+const skippedDirs = new Set(["node_modules", "lib", "tests", "scripts"]);
+
 const entries = await readdir(extensionsDir, { withFileTypes: true });
 const extensionFiles = entries
   .filter((entry) => entry.isFile() && entry.name.endsWith(".ts"))
   .map((entry) => join(extensionsDir, entry.name))
+  .concat(
+    entries
+      .filter(
+        (entry) =>
+          entry.isDirectory() && !entry.name.startsWith(".") && !skippedDirs.has(entry.name),
+      )
+      .map((entry) => join(extensionsDir, entry.name, "index.ts"))
+      .filter((indexFile) => existsSync(indexFile)),
+  )
   .sort();
 
 if (extensionFiles.length === 0) {

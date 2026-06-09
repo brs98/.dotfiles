@@ -35,18 +35,18 @@ Stowing `shared/stow/pi` into `$HOME` creates:
 
 - `inline-skills.ts` — lets prompts reference skills inline with `/skill:<name>` and adds inline autocomplete.
 - `statusline.ts` — replaces the pi footer with a compact Claude-like status line.
-- `subagent.ts` — adds a `subagent` tool backed by isolated `pi --mode json --no-session` runs.
-- `agent-team.ts` — adds an `agent_team` tool and `/team` command for a checkpointed interpreter → researcher → spec-writer → builder → tester → reviewer workflow with repair loops.
+- `subagent/` — adds a `subagent` tool backed by isolated `pi --mode json --no-session` runs.
+- `agent-team/` — adds an `agent_team` tool and `/team` command for a checkpointed interpreter → researcher → spec-writer → builder → tester → reviewer workflow with repair loops.
 - `lsp.ts` — adds `lsp_diagnostics` with per-language/per-root server isolation for worktrees and subagents.
-- `mcp.ts` — adds lazy MCP tools plus the `/mcp` command.
-- `pebble-orchestrator.ts` — plans and burns down Pebbles-backed work with git worktrees and Pi subagents.
+- `mcp/` — adds lazy MCP tools plus the `/mcp` command.
+- `pebble-orchestrator/` — plans and burns down Pebbles-backed work with git worktrees and Pi subagents.
 - `workspace-switcher.ts` — adds `/repo` to set an active workspace so relative tool paths and bash commands run from that repo.
 - `imagegen.ts` — adds a `generate_image` tool that delegates to Codex CLI's hosted image generation, saving generated bitmap images to disk.
 - `goal-mode.ts` — adds Codex-like `/goal` session objectives with hidden context injection, progress/budget tracking, and a `goal_update` tool.
 
 ## Agent team
 
-`agent-team.ts` runs a project-agnostic team workflow with two human checkpoints:
+`agent-team/` runs a project-agnostic team workflow with two human checkpoints:
 
 ```text
 /team <task>                  # ask the coordinator to run agent_team
@@ -67,7 +67,7 @@ Interpreter
   → repair loops until pass, max attempts, or needs_human
 ```
 
-Bundled Markdown role prompts live in `extensions/agent-team-roles/*.md`. User overrides can be placed in `~/.pi/agent/agent-team/roles/*.md`; project overrides can be placed in `.pi/agent-team/roles/*.md` and are only used when `roleScope` includes project roles. Project-local roles are repo-controlled prompts and require confirmation by default.
+Bundled Markdown role prompts live in `extensions/agent-team/roles/*.md`. User overrides can be placed in `~/.pi/agent/agent-team/roles/*.md`; project overrides can be placed in `.pi/agent-team/roles/*.md` and are only used when `roleScope` includes project roles. Project-local roles are repo-controlled prompts and require confirmation by default.
 
 ## Goal mode
 
@@ -147,7 +147,7 @@ Registered tools for agent use:
 
 Expected tools: `peb`, `git`, `gh` for PR steps, and `pi`. The orchestrator never runs `peb init`, never closes pebbles on PR open, and is designed to resume from Pebbles comments plus existing branches/worktrees/PRs.
 
-Smoke check performed while adding this extension: `pi --no-extensions -e ./shared/stow/pi/.pi/agent/extensions/pebble-orchestrator.ts --mode json --no-session -p "/pebbles plan /Users/brandon/.dotfiles"` loaded the extension and produced a real plan from the dotfiles Pebbles workspace.
+Smoke check performed while adding this extension: `pi --no-extensions -e ./shared/stow/pi/.pi/agent/extensions/pebble-orchestrator/index.ts --mode json --no-session -p "/pebbles plan /Users/brandon/.dotfiles"` loaded the extension and produced a real plan from the dotfiles Pebbles workspace.
 
 ## MCP command
 

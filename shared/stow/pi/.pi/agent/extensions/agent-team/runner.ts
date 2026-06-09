@@ -1,30 +1,26 @@
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, rmSync, statSync, type Dirent } from "node:fs";
+import { rmSync } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { StringEnum } from "@earendil-works/pi-ai";
-import type { ExtensionAPI, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { join } from "node:path";
+import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import {
-  getAgentDir,
-  parseFrontmatter,
-  withFileMutationQueue,
-} from "@earendil-works/pi-coding-agent";
+  applyUsage,
+  emptyUsage,
+  getPiInvocation,
+  getText,
+  type AgentUsage,
+} from "../lib/agent-process.js";
 import {
-  Key,
-  matchesKey,
-  Text,
-  truncateToWidth,
-  visibleWidth,
-  wrapTextWithAnsi,
-  type Component,
-} from "@earendil-works/pi-tui";
-import { Type } from "typebox";
+  isRoleName,
+  roleOrThrow,
+  type RoleName,
+  type RoleScope,
+  type RoleSource,
+  type TeamRole,
+} from "./roles.js";
 
-type RoleName = "interpreter" | "researcher" | "spec-writer" | "builder" | "tester" | "reviewer";
-type RoleScope = "user" | "project" | "both";
-type AgentStatus =
+export type AgentStatus =
   | "pass"
   | "fail"
   | "needs_human"
@@ -34,28 +30,7 @@ type AgentStatus =
   | "needs_test"
   | "needs_review";
 
-type RoleSource = "bundled" | "user" | "project";
-
-type TeamRole = {
-  name: RoleName;
-  description: string;
-  tools: string[];
-  model?: string;
-  prompt: string;
-  source: RoleSource;
-  filePath: string;
-};
-
-type AgentUsage = {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-  cost: number;
-  turns: number;
-};
-
-type TeamAgentResponse = {
+export type TeamAgentResponse = {
   status: AgentStatus;
   summary: string;
   findings: string[];
@@ -69,7 +44,7 @@ type TeamAgentResponse = {
   parseError?: string;
 };
 
-type TeamRunStep = {
+export type TeamRunStep = {
   role: RoleName;
   source: RoleSource;
   status: AgentStatus;
@@ -82,7 +57,7 @@ type TeamRunStep = {
   exitCode: number | null;
 };
 
-type TeamRunDetails = {
+export type TeamRunDetails = {
   task: string;
   cwd: string;
   roleScope: RoleScope;
@@ -106,385 +81,9 @@ type AssistantMessage = {
   };
 };
 
-type RawRoleFrontmatter = {
-  name?: string;
-  description?: string;
-  tools?: string;
-  model?: string;
-};
-
-type ConfirmDialogStyles = {
-  accent: (text: string) => string;
-  dim: (text: string) => string;
-  bold: (text: string) => string;
-};
-
-const DEFAULT_CONFIRM_BODY_LINES = 12;
-
-export class ScrollableConfirmDialog implements Component {
-  private scroll = 0;
-  private maxScroll = 0;
-  private cachedWidth?: number;
-  private cachedLines?: string[];
-
-  constructor(
-    private readonly title: string,
-    private readonly message: string,
-    private readonly done: (confirmed: boolean) => void,
-    private readonly requestRender: () => void = () => {},
-    private readonly styles: ConfirmDialogStyles = plainConfirmDialogStyles(),
-    private readonly visibleBodyLines = DEFAULT_CONFIRM_BODY_LINES,
-  ) {}
-
-  handleInput(data: string): void {
-    if (matchesKey(data, Key.enter) || data === "y" || data === "Y") {
-      this.done(true);
-      return;
-    }
-
-    if (matchesKey(data, Key.escape) || data === "n" || data === "N" || data === "q") {
-      this.done(false);
-      return;
-    }
-
-    if (matchesKey(data, Key.up) || data === "k") {
-      this.scrollBy(-1);
-      return;
-    }
-
-    if (matchesKey(data, Key.down) || data === "j") {
-      this.scrollBy(1);
-      return;
-    }
-
-    if (matchesKey(data, Key.pageUp) || matchesKey(data, Key.ctrl("b"))) {
-      this.scrollBy(-this.visibleBodyLines);
-      return;
-    }
-
-    if (matchesKey(data, Key.pageDown) || matchesKey(data, Key.ctrl("f")) || data === " ") {
-      this.scrollBy(this.visibleBodyLines);
-      return;
-    }
-
-    if (matchesKey(data, Key.home) || data === "g") {
-      this.setScroll(0);
-      return;
-    }
-
-    if (matchesKey(data, Key.end) || data === "G") this.setScroll(this.maxScroll);
-  }
-
-  render(width: number): string[] {
-    if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
-
-    const innerWidth = Math.max(32, width - 4);
-    const bodyWidth = Math.max(20, innerWidth - 2);
-    const bodyLines = wrapMessage(this.message, bodyWidth);
-    this.maxScroll = Math.max(0, bodyLines.length - this.visibleBodyLines);
-    this.scroll = clamp(this.scroll, 0, this.maxScroll);
-
-    const visibleBody = bodyLines.slice(this.scroll, this.scroll + this.visibleBodyLines);
-    while (visibleBody.length < Math.min(this.visibleBodyLines, bodyLines.length || 1)) {
-      visibleBody.push("");
-    }
-
-    const top = `╭${"─".repeat(innerWidth + 2)}╮`;
-    const separator = `├${"─".repeat(innerWidth + 2)}┤`;
-    const bottom = `╰${"─".repeat(innerWidth + 2)}╯`;
-    const title = this.styles.accent(this.styles.bold(this.title));
-    const scrollInfo =
-      this.maxScroll > 0
-        ? this.styles.dim(`scroll ${this.scroll + 1}/${this.maxScroll + 1}`)
-        : this.styles.dim("no overflow");
-    const help = this.styles.dim("↑↓/j/k scroll • PgUp/PgDn • y/enter approve • n/esc cancel");
-
-    const lines = [
-      top,
-      framedLine(joinColumns(title, scrollInfo, innerWidth), innerWidth),
-      separator,
-      ...visibleBody.map((line) => framedLine(line, innerWidth)),
-      separator,
-      framedLine(help, innerWidth),
-      bottom,
-    ];
-
-    this.cachedWidth = width;
-    this.cachedLines = lines;
-    return lines;
-  }
-
-  invalidate(): void {
-    this.cachedWidth = undefined;
-    this.cachedLines = undefined;
-  }
-
-  private scrollBy(delta: number): void {
-    this.setScroll(this.scroll + delta);
-  }
-
-  private setScroll(value: number): void {
-    const next = clamp(value, 0, this.maxScroll);
-    if (next === this.scroll) return;
-    this.scroll = next;
-    this.invalidate();
-    this.requestRender();
-  }
-}
-
-function plainConfirmDialogStyles(): ConfirmDialogStyles {
-  return {
-    accent: (text) => text,
-    dim: (text) => text,
-    bold: (text) => text,
-  };
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-function wrapMessage(message: string, width: number): string[] {
-  const lines = message.split("\n").flatMap((line) => {
-    if (!line.trim()) return [""];
-    const wrapped = wrapTextWithAnsi(line, width);
-    return wrapped.length > 0 ? wrapped : [""];
-  });
-  return lines.length > 0 ? lines : [""];
-}
-
-function joinColumns(left: string, right: string, width: number): string {
-  const leftWidth = visibleWidth(left);
-  const rightWidth = visibleWidth(right);
-  if (leftWidth + rightWidth + 1 > width) return truncateToWidth(left, width);
-  return `${left}${" ".repeat(width - leftWidth - rightWidth)}${right}`;
-}
-
-function framedLine(content: string, width: number): string {
-  const truncated = truncateToWidth(content, width);
-  const padding = Math.max(0, width - visibleWidth(truncated));
-  return `│ ${truncated}${" ".repeat(padding)} │`;
-}
-
-async function confirmScrollable(
-  ui: ExtensionUIContext,
-  title: string,
-  message: string,
-): Promise<boolean> {
-  return ui.custom<boolean>(
-    (tui, theme, _keybindings, done) =>
-      new ScrollableConfirmDialog(title, message, done, () => tui.requestRender(), {
-        accent: (text) => theme.fg("accent", text),
-        dim: (text) => theme.fg("dim", text),
-        bold: (text) => theme.bold(text),
-      }),
-    {
-      overlay: true,
-      overlayOptions: {
-        width: "85%",
-        minWidth: 60,
-        maxHeight: "85%",
-        margin: 1,
-      },
-    },
-  );
-}
-
-const ROLE_NAMES: readonly RoleName[] = [
-  "interpreter",
-  "researcher",
-  "spec-writer",
-  "builder",
-  "tester",
-  "reviewer",
-];
-
-const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
+export const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const KILL_GRACE_MS = 5_000;
-const DEFAULT_MAX_REPAIR_CYCLES = 3;
-
-const RoleScopeSchema = StringEnum(["user", "project", "both"] as const, {
-  description:
-    'Which override role directories to use. Bundled roles are always loaded. Default: "user".',
-  default: "user",
-});
-
-const AgentTeamParams = Type.Object({
-  task: Type.String({
-    description:
-      "User request for the agent team to interpret, research, spec, build, test, and review.",
-  }),
-  cwd: Type.Optional(
-    Type.String({
-      description: "Working directory for the team. Relative paths resolve against current pi cwd.",
-    }),
-  ),
-  roleScope: Type.Optional(RoleScopeSchema),
-  confirmProjectRoles: Type.Optional(
-    Type.Boolean({
-      description: "Prompt before using project-local role overrides. Default: true.",
-      default: true,
-    }),
-  ),
-  maxRepairCycles: Type.Optional(
-    Type.Number({
-      description: `Maximum builder/tester/reviewer repair loops. Default: ${DEFAULT_MAX_REPAIR_CYCLES}.`,
-    }),
-  ),
-  timeoutMs: Type.Optional(
-    Type.Number({
-      description: `Timeout per role subprocess in milliseconds. Default: ${DEFAULT_TIMEOUT_MS}.`,
-    }),
-  ),
-});
-
-function isRoleName(value: string | undefined): value is RoleName {
-  return ROLE_NAMES.includes(value as RoleName);
-}
-
-function emptyUsage(): AgentUsage {
-  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 0 };
-}
-
-function getExtensionDir(): string {
-  return dirname(fileURLToPath(import.meta.url));
-}
-
-function getBundledRolesDir(): string {
-  return join(getExtensionDir(), "agent-team-roles");
-}
-
-function getPiInvocation(args: string[]): { command: string; args: string[] } {
-  const currentScript = process.argv[1];
-  const isBunVirtualScript = currentScript?.startsWith("/$bunfs/root/");
-
-  if (currentScript && !isBunVirtualScript && existsSync(currentScript)) {
-    return { command: process.execPath, args: [currentScript, ...args] };
-  }
-
-  const execName = basename(process.execPath).toLowerCase();
-  const isGenericRuntime = /^(node|bun)(\.exe)?$/.test(execName);
-  if (!isGenericRuntime) return { command: process.execPath, args };
-
-  return { command: "pi", args };
-}
-
-function nearestProjectRolesDir(cwd: string): string | null {
-  let current = cwd;
-  while (true) {
-    const candidate = join(current, ".pi", "agent-team", "roles");
-    try {
-      if (statSync(candidate).isDirectory()) return candidate;
-    } catch {
-      // keep walking upward
-    }
-
-    const parent = dirname(current);
-    if (parent === current) return null;
-    current = parent;
-  }
-}
-
-function parseTools(value: string | undefined): string[] {
-  if (!value) return [];
-  const normalized = value.trim().toLowerCase();
-  if (!normalized || normalized === "none") return [];
-  return value
-    .split(",")
-    .map((tool) => tool.trim())
-    .filter(Boolean);
-}
-
-function loadRolesFromDir(dir: string, source: RoleSource): TeamRole[] {
-  if (!existsSync(dir)) return [];
-
-  const roles: TeamRole[] = [];
-  let entries: Dirent[];
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-
-  for (const entry of entries) {
-    if (!entry.name.endsWith(".md")) continue;
-    if (!entry.isFile() && !entry.isSymbolicLink()) continue;
-
-    const filePath = join(dir, entry.name);
-    let content: string;
-    try {
-      content = readFileSync(filePath, "utf8");
-    } catch {
-      continue;
-    }
-
-    const { frontmatter, body } = parseFrontmatter<RawRoleFrontmatter>(content);
-    const roleName = frontmatter.name ?? basename(entry.name, ".md");
-    if (!isRoleName(roleName)) continue;
-
-    roles.push({
-      name: roleName,
-      description: frontmatter.description ?? `${roleName} role`,
-      tools: parseTools(frontmatter.tools),
-      model: frontmatter.model?.trim() || undefined,
-      prompt: body.trim(),
-      source,
-      filePath,
-    });
-  }
-
-  return roles;
-}
-
-function discoverRoles(
-  cwd: string,
-  scope: RoleScope,
-): { roles: Map<RoleName, TeamRole>; projectRolesDir: string | null } {
-  const roles = new Map<RoleName, TeamRole>();
-  const projectRolesDir = nearestProjectRolesDir(cwd);
-  const dirs: Array<{ dir: string; source: RoleSource }> = [
-    { dir: getBundledRolesDir(), source: "bundled" },
-  ];
-
-  if (scope === "user" || scope === "both") {
-    dirs.push({ dir: join(getAgentDir(), "agent-team", "roles"), source: "user" });
-  }
-  if ((scope === "project" || scope === "both") && projectRolesDir) {
-    dirs.push({ dir: projectRolesDir, source: "project" });
-  }
-
-  for (const item of dirs) {
-    for (const role of loadRolesFromDir(item.dir, item.source)) roles.set(role.name, role);
-  }
-
-  return { roles, projectRolesDir };
-}
-
-function assertRequiredRoles(roles: Map<RoleName, TeamRole>): string | undefined {
-  const missing = ROLE_NAMES.filter((role) => !roles.has(role));
-  if (missing.length === 0) return undefined;
-  return `Missing agent-team role definitions: ${missing.join(", ")}. Expected bundled roles in ${getBundledRolesDir()}.`;
-}
-
-function getText(message: AssistantMessage): string {
-  return (message.content ?? [])
-    .filter(
-      (part): part is { type: string; text: string } =>
-        part.type === "text" && typeof part.text === "string",
-    )
-    .map((part) => part.text)
-    .join("\n");
-}
-
-function applyUsage(usage: AgentUsage, message: AssistantMessage): void {
-  if (message.role !== "assistant") return;
-  usage.turns += 1;
-  usage.input += message.usage?.input ?? 0;
-  usage.output += message.usage?.output ?? 0;
-  usage.cacheRead += message.usage?.cacheRead ?? 0;
-  usage.cacheWrite += message.usage?.cacheWrite ?? 0;
-  usage.cost += message.usage?.cost?.total ?? 0;
-}
+export const DEFAULT_MAX_REPAIR_CYCLES = 3;
 
 function buildSystemPrompt(role: TeamRole): string {
   return [
@@ -821,12 +420,6 @@ function specCheckpointText(spec: TeamRunStep): string {
   ].join("\n");
 }
 
-function roleOrThrow(roles: Map<RoleName, TeamRole>, name: RoleName): TeamRole {
-  const role = roles.get(name);
-  if (!role) throw new Error(`Missing role: ${name}`);
-  return role;
-}
-
 function needsHuman(step: TeamRunStep): boolean {
   return step.status === "needs_human" || step.response.openQuestions.length > 0;
 }
@@ -835,7 +428,7 @@ function appendStep(details: TeamRunDetails, step: TeamRunStep): void {
   details.steps.push(step);
 }
 
-function makeProgress(details: TeamRunDetails): string {
+export function makeProgress(details: TeamRunDetails): string {
   const latest = details.steps.at(-1);
   const lines = [
     `Agent team running: ${details.steps.length} step${details.steps.length === 1 ? "" : "s"} completed.`,
@@ -844,7 +437,7 @@ function makeProgress(details: TeamRunDetails): string {
   return lines.join("\n");
 }
 
-function finalSummary(details: TeamRunDetails): string {
+export function finalSummary(details: TeamRunDetails): string {
   const status = details.completed ? "completed" : "stopped";
   const lines = [`Agent team ${status}.`, ""];
   for (const [index, step] of details.steps.entries()) {
@@ -853,7 +446,7 @@ function finalSummary(details: TeamRunDetails): string {
   return lines.join("\n");
 }
 
-async function runAgentTeam(params: {
+export async function runAgentTeam(params: {
   task: string;
   cwd: string;
   roles: Map<RoleName, TeamRole>;
@@ -987,7 +580,7 @@ async function runAgentTeam(params: {
   return details;
 }
 
-function renderDetails(details: TeamRunDetails, expanded: boolean): string {
+export function renderDetails(details: TeamRunDetails, expanded: boolean): string {
   const icon = details.completed ? "✓" : "◐";
   const header = `${icon} agent team ${details.completed ? "completed" : "stopped"} (${details.steps.length} steps)`;
   const steps = expanded ? details.steps : details.steps.slice(-6);
@@ -1009,121 +602,4 @@ function renderDetails(details: TeamRunDetails, expanded: boolean): string {
   else if (!details.buildApproved) lines.push("\nWaiting for or stopped at build checkpoint.");
 
   return lines.join("\n");
-}
-
-export default function agentTeam(pi: ExtensionAPI) {
-  pi.registerCommand("team", {
-    description: "Run the agent-team workflow for a task",
-    handler: async (args) => {
-      const task = args.trim();
-      if (!task) {
-        pi.sendUserMessage("Explain how to use the /team command and agent_team tool.");
-        return;
-      }
-      pi.sendUserMessage(
-        `Use the agent_team tool to run this task through the full team workflow: ${task}`,
-      );
-    },
-  });
-
-  pi.registerTool({
-    name: "agent_team",
-    label: "Agent Team",
-    description:
-      "Run an automatic multi-agent team workflow with human alignment and build checkpoints. Roles: interpreter, researcher, spec-writer, builder, tester, reviewer.",
-    promptSnippet:
-      "Run a full agent-team workflow with interpreter, research, spec, build, test, review, and repair loops.",
-    promptGuidelines: [
-      "Use agent_team when the user asks to build or change code using the coordinated team workflow.",
-      "agent_team already includes human alignment and build checkpoints; do not ask for duplicate approval before calling it unless the user's request itself is unclear.",
-      "Give agent_team the complete user request and any important constraints because each role runs in an isolated session.",
-    ],
-    parameters: AgentTeamParams,
-
-    async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      const cwd = params.cwd ? resolve(ctx.cwd, params.cwd) : ctx.cwd;
-      const roleScope: RoleScope = params.roleScope ?? "user";
-      const discovery = discoverRoles(cwd, roleScope);
-      const missing = assertRequiredRoles(discovery.roles);
-      if (missing) return { content: [{ type: "text", text: missing }], details: undefined };
-
-      const confirmProjectRoles = params.confirmProjectRoles ?? true;
-      const projectRoles = Array.from(discovery.roles.values()).filter(
-        (role) => role.source === "project",
-      );
-      if (projectRoles.length > 0 && confirmProjectRoles) {
-        if (!ctx.hasUI) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Canceled: project-local agent-team roles require interactive confirmation.",
-              },
-            ],
-            details: undefined,
-          };
-        }
-
-        const ok = await confirmScrollable(
-          ctx.ui,
-          "Use project-local agent-team roles?",
-          `Project role overrides are repo-controlled.\n\nRoles: ${projectRoles.map((role) => role.name).join(", ")}\nSource: ${discovery.projectRolesDir ?? "(unknown)"}`,
-        );
-        if (!ok) {
-          return {
-            content: [
-              { type: "text", text: "Canceled: project-local agent-team roles were not approved." },
-            ],
-            details: undefined,
-          };
-        }
-      }
-
-      const details = await runAgentTeam({
-        task: params.task,
-        cwd,
-        roles: discovery.roles,
-        roleScope,
-        projectRolesDir: discovery.projectRolesDir,
-        maxRepairCycles: params.maxRepairCycles ?? DEFAULT_MAX_REPAIR_CYCLES,
-        timeoutMs: params.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-        signal,
-        hasUI: ctx.hasUI,
-        confirm: (title, body) => confirmScrollable(ctx.ui, title, body),
-        onUpdate: (currentDetails) => {
-          onUpdate?.({
-            content: [{ type: "text", text: makeProgress(currentDetails) }],
-            details: currentDetails,
-          });
-        },
-      });
-
-      return {
-        content: [{ type: "text", text: finalSummary(details) }],
-        details,
-      };
-    },
-
-    renderCall(args, theme) {
-      const task = typeof args.task === "string" ? args.task : "...";
-      const preview = task.length > 100 ? `${task.slice(0, 100)}...` : task;
-      return new Text(
-        `${theme.fg("toolTitle", theme.bold("agent_team"))}\n${theme.fg("dim", preview)}`,
-        0,
-        0,
-      );
-    },
-
-    renderResult(result, { expanded, isPartial }, theme) {
-      const details = result.details as TeamRunDetails | undefined;
-      if (!details) {
-        const text = result.content[0];
-        return new Text(text?.type === "text" ? text.text : "(no agent-team output)", 0, 0);
-      }
-
-      const rendered = renderDetails(details, expanded || isPartial);
-      const color = details.completed ? "success" : isPartial ? "warning" : "muted";
-      return new Text(theme.fg(color, rendered), 0, 0);
-    },
-  });
 }

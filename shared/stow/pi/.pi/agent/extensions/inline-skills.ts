@@ -4,8 +4,8 @@ import {
   type KeybindingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { readFile, stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { expandHome } from "./lib/paths.js";
 
 const INLINE_SKILL_PATTERN =
   /(^|\s)\/(skill:)?([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?=$|[\s.,;:!?)}\]])/g;
@@ -13,12 +13,6 @@ const INLINE_SKILL_PATTERN =
 const TOKEN_SEPARATORS = new Set([" ", "\t", "\n", "(", "[", "{"]);
 
 type PiCommand = ReturnType<ExtensionAPI["getCommands"]>[number];
-
-function expandHome(path: string): string {
-  if (path === "~") return homedir();
-  if (path.startsWith("~/")) return join(homedir(), path.slice(2));
-  return path;
-}
 
 async function readSkillFile(sourcePath: string): Promise<string> {
   const path = expandHome(sourcePath);

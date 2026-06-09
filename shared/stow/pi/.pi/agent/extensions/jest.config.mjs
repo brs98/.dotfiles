@@ -2,7 +2,8 @@ export default {
   clearMocks: true,
   extensionsToTreatAsEsm: [".ts"],
   testEnvironment: "node",
-  testMatch: ["<rootDir>/tests/**/*.test.ts"],
+  testMatch: ["<rootDir>/tests/**/*.test.ts", "<rootDir>/*/**/*.test.ts"],
+  testPathIgnorePatterns: ["/node_modules/"],
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },

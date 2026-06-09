@@ -59,10 +59,10 @@ jest.mock(
   { virtual: true },
 );
 
-let ScrollableConfirmDialog: typeof import("../agent-team.js").ScrollableConfirmDialog;
+let ScrollableConfirmDialog: typeof import("./ui.js").ScrollableConfirmDialog;
 
 beforeAll(async () => {
-  ({ ScrollableConfirmDialog } = await import("../agent-team.js"));
+  ({ ScrollableConfirmDialog } = await import("./ui.js"));
 });
 
 const styles = {

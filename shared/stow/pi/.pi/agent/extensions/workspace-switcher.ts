@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
+import { expandHome, shortenHome } from "./lib/paths.js";
 
 interface WorkspaceConfig {
   default?: string;
@@ -20,12 +20,6 @@ type WorkspaceState = Workspace | null;
 
 const STATE_ENTRY = "workspace-switcher-state";
 const STATUS_KEY = "workspace";
-
-function expandHome(path: string): string {
-  if (path === "~") return homedir();
-  if (path.startsWith("~/")) return join(homedir(), path.slice(2));
-  return path;
-}
 
 function loadJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf-8"));
@@ -122,13 +116,8 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-function shortPath(path: string): string {
-  const home = homedir();
-  return path.startsWith(home) ? `~${path.slice(home.length)}` : path;
-}
-
 function describeWorkspace(workspace: Workspace): string {
-  return `${workspace.alias} (${shortPath(workspace.path)})`;
+  return `${workspace.alias} (${shortenHome(workspace.path)})`;
 }
 
 function statusText(ctx: ExtensionContext, workspace: WorkspaceState): string | undefined {
@@ -332,7 +321,7 @@ export default function workspaceSwitcher(pi: ExtensionAPI) {
         ctx.ui.notify(
           activeWorkspace
             ? `Active workspace: ${describeWorkspace(activeWorkspace)}`
-            : `No active workspace; tools use Pi launch cwd: ${shortPath(ctx.cwd)}`,
+            : `No active workspace; tools use Pi launch cwd: ${shortenHome(ctx.cwd)}`,
           "info",
         );
         return;

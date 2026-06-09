@@ -1,19 +1,16 @@
+// DEPRECATION: this extension is slated to be superseded by the lsp-dap-tools/
+// extension once it reaches parity with diagnostics + the cargo-check fallback.
+// Delete this file at that point.
+
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, realpath } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import {
-  DEFAULT_MAX_BYTES,
-  DEFAULT_MAX_LINES,
-  formatSize,
-  truncateHead,
-  withFileMutationQueue,
-} from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { makeTempOutputPath, truncateToFile } from "./lib/output.js";
 
 type Language = "typescript" | "python" | "rust" | "ruby";
 type LanguageParam = "auto" | Language;
@@ -299,26 +296,19 @@ function formatDiagnostics(filePath: string, diagnostics: Diagnostic[]): string 
 }
 
 async function truncateFormattedOutput(details: LspDetails): Promise<string> {
-  const truncation = truncateHead(details.formatted, {
-    maxLines: DEFAULT_MAX_LINES,
-    maxBytes: DEFAULT_MAX_BYTES,
+  const result = await truncateToFile(details.formatted, {
+    direction: "head",
+    label: "LSP diagnostics",
+    outputPath: () => makeTempOutputPath("pi-lsp-", "diagnostics.txt"),
   });
 
-  if (!truncation.truncated) return truncation.content;
-
-  const tempDir = await mkdtemp(join(tmpdir(), "pi-lsp-"));
-  const outputPath = join(tempDir, "diagnostics.txt");
-  await withFileMutationQueue(outputPath, async () =>
-    writeFile(outputPath, details.formatted, "utf8"),
-  );
+  if (!result.truncated) return result.text;
 
   details.truncated = true;
-  details.fullOutputPath = outputPath;
-  details.formatted = truncation.content;
+  details.fullOutputPath = result.fullOutputPath;
+  details.formatted = result.content;
 
-  return `${truncation.content}\n\n[LSP diagnostics truncated: showing ${truncation.outputLines} of ${truncation.totalLines} lines (${formatSize(
-    truncation.outputBytes,
-  )} of ${formatSize(truncation.totalBytes)}). Full output saved to: ${outputPath}]`;
+  return result.text;
 }
 
 class LspServer {
@@ -505,10 +495,10 @@ class LspServer {
       const headerEnd = this.buffer.indexOf("\r\n\r\n");
       if (headerEnd === -1) return;
 
-      const header = this.buffer.slice(0, headerEnd).toString("utf8");
+      const header = this.buffer.subarray(0, headerEnd).toString("utf8");
       const contentLengthMatch = header.match(/Content-Length: (\d+)/i);
       if (!contentLengthMatch) {
-        this.buffer = this.buffer.slice(headerEnd + 4);
+        this.buffer = this.buffer.subarray(headerEnd + 4);
         continue;
       }
 
@@ -517,8 +507,8 @@ class LspServer {
       const messageEnd = messageStart + contentLength;
       if (this.buffer.length < messageEnd) return;
 
-      const body = this.buffer.slice(messageStart, messageEnd).toString("utf8");
-      this.buffer = this.buffer.slice(messageEnd);
+      const body = this.buffer.subarray(messageStart, messageEnd).toString("utf8");
+      this.buffer = this.buffer.subarray(messageEnd);
 
       try {
         this.handleMessage(JSON.parse(body) as JsonRpcMessage);
