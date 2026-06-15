@@ -1,0 +1,167 @@
+imports = ["~/.config/juniper/ricekit-colors.toml"]
+
+config-version = 1
+auto-reload-config = true
+start-at-login = true
+
+[workspace]
+persistent = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+
+[layout]
+default-root-layout = "tiles"
+default-root-orientation = "auto"
+accordion-padding = 30
+normalize-flatten-containers = true
+normalize-opposite-orientation = true
+auto-resize = true
+
+[gaps]
+inner.horizontal = 12
+inner.vertical = 12
+outer.left = 12
+outer.right = 12
+outer.top = 56
+outer.bottom = 12
+
+[decoration]
+enabled = true
+width = 3.0
+padding = 0.0
+style = "native-rounded"
+order = "below"
+hidpi = true
+show-background = false
+sls-event-supplement = true
+
+
+[[window-rule]]
+if.app-name = "System Settings"
+layout = "floating"
+border = true
+
+[[window-rule]]
+if.window-class = "dialog"
+layout = "floating"
+
+[[window-rule]]
+if.app-id = "app.zen-browser.zen"
+if.window-title-regex-substring = "Picture-in-Picture"
+layout = "floating"
+## Initial placement only. Do not use `[[window-rule]] workspace = ...`
+## for these apps; workspace rules are enforced on every refresh and will
+## pull manually-moved windows back to their configured workspace.
+[[on-window-detected]]
+if.app-id = "app.zen-browser.zen"
+run = ["move-node-to-workspace 1"]
+
+[[on-window-detected]]
+if.app-id = "com.github.wez.wezterm"
+run = ["move-node-to-workspace 2"]
+
+[[on-window-detected]]
+if.app-id = "com.tinyspeck.slackmacgap"
+run = ["move-node-to-workspace 3"]
+
+[[on-window-detected]]
+if.app-id = "com.linear"
+run = ["move-node-to-workspace 4"]
+
+[[on-window-detected]]
+if.app-id = "org.jkiss.dbeaver.core.product"
+run = ["move-node-to-workspace 5"]
+
+[[on-window-detected]]
+if.app-id = "dev.kdrag0n.MacVirt"
+run = ["move-node-to-workspace 6"]
+
+[[on-window-detected]]
+if.app-id = "com.apple.MobileSMS"
+run = ["move-node-to-workspace 7"]
+
+[[on-window-detected]]
+if.app-id = "com.anthropic.claudefordesktop"
+run = ["move-node-to-workspace 8"]
+
+[[on-window-detected]]
+if.app-id = "com.spotify.client"
+run = ["move-node-to-workspace 9"]
+
+[mode.main.binding]
+cmd-slash = "layout toggle horizontal-tiles vertical-tiles"
+cmd-comma = "layout toggle horizontal-accordion vertical-accordion"
+
+ctrl-alt-left = "focus left"
+ctrl-alt-down = "focus down"
+ctrl-alt-up = "focus up"
+ctrl-alt-right = "focus right"
+
+ctrl-alt-h = "resize width -50"
+ctrl-alt-j = "resize height +50"
+ctrl-alt-k = "resize height -50"
+ctrl-alt-l = "resize width +50"
+
+cmd-shift-h = "move left"
+cmd-shift-j = "move down"
+cmd-shift-k = "move up"
+cmd-shift-l = "move right"
+cmd-shift-left = "move left"
+cmd-shift-right = "move right"
+
+# Juniper does not yet support relative move-node-to-monitor.
+# Keep the same parking idea by sending right to workspace 10 and left to workspace 1.
+ctrl-cmd-left = "move-node-to-workspace 1"
+ctrl-cmd-right = "move-node-to-workspace 10"
+
+cmd-1 = "workspace 1"
+cmd-2 = "workspace 2"
+cmd-3 = "workspace 3"
+cmd-4 = "workspace 4"
+cmd-5 = "workspace 5"
+cmd-6 = "workspace 6"
+cmd-7 = "workspace 7"
+cmd-8 = "workspace 8"
+cmd-9 = "workspace 9"
+cmd-0 = "workspace 10"
+
+cmd-shift-1 = "move-node-to-workspace 1"
+cmd-shift-2 = "move-node-to-workspace 2"
+cmd-shift-3 = "move-node-to-workspace 3"
+cmd-shift-4 = "move-node-to-workspace 4"
+cmd-shift-5 = "move-node-to-workspace 5"
+cmd-shift-6 = "move-node-to-workspace 6"
+cmd-shift-7 = "move-node-to-workspace 7"
+cmd-shift-8 = "move-node-to-workspace 8"
+cmd-shift-9 = "move-node-to-workspace 9"
+cmd-shift-0 = "move-node-to-workspace 10"
+
+cmd-shift-f = "fullscreen toggle"
+cmd-tab = "workspace back-and-forth"
+
+# Current monitor ids are 2 and 3. This preserves the common "send active
+# workspace to the right monitor" use case from the Aerospace next-monitor binding.
+cmd-shift-tab = "move-workspace-to-monitor 3"
+
+cmd-shift-semicolon = "mode service"
+cmd-r = "mode resize"
+alt-r = "mode resize"
+ctrl-alt-r = "mode resize"
+
+[mode.resize.binding]
+h = "resize width -50"
+j = "resize height +50"
+k = "resize height -50"
+l = "resize width +50"
+minus = "resize width -50"
+equal = "resize width +50"
+enter = "mode main"
+esc = "mode main"
+
+[mode.service.binding]
+esc = "mode main"
+r = "layout horizontal-tiles"
+f = "toggle-floating"
+cmd-shift-h = "join-with left"
+cmd-shift-j = "join-with down"
+cmd-shift-k = "join-with up"
+cmd-shift-l = "join-with right"
+

@@ -1,0 +1,154 @@
+/* RiceKit document theme for agent-generated standalone HTML docs.
+   Prefer inlining this file in <style> for single-file review artifacts.
+   It imports RiceKit's active userstyle variables, so docs pick up the current
+   RiceKit palette after a browser reload whenever `ricekit apply` re-renders it. */
+@import url("./rk-vars.css");
+@import url("file:///Users/brandon/.config/ricekit/active/userstyles/rk-vars.css");
+
+:root {
+  color-scheme: dark;
+  --rk-doc-bg: var(--rk-background, #0f111a);
+  --rk-doc-bg-2: var(--rk-mantle, #151826);
+  --rk-doc-surface: var(--rk-surface, #1a1f2f);
+  --rk-doc-surface-2: var(--rk-surface0, #232a3d);
+  --rk-doc-foreground: var(--rk-foreground, #c0caf5);
+  --rk-doc-muted: var(--rk-muted, #8b93b4);
+  --rk-doc-border: var(--rk-border, #2e3650);
+  --rk-doc-accent: var(--rk-accent, #bb9af7);
+  --rk-doc-accent-2: var(--rk-blue, #7aa2f7);
+  --rk-doc-success: var(--rk-green, #9ece6a);
+  --rk-doc-warning: var(--rk-yellow, #e0af68);
+  --rk-doc-error: var(--rk-red, #f7768e);
+  --rk-doc-info: var(--rk-cyan, #7dcfff);
+  --rk-doc-shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
+  --rk-doc-radius: 18px;
+  --rk-doc-radius-sm: 10px;
+  --rk-doc-font-sans: "Plus Jakarta Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --rk-doc-font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+html { min-height: 100%; background: var(--rk-doc-bg); }
+body {
+  min-height: 100%;
+  margin: 0;
+  color: var(--rk-doc-foreground);
+  font-family: var(--rk-doc-font-sans);
+  line-height: 1.65;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--rk-doc-accent) 22%, transparent), transparent 34rem),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--rk-doc-accent-2) 16%, transparent), transparent 30rem),
+    linear-gradient(135deg, var(--rk-doc-bg), var(--rk-doc-bg-2) 52%, color-mix(in srgb, var(--rk-doc-bg) 86%, #000));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+main, .rk-doc {
+  width: min(1120px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 56px 0 80px;
+}
+
+header, .rk-hero, section, article, .rk-card {
+  border: 1px solid color-mix(in srgb, var(--rk-doc-border) 82%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rk-doc-surface) 92%, transparent), color-mix(in srgb, var(--rk-doc-bg-2) 96%, transparent));
+  border-radius: var(--rk-doc-radius);
+  box-shadow: var(--rk-doc-shadow);
+}
+header, .rk-hero { padding: clamp(28px, 5vw, 56px); margin-bottom: 24px; }
+section, article, .rk-card { padding: clamp(22px, 4vw, 36px); margin: 18px 0; }
+
+h1, h2, h3, h4 { line-height: 1.12; margin: 0 0 0.75em; letter-spacing: -0.03em; }
+h1 { font-size: clamp(2.4rem, 7vw, 5.25rem); }
+h2 { font-size: clamp(1.75rem, 4vw, 3rem); }
+h3 { font-size: clamp(1.25rem, 2.6vw, 1.75rem); }
+p { margin: 0 0 1rem; color: color-mix(in srgb, var(--rk-doc-foreground) 88%, var(--rk-doc-muted)); }
+a { color: var(--rk-doc-info); text-decoration-thickness: 0.08em; text-underline-offset: 0.18em; }
+a:hover { color: var(--rk-doc-accent); }
+strong { color: color-mix(in srgb, var(--rk-doc-foreground) 86%, #fff); }
+small, .muted, .rk-muted { color: var(--rk-doc-muted); }
+
+.rk-eyebrow, .eyebrow {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  color: var(--rk-doc-accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.rk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+.rk-pill, .badge, mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--rk-doc-accent) 40%, var(--rk-doc-border));
+  border-radius: 999px;
+  padding: 0.22rem 0.65rem;
+  color: var(--rk-doc-foreground);
+  background: color-mix(in srgb, var(--rk-doc-accent) 14%, transparent);
+}
+
+ul, ol { padding-left: 1.35rem; }
+li::marker { color: var(--rk-doc-accent); }
+blockquote, .rk-callout {
+  margin: 1.25rem 0;
+  padding: 1rem 1.1rem;
+  border-left: 4px solid var(--rk-doc-accent);
+  border-radius: var(--rk-doc-radius-sm);
+  background: color-mix(in srgb, var(--rk-doc-accent) 12%, var(--rk-doc-surface));
+}
+
+pre, code, kbd, samp { font-family: var(--rk-doc-font-mono); }
+code:not(pre code), kbd {
+  border: 1px solid var(--rk-doc-border);
+  border-radius: 0.4rem;
+  padding: 0.14rem 0.35rem;
+  color: var(--rk-doc-info);
+  background: rgba(0, 0, 0, 0.22);
+}
+pre {
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--rk-doc-border);
+  border-radius: var(--rk-doc-radius-sm);
+  background: color-mix(in srgb, var(--rk-doc-bg) 88%, #000);
+}
+pre code { color: var(--rk-doc-foreground); background: none; border: 0; padding: 0; }
+
+table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: var(--rk-doc-radius-sm); }
+th, td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--rk-doc-border); text-align: left; vertical-align: top; }
+th { color: color-mix(in srgb, var(--rk-doc-foreground) 86%, #fff); background: color-mix(in srgb, var(--rk-doc-accent) 18%, var(--rk-doc-surface)); }
+tr:hover td { background: rgba(255,255,255,0.025); }
+
+hr { border: 0; height: 1px; margin: 2rem 0; background: linear-gradient(90deg, transparent, var(--rk-doc-border), transparent); }
+img, svg, video { max-width: 100%; height: auto; border-radius: var(--rk-doc-radius-sm); }
+
+.status-ok, .success { color: var(--rk-doc-success); }
+.status-warn, .warning { color: var(--rk-doc-warning); }
+.status-error, .error { color: var(--rk-doc-error); }
+.status-info, .info { color: var(--rk-doc-info); }
+
+@media (max-width: 720px) {
+  main, .rk-doc { width: min(100% - 20px, 1120px); padding-block: 24px 48px; }
+  header, .rk-hero, section, article, .rk-card { border-radius: 14px; }
+}
+
+@media print {
+  :root { color-scheme: light; --rk-doc-bg: #ffffff; --rk-doc-bg-2: #ffffff; --rk-doc-surface: #ffffff; --rk-doc-foreground: #111827; --rk-doc-muted: #4b5563; --rk-doc-border: #d1d5db; --rk-doc-shadow: none; }
+  body { background: #fff; }
+  body::before { display: none; }
+  main, .rk-doc { width: auto; padding: 0; }
+  header, .rk-hero, section, article, .rk-card { box-shadow: none; break-inside: avoid; }
+}

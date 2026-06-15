@@ -38,7 +38,6 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "claude-opus-4-7",
   "hooks": {
     "PreToolUse": [
       {
@@ -99,7 +98,8 @@
     "linear@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,
     "worktrunk@worktrunk": true,
-    "ruby-lsp@claude-plugins-official": true
+    "ruby-lsp@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "worktrunk": {

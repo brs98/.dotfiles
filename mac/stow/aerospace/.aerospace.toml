@@ -13,7 +13,8 @@ after-login-command = []
 # 'after-startup-command' is run after 'after-login-command'
 # Available commands : https://nikitabobko.github.io/AeroSpace/commands
 after-startup-command = [
-  'exec-and-forget source ~/.config/aerospace/ricekit-borders.sh'
+  # Disabled: Juniper WM renders its own borders (juniper-borders)
+  # 'exec-and-forget source ~/.config/aerospace/ricekit-borders.sh'
 ]
 
 # Start AeroSpace at login

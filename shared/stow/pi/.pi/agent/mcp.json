@@ -7,10 +7,18 @@
         "CONTEXT7_API_KEY": "$CONTEXT7_API_KEY"
       }
     },
-    "linear": {
+    "linear-fluid": {
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
+    },
+    "linear-personal": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+      "env": {
+        "MCP_REMOTE_CONFIG_DIR": "/Users/brandon/.mcp-auth-linear-personal"
+      }
     }
   }
 }
