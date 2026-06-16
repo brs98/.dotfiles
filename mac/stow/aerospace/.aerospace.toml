@@ -214,38 +214,50 @@ if.app-id = 'app.zen-browser.zen'
 if.window-title-regex-substring = 'Picture-in-Picture'
 run = ['layout floating']
 
+# These initial-assignment rules only fire during AeroSpace's startup window
+# sweep, so already-open apps land on their workspace. Windows you open
+# manually later are left wherever they appear.
 [[on-window-detected]]
+if.during-aerospace-startup = true
 if.app-id = 'app.zen-browser.zen'
 run = "move-node-to-workspace 1"
 
 [[on-window-detected]]
+if.during-aerospace-startup = true
 if.app-id = 'com.github.wez.wezterm'
 run = "move-node-to-workspace 2"
 
 [[on-window-detected]]
+if.during-aerospace-startup = true
 if.app-id = 'com.tinyspeck.slackmacgap'
 run = "move-node-to-workspace 3"
 
 [[on-window-detected]]
+if.during-aerospace-startup = true
 if.app-id = 'com.linear'
 run = "move-node-to-workspace 4"
 
 [[on-window-detected]]
+if.during-aerospace-startup = true
 if.app-id = 'org.jkiss.dbeaver.core.product'
 run = "move-node-to-workspace 5"
 
 [[on-window-detected]]
+if.during-aerospace-startup = true
 if.app-id = 'dev.kdrag0n.MacVirt'
 run = "move-node-to-workspace 6"
 
 [[on-window-detected]]
+if.during-aerospace-startup = true
 if.app-id = 'com.apple.MobileSMS'
 run = "move-node-to-workspace 7"
 
 [[on-window-detected]]
+if.during-aerospace-startup = true
 if.app-id = 'com.anthropic.claudefordesktop'
 run = "move-node-to-workspace 8"
 
 [[on-window-detected]]
+if.during-aerospace-startup = true
 if.app-id = 'com.spotify.client'
 run = "move-node-to-workspace 9"
