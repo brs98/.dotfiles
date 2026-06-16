@@ -1,4 +1,4 @@
-# Optional theme — ricekit on macOS, omarchy on Linux
+# Optional theme — ricekit on macOS, omarchy on Linux (last loaded wins)
 config-file = ?~/.config/ghostty/ricekit-theme
 config-file = ?~/.config/omarchy/current/theme/ghostty.conf
 

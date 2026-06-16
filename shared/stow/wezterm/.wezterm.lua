@@ -6,32 +6,28 @@ local config = wezterm.config_builder()
 
 config.enable_wayland = false
 
--- Ricekit v2 WezTerm integration
+-- Ricekit v2 WezTerm integration (macOS only, pcall guards for Linux)
 local ricekit_colors = wezterm.home_dir .. "/.config/ricekit/active/wezterm/ricekit-colors.lua"
-config.colors = dofile(ricekit_colors)
-
 wezterm.add_to_config_reload_watch_list(ricekit_colors)
 
 -- Watch AeroSpace state file for fullscreen and opacity toggles
 local wezterm_state_file = wezterm.home_dir .. "/.config/aerospace/wezterm-fullscreen-state.lua"
 wezterm.add_to_config_reload_watch_list(wezterm_state_file)
+
 local ok, colors = pcall(dofile, ricekit_colors)
 if ok and colors then
 	config.colors = colors
-end
 
-if config.colors then
 	-- Fix tab bar contrast (Ricekit's tab_bar colors have poor contrast)
-	-- Use ANSI colors from Ricekit theme for better visibility
 	config.colors.tab_bar = {
 		background = "transparent",
 		active_tab = {
 			bg_color = "transparent",
-			fg_color = config.colors.ansi[7], -- Light gray
+			fg_color = config.colors.ansi[7],
 		},
 		inactive_tab = {
 			bg_color = "transparent",
-			fg_color = config.colors.ansi[8], -- Brighter for inactive
+			fg_color = config.colors.ansi[8],
 		},
 		inactive_tab_hover = {
 			bg_color = config.colors.selection_bg,
@@ -47,13 +43,14 @@ if config.colors then
 		},
 	}
 
-	-- Pane borders: match jankyborders active color and dim inactive panes
-	config.colors.split = config.colors.ansi[5] -- Same accent as jankyborders active_color
-	config.inactive_pane_hsb = {
-		saturation = 0.7,
-		brightness = 0.5,
-	}
+	config.colors.split = config.colors.ansi[5]
 end
+
+-- Dim inactive panes (useful with or without ricekit)
+config.inactive_pane_hsb = {
+	saturation = 0.7,
+	brightness = 0.5,
+}
 
 config.use_fancy_tab_bar = false
 config.tab_bar_at_bottom = true

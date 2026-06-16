@@ -140,7 +140,16 @@ make_scripts_executable
 # Stow all shared configs
 echo "  → Stowing shared configs..."
 if [ -d "shared/stow" ]; then
-    (cd shared/stow && stow -t ~ *)
+    # claude needs --no-folding so skills.sh can add symlinks into ~/.claude/skills/
+    # alongside its own (e.g. from `npx skills add`)
+    (cd shared/stow && for pkg in */; do
+        pkg="${pkg%/}"
+        if [ "$pkg" = "claude" ]; then
+            stow -t ~ --no-folding "$pkg"
+        else
+            stow -t ~ "$pkg"
+        fi
+    done)
 fi
 
 # Stow platform-specific configs
@@ -155,7 +164,8 @@ else
         (cd linux/stow && stow -t ~ *)
     fi
 
-    # Link nvim theme — prefer devx-custom override, fall back to omarchy default
+    # Link nvim theme — Linux only (macOS uses ricekit's colors/ricekit.lua symlink instead)
+    # Prefer devx-custom override, fall back to omarchy default
     CURRENT_THEME=$(cat "$HOME/.config/omarchy/current/theme.name" 2>/dev/null)
     DEVX_OVERRIDE="$HOME/.config/devx-custom/themes/$CURRENT_THEME/neovim.lua"
     if [ -n "$CURRENT_THEME" ] && [ -f "$DEVX_OVERRIDE" ]; then
