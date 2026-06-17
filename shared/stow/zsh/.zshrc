@@ -125,6 +125,19 @@ if command -v wt &> /dev/null; then
   eval "$(command wt config shell init zsh)"
 fi
 
+# Agent skills: wrap the `npx skills` CLI so any add/update/remove/sync is
+# immediately reconciled into the dotfiles repo (skills-sync), keeping authored
+# and cloned skills tracked and in lockstep with the universal pool.
+skills() {
+  command npx -y skills "$@"
+  local rc=$?
+  case "${1:-}" in
+    add|update|remove|uninstall|install|sync)
+      command -v skills-sync >/dev/null 2>&1 && skills-sync --quiet || true ;;
+  esac
+  return $rc
+}
+
 # Platform overrides (stowed from mac/ or linux/)
 [[ -f ~/.config/zsh/platform.zsh ]] && source ~/.config/zsh/platform.zsh
 

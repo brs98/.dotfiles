@@ -182,8 +182,37 @@ install_dotfile_skills() {
         echo "    ⚠ npx skills add failed; resolve collisions manually with: npx skills add $PWD --skill '*' -g"
 }
 
+# Install the pre-commit hook (claims the unused pre-commit slot; peb keeps
+# post-commit/post-merge) and reconcile the pool so every cloned/authored skill
+# is tracked in the repo and linked into ~/.agents/skills.
+setup_skill_sync() {
+    echo "  → Wiring skills-sync (drift guard)..."
+
+    local hook=".git/hooks/pre-commit"
+    if [ -d ".git" ]; then
+        if [ -e "$hook" ] && [ ! -L "$hook" ]; then
+            mv "$hook" "$hook.bak.$(date +%s)"
+            echo "    ⚠ Backed up existing pre-commit hook"
+        fi
+        ln -sfn "$PWD/shared/git-hooks/pre-commit" "$hook"
+        echo "    ✓ Installed pre-commit hook"
+    fi
+
+    # Fresh machine: seed the live lockfile from the tracked copy before reconcile.
+    if [ -f "skills/.skill-lock.json" ] && [ ! -f "$HOME/.agents/.skill-lock.json" ]; then
+        mkdir -p "$HOME/.agents"
+        cp "skills/.skill-lock.json" "$HOME/.agents/.skill-lock.json"
+    fi
+
+    if [ -x "shared/stow/scripts/.local/bin/skills-sync" ]; then
+        DOTFILES="$PWD" shared/stow/scripts/.local/bin/skills-sync sync || \
+            echo "    ⚠ skills-sync reconcile reported issues"
+    fi
+}
+
 setup_skills_link
 install_dotfile_skills
+setup_skill_sync
 
 # Stow platform-specific configs
 if [[ "$OSTYPE" == "darwin"* ]]; then

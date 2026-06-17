@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+#
+# dotfiles pre-commit — guarantee the skill tree is in sync before every commit.
+#
+# Installed into .git/hooks/pre-commit by install.sh (chained-safe: peb owns
+# post-commit/post-merge, this only claims the unused pre-commit slot).
+#
+# Reconciles the universal pool (~/.agents/skills) against the repo, then stages
+# skills/ so the commit always captures a consistent, drift-free skill tree.
+# It never blocks a commit; it fixes drift and tells you what it changed.
+
+# Resolve skills-sync: prefer PATH (stowed to ~/.local/bin), fall back to repo.
+if command -v skills-sync >/dev/null 2>&1; then
+    SKILLS_SYNC="$(command -v skills-sync)"
+else
+    repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+    SKILLS_SYNC="$repo_root/shared/stow/scripts/.local/bin/skills-sync"
+fi
+
+[ -x "$SKILLS_SYNC" ] || exit 0   # nothing to enforce if the engine is missing
+
+before="$(git diff --cached --name-only -- skills 2>/dev/null)"
+"$SKILLS_SYNC" --stage || true
+after="$(git diff --cached --name-only -- skills 2>/dev/null)"
+
+if [ "$before" != "$after" ]; then
+    echo "→ skills-sync reconciled the skill tree and staged skills/ for this commit." >&2
+fi
+exit 0

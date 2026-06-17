@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+#
+# skills-sync — keep every agent skill tracked in the dotfiles repo and linked
+# into the universal pool (~/.agents/skills), so authored and cloned skills
+# never drift apart.
+#
+# Model (single invariant):
+#   - The dotfiles repo (skills/) is the ONE physical home for every skill folder.
+#   - The pool (~/.agents/skills) only ever holds symlinks back into the repo,
+#     plus whitelisted external symlinks (e.g. app-bundled skills).
+#   - ~/.agents/.skill-lock.json (provenance for cloned skills) is COPIED into the
+#     repo on each sync so clones stay reproducible/updatable.
+#
+# Commands:
+#   sync     (default) adopt + link + prune + lockfile copy
+#   check    report drift, exit 1 if any (no mutations) — used by pre-commit/CI
+#   adopt    move real (untracked) dirs from the pool into the repo + symlink back
+#   link     create pool symlinks for repo skills missing from the pool
+#   prune    remove dangling pool symlinks that pointed into the repo
+#   status   human-readable summary of the current state
+#
+# Options:
+#   --stage  after mutating, `git add` the repo skills tree + lockfile
+#   --quiet  suppress per-item output (errors/summaries still print)
+#
+# Env:
+#   DOTFILES  repo root (default: ~/.dotfiles)
+
+set -euo pipefail
+
+DOTFILES="${DOTFILES:-$HOME/.dotfiles}"
+REPO_SKILLS="$DOTFILES/skills"
+POOL="$HOME/.agents/skills"
+LOCK_LIVE="$HOME/.agents/.skill-lock.json"
+LOCK_REPO="$REPO_SKILLS/.skill-lock.json"
+
+QUIET=0
+STAGE=0
+CMD=""
+
+for arg in "$@"; do
+    case "$arg" in
+        --quiet) QUIET=1 ;;
+        --stage) STAGE=1 ;;
+        sync|check|adopt|link|prune|status) CMD="$arg" ;;
+        -h|--help)
+            sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+            exit 0 ;;
+        *) echo "skills-sync: unknown argument '$arg'" >&2; exit 2 ;;
+    esac
+done
+CMD="${CMD:-sync}"
+
+say()  { [ "$QUIET" -eq 1 ] || echo "$@"; }
+warn() { echo "⚠ $*" >&2; }
+
+# Tracks whether check-mode found drift (exit code) and whether we mutated.
+DRIFT=0
+CHANGED=0
+
+# Is $1 a symlink whose target lives inside the repo skills dir?
+links_into_repo() {
+    local link="$1" tgt
+    [ -L "$link" ] || return 1
+    tgt="$(readlink "$link")"
+    case "$tgt" in
+        "$REPO_SKILLS"/*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# A skill's pool identity is its frontmatter `name:` (that is how `npx skills`
+# names the pool entry), falling back to the folder name.
+skill_name() {
+    local md="$1/SKILL.md" n
+    n="$(sed -n 's/^name:[[:space:]]*//p' "$md" 2>/dev/null | head -1 | tr -d '"'\''[:space:]')"
+    [ -n "$n" ] && echo "$n" || basename "$1"
+}
+
+# Does any pool entry already symlink to $1 (an absolute repo skill path)?
+pool_links_into() {
+    local target="$1" e
+    for e in "$POOL"/*; do
+        [ -L "$e" ] || continue
+        [ "$(readlink "$e")" = "$target" ] && return 0
+    done
+    return 1
+}
+
+ensure_dirs() {
+    mkdir -p "$REPO_SKILLS" "$POOL"
+}
+
+# ── adopt ────────────────────────────────────────────────────────────────────
+# Any real directory in the pool is an untracked clone (or a plugin-installed
+# skill). Move it into the repo (repo copy is replaced so `skills update` wins),
+# then replace the pool entry with a symlink into the repo.
+adopt() {
+    local entry name
+    for entry in "$POOL"/*; do
+        [ -e "$entry" ] || continue          # empty-glob guard
+        name="$(basename "$entry")"
+        [ -L "$entry" ] && continue           # symlinks handled elsewhere
+        [ -d "$entry" ] || continue           # only adopt directories
+        if [ "$CMD" = "check" ]; then
+            say "  drift: untracked skill in pool → $name"
+            DRIFT=1; continue
+        fi
+        say "  adopt: $name (pool → repo)"
+        local tmp="$REPO_SKILLS/.adopt-tmp.$name.$$"
+        rm -rf "$tmp"
+        mv "$entry" "$tmp"                     # pull clone out of the pool
+        rm -rf "$REPO_SKILLS/$name"            # newest copy (e.g. an update) wins
+        mv "$tmp" "$REPO_SKILLS/$name"
+        ln -sfn "$REPO_SKILLS/$name" "$entry"  # re-link pool → repo
+        CHANGED=1
+    done
+}
+
+# ── link ─────────────────────────────────────────────────────────────────────
+# Every repo skill must be reachable from the pool via a symlink named after the
+# skill's frontmatter `name:` (matching `npx skills`' own convention).
+link() {
+    local dir folder target name linkpath
+    for dir in "$REPO_SKILLS"/*/; do
+        [ -d "$dir" ] || continue
+        folder="$(basename "$dir")"
+        [ -f "$dir/SKILL.md" ] || continue          # only real skills
+        target="$REPO_SKILLS/$folder"
+        pool_links_into "$target" && continue        # already linked (any alias)
+        name="$(skill_name "$dir")"
+        linkpath="$POOL/$name"
+        # An entry already occupies this name but points elsewhere → name clash
+        # (e.g. a duplicate skill). Never overwrite; surface it for a human.
+        if [ -e "$linkpath" ] || [ -L "$linkpath" ]; then
+            warn "name collision: '$name' (repo/$folder) — pool entry already exists; not linking. Resolve the duplicate."
+            [ "$CMD" = "check" ] && DRIFT=1
+            continue
+        fi
+        if [ "$CMD" = "check" ]; then
+            say "  drift: repo skill not linked into pool → $name (repo/$folder)"
+            DRIFT=1; continue
+        fi
+        say "  link:  $name (repo/$folder → pool)"
+        ln -sfn "$target" "$linkpath"
+        CHANGED=1
+    done
+}
+
+# ── prune ──────────────────────────────────────────────────────────────────--
+# Remove pool symlinks that pointed into the repo but whose target is gone
+# (a deleted repo skill). External symlinks (e.g. app bundles) are left alone.
+prune() {
+    local entry name tgt
+    for entry in "$POOL"/*; do
+        [ -L "$entry" ] || continue
+        name="$(basename "$entry")"
+        [ -e "$entry" ] && continue            # target exists → fine
+        tgt="$(readlink "$entry")"
+        case "$tgt" in
+            "$REPO_SKILLS"/*)
+                if [ "$CMD" = "check" ]; then
+                    say "  drift: dangling repo symlink in pool → $name"
+                    DRIFT=1; continue
+                fi
+                say "  prune: $name (dangling repo symlink)"
+                rm -f "$entry"; CHANGED=1 ;;
+            *)
+                warn "dangling external symlink left in place: $name → $tgt" ;;
+        esac
+    done
+}
+
+# ── lockfile ───────────────────────────────────────────────────────────────--
+# Copy the live provenance lockfile into the repo (the live file is rewritten by
+# `npx skills`, so we copy rather than symlink to survive atomic replacement).
+sync_lockfile() {
+    [ -f "$LOCK_LIVE" ] || return 0
+    if [ ! -f "$LOCK_REPO" ] || ! cmp -s "$LOCK_LIVE" "$LOCK_REPO"; then
+        if [ "$CMD" = "check" ]; then
+            say "  drift: .skill-lock.json differs from repo copy"
+            DRIFT=1; return 0
+        fi
+        say "  lock:  copied .skill-lock.json → repo"
+        cp "$LOCK_LIVE" "$LOCK_REPO"; CHANGED=1
+    fi
+}
+
+stage_repo() {
+    [ "$STAGE" -eq 1 ] || return 0
+    [ "$CHANGED" -eq 1 ] || return 0
+    git -C "$DOTFILES" add -- skills >/dev/null 2>&1 || \
+        warn "could not stage skills/ (is $DOTFILES a git repo?)"
+}
+
+status() {
+    local linked=0 external=0 real=0 dangling=0 entry tgt
+    for entry in "$POOL"/*; do
+        [ -e "$entry" ] || [ -L "$entry" ] || continue
+        if links_into_repo "$entry"; then linked=$((linked+1))
+        elif [ -L "$entry" ] && [ ! -e "$entry" ]; then dangling=$((dangling+1))
+        elif [ -L "$entry" ]; then external=$((external+1))
+        elif [ -d "$entry" ]; then real=$((real+1)); fi
+    done
+    local tracked
+    tracked="$(find "$REPO_SKILLS" -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | wc -l | tr -d ' ')"
+    echo "skills-sync status"
+    echo "  repo:            $DOTFILES/skills  ($tracked tracked skills)"
+    echo "  pool:            $POOL"
+    echo "  linked (repo):   $linked"
+    echo "  external links:  $external"
+    echo "  untracked dirs:  $real"
+    echo "  dangling links:  $dangling"
+    [ -f "$LOCK_REPO" ] && echo "  lockfile:        tracked" || echo "  lockfile:        NOT in repo"
+}
+
+main() {
+    ensure_dirs
+    case "$CMD" in
+        status) status ;;
+        adopt)  adopt; stage_repo ;;
+        link)   link;  stage_repo ;;
+        prune)  prune; stage_repo ;;
+        check)
+            adopt; link; prune; sync_lockfile
+            if [ "$DRIFT" -eq 1 ]; then
+                echo "skills-sync: drift detected — run 'skills-sync' to reconcile." >&2
+                exit 1
+            fi
+            say "skills-sync: in sync ✓" ;;
+        sync)
+            adopt; link; prune; sync_lockfile; stage_repo
+            if [ "$CHANGED" -eq 1 ]; then say "skills-sync: reconciled ✓"
+            else say "skills-sync: already in sync ✓"; fi ;;
+    esac
+}
+
+main
