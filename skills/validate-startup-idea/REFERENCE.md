@@ -16,7 +16,7 @@ Rate each 0–5 from the conversation; demand evidence, not self-belief. Weights
 | Willingness to pay | `willingness_to_pay` | 3 | Already pays (or clearly would) real money to solve it | Hormozi purchasing power · Seibel willing-to-pay · YC "charge early" |
 | Reachability | `reachability` | 2 | Easy to find/target as a group; a cheap/organic channel exists | Hormozi easy-to-target · Hale acquisition advantage |
 | Unfair advantage / founder-market fit | `unfair_advantage` | 2 | Founder is ~1-in-10 in the world for this; or monopoly dynamics | Hale insight (founder/monopoly) · PG founder-market fit |
-| Differentiation | `differentiation` | 2 | 10x better than the alternative, not 2–3x | Hale product (10x) |
+| Differentiation | `differentiation` | 2 | 10x better than the alternative, not 2–3x — score it with the Value Equation (below) | Hale product (10x) · Hormozi Value Equation |
 | Timing ("why now?") | `timing` | 1 | A real tailwind changed in last ~12mo (tech/cost/regulation/behavior) | YC RFS |
 | Tarpit risk *(reverse)* | `tarpit_risk` | 2 | 5 = severe tarpit (easy praise, many have failed); 0 = not a tarpit | Caldwell/Seibel |
 | Real demand evidence | `demand_evidence` | 3 | Strangers have paid/committed (not opinions/signups) | Mom Test · YC commitment ladder |
@@ -25,6 +25,12 @@ Rate each 0–5 from the conversation; demand evidence, not self-belief. Weights
 - `demand_evidence < 2` → verdict capped at **PIVOT** (you have a hypothesis, not validation — go test it).
 - `tarpit_risk >= 4` → capped at **PIVOT** and flagged.
 - Bands on the weighted % otherwise: **GO ≥ 70%**, **PIVOT 45–70%**, **KILL < 45%**.
+
+**Scoring `differentiation` — the Value Equation (Hormozi).** Don't take "it's better" at face value; decompose it into the four levers that set what anyone will pay:
+
+> **Value = (Dream Outcome × Perceived Likelihood of Achievement) ÷ (Time Delay × Effort & Sacrifice)**
+
+Maximize the top (what they want, and their belief it'll work for *them* — moved by proof/guarantees, not just results); minimize the bottom (how long it takes, how much work/risk it costs them). A true 5 is **categorically different** so direct price comparison fails — not a 2–3x feature edge. Probe each lever: is the dream outcome big and specific? Is perceived likelihood backed by evidence? Is it faster *and* lower-effort than the status quo? A weak score on any single lever caps how compelling the offer can feel. *(Caution: the Value Equation grades offer strength, not real demand — a beautifully-scored offer with `demand_evidence < 2` is still a hypothesis.)*
 
 ---
 
