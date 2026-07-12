@@ -1,0 +1,11 @@
+query TeamStates($teamId: String!, $first: Int = 25, $after: String) {
+  team(id: $teamId) {
+    id
+    key
+    name
+    states(first: $first, after: $after) {
+      nodes { id name type position }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}

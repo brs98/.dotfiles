@@ -1,0 +1,6 @@
+query Users($first: Int = 25, $after: String) {
+  users(first: $first, after: $after) {
+    nodes { id name displayName active }
+    pageInfo { hasNextPage endCursor }
+  }
+}

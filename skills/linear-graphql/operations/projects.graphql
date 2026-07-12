@@ -1,0 +1,6 @@
+query Projects($first: Int = 25, $after: String) {
+  projects(first: $first, after: $after) {
+    nodes { id name slugId state }
+    pageInfo { hasNextPage endCursor }
+  }
+}

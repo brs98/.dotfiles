@@ -1,0 +1,18 @@
+query Issues($first: Int = 20, $after: String, $filter: IssueFilter) {
+  issues(first: $first, after: $after, filter: $filter, orderBy: updatedAt) {
+    nodes {
+      id
+      identifier
+      title
+      priority
+      url
+      updatedAt
+      team { id key name }
+      state { id name type }
+      assignee { id name }
+      project { id name }
+      labels { nodes { id name } }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}

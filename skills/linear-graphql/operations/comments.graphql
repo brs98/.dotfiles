@@ -1,0 +1,17 @@
+query Comments($issueId: String!, $first: Int = 50, $after: String) {
+  issue(id: $issueId) {
+    id
+    identifier
+    comments(first: $first, after: $after) {
+      nodes {
+        id
+        body
+        url
+        createdAt
+        updatedAt
+        user { id name }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}

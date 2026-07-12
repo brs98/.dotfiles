@@ -1,0 +1,11 @@
+query WhoAmI {
+  viewer {
+    id
+    name
+    organization {
+      id
+      name
+      urlKey
+    }
+  }
+}

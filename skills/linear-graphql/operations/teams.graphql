@@ -1,0 +1,6 @@
+query Teams($first: Int = 20, $after: String) {
+  teams(first: $first, after: $after) {
+    nodes { id key name }
+    pageInfo { hasNextPage endCursor }
+  }
+}
