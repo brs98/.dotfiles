@@ -1,5 +1,22 @@
 [theme]
 name = "terminal"
 
+[keys]
+focus_pane_left = ["prefix+h", "ctrl+alt+h"]
+focus_pane_down = ["prefix+j", "ctrl+alt+j"]
+focus_pane_up = ["prefix+k", "ctrl+alt+k"]
+focus_pane_right = ["prefix+l", "ctrl+alt+l"]
+
+previous_tab = ["prefix+p", "ctrl+alt+["]
+next_tab = ["prefix+n", "ctrl+alt+]"]
+new_tab = ["prefix+c", "ctrl+alt+c"]
+switch_tab = ["prefix+1..9", "ctrl+alt+1..9"]
+close_tab = ["prefix+shift+x", "ctrl+alt+shift+x"]
+
+split_vertical = ["prefix+v", "ctrl+alt+d"]
+split_horizontal = ["prefix+minus", "ctrl+alt+shift+d"]
+close_pane = ["prefix+x", "ctrl+alt+x"]
+zoom = ["prefix+z", "ctrl+alt+z"]
+
 [ui]
 agent_panel_sort = "spaces"
