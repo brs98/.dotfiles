@@ -181,6 +181,17 @@ local function route_to_herdr(default_action, herdr_key)
 	end)
 end
 
+local function route_key_to_herdr(default_action, key, mods)
+	return wezterm.action_callback(function(window, pane)
+		if is_herdr(pane) then
+			window:perform_action(act.SendKey({ key = key, mods = mods }), pane)
+			return
+		end
+
+		window:perform_action(default_action, pane)
+	end)
+end
+
 -- WezTerm's file-watcher reload doesn't repaint panes outside the active
 -- workspace; performing ReloadConfiguration after the switch refreshes them.
 local function switch_with_reload(name, spawn)
@@ -440,10 +451,14 @@ config.keys = { -- Create new tab
 	{
 		key = "k",
 		mods = "SUPER",
-		action = act.Multiple({
-			act.ClearScrollback("ScrollbackAndViewport"),
-			act.SendKey({ key = "L", mods = "CTRL" }),
-		}),
+		action = route_key_to_herdr(
+			act.Multiple({
+				act.ClearScrollback("ScrollbackAndViewport"),
+				act.SendKey({ key = "L", mods = "CTRL" }),
+			}),
+			"L",
+			"CTRL"
+		),
 	},
 	{ key = "L", mods = "SHIFT|CTRL", action = act.ShowDebugOverlay },
 	{ key = "P", mods = "SHIFT|CTRL", action = act.ActivateCommandPalette },
