@@ -169,10 +169,11 @@ local function is_herdr(pane)
 end
 
 -- Keep the same physical WezTerm shortcuts while Herdr owns the inner panes.
-local function route_to_herdr(default_action, key, mods)
+-- Raw prefix sequences remain unambiguous with Kitty keyboard reporting off.
+local function route_to_herdr(default_action, herdr_key)
 	return wezterm.action_callback(function(window, pane)
 		if is_herdr(pane) then
-			window:perform_action(act.SendKey({ key = key, mods = mods }), pane)
+			pane:send_text("\x02" .. herdr_key)
 			return
 		end
 
@@ -197,14 +198,19 @@ config.keys = { -- Create new tab
 	{
 		key = "t",
 		mods = "CTRL",
-		action = route_to_herdr(act.SpawnTab("CurrentPaneDomain"), "c", "CTRL|ALT"),
+		action = route_to_herdr(act.SpawnTab("CurrentPaneDomain"), "c"),
+	},
+	{
+		key = "t",
+		mods = "SUPER",
+		action = route_to_herdr(act.SpawnTab("CurrentPaneDomain"), "c"),
 	},
 	{ key = "Enter", mods = "SHIFT", action = wezterm.action({ SendString = "\x1b\r" }) },
 	-- Close tab
 	{
 		key = "w",
 		mods = "CTRL",
-		action = route_to_herdr(act.CloseCurrentTab({ confirm = true }), "x", "CTRL|ALT|SHIFT"),
+		action = route_to_herdr(act.CloseCurrentTab({ confirm = true }), "X"),
 	},
 	-- Move tab to the left
 	{ key = "LeftArrow", mods = "SUPER|CTRL", action = act.MoveTabRelative(-1) },
@@ -374,62 +380,62 @@ config.keys = { -- Create new tab
 
 	{ key = "Enter", mods = "ALT", action = act.ToggleFullScreen },
 
-	{ key = "1", mods = "ALT", action = route_to_herdr(act.ActivateTab(0), "1", "CTRL|ALT") },
-	{ key = "2", mods = "ALT", action = route_to_herdr(act.ActivateTab(1), "2", "CTRL|ALT") },
-	{ key = "3", mods = "ALT", action = route_to_herdr(act.ActivateTab(2), "3", "CTRL|ALT") },
-	{ key = "4", mods = "ALT", action = route_to_herdr(act.ActivateTab(3), "4", "CTRL|ALT") },
-	{ key = "5", mods = "ALT", action = route_to_herdr(act.ActivateTab(4), "5", "CTRL|ALT") },
-	{ key = "6", mods = "ALT", action = route_to_herdr(act.ActivateTab(5), "6", "CTRL|ALT") },
-	{ key = "7", mods = "ALT", action = route_to_herdr(act.ActivateTab(6), "7", "CTRL|ALT") },
-	{ key = "8", mods = "ALT", action = route_to_herdr(act.ActivateTab(7), "8", "CTRL|ALT") },
-	{ key = "9", mods = "ALT", action = route_to_herdr(act.ActivateTab(8), "9", "CTRL|ALT") },
+	{ key = "1", mods = "ALT", action = route_to_herdr(act.ActivateTab(0), "1") },
+	{ key = "2", mods = "ALT", action = route_to_herdr(act.ActivateTab(1), "2") },
+	{ key = "3", mods = "ALT", action = route_to_herdr(act.ActivateTab(2), "3") },
+	{ key = "4", mods = "ALT", action = route_to_herdr(act.ActivateTab(3), "4") },
+	{ key = "5", mods = "ALT", action = route_to_herdr(act.ActivateTab(4), "5") },
+	{ key = "6", mods = "ALT", action = route_to_herdr(act.ActivateTab(5), "6") },
+	{ key = "7", mods = "ALT", action = route_to_herdr(act.ActivateTab(6), "7") },
+	{ key = "8", mods = "ALT", action = route_to_herdr(act.ActivateTab(7), "8") },
+	{ key = "9", mods = "ALT", action = route_to_herdr(act.ActivateTab(8), "9") },
 	{ key = "0", mods = "ALT", action = act.ActivateTab(9) },
 
 	{
 		key = "LeftArrow",
 		mods = "ALT",
-		action = route_to_herdr(navigate_pane_or_tab("Left"), "h", "CTRL|ALT"),
+		action = route_to_herdr(navigate_pane_or_tab("Left"), "h"),
 	},
 	{
 		key = "RightArrow",
 		mods = "ALT",
-		action = route_to_herdr(navigate_pane_or_tab("Right"), "l", "CTRL|ALT"),
+		action = route_to_herdr(navigate_pane_or_tab("Right"), "l"),
 	},
 	{
 		key = "h",
 		mods = "ALT",
-		action = route_to_herdr(navigate_pane_or_tab("Left"), "h", "CTRL|ALT"),
+		action = route_to_herdr(navigate_pane_or_tab("Left"), "h"),
 	},
 	{
 		key = "l",
 		mods = "ALT",
-		action = route_to_herdr(navigate_pane_or_tab("Right"), "l", "CTRL|ALT"),
+		action = route_to_herdr(navigate_pane_or_tab("Right"), "l"),
 	},
 	{
 		key = "DownArrow",
 		mods = "ALT",
-		action = route_to_herdr(act.ActivatePaneDirection("Down"), "j", "CTRL|ALT"),
+		action = route_to_herdr(act.ActivatePaneDirection("Down"), "j"),
 	},
 	{
 		key = "UpArrow",
 		mods = "ALT",
-		action = route_to_herdr(act.ActivatePaneDirection("Up"), "k", "CTRL|ALT"),
+		action = route_to_herdr(act.ActivatePaneDirection("Up"), "k"),
 	},
 
 	{
 		key = "RightArrow",
 		mods = "SUPER|ALT",
-		action = route_to_herdr(act.SplitHorizontal({ domain = "CurrentPaneDomain" }), "d", "CTRL|ALT"),
+		action = route_to_herdr(act.SplitHorizontal({ domain = "CurrentPaneDomain" }), "v"),
 	},
 	{
 		key = "DownArrow",
 		mods = "SUPER|ALT",
-		action = route_to_herdr(act.SplitVertical({ domain = "CurrentPaneDomain" }), "d", "CTRL|ALT|SHIFT"),
+		action = route_to_herdr(act.SplitVertical({ domain = "CurrentPaneDomain" }), "-"),
 	},
 	{
 		key = "x",
 		mods = "SUPER|ALT",
-		action = route_to_herdr(act.CloseCurrentPane({ confirm = true }), "x", "CTRL|ALT"),
+		action = route_to_herdr(act.CloseCurrentPane({ confirm = true }), "x"),
 	},
 	{
 		key = "k",
@@ -449,12 +455,12 @@ config.keys = { -- Create new tab
 	{
 		key = "w",
 		mods = "SUPER",
-		action = route_to_herdr(act.CloseCurrentTab({ confirm = true }), "x", "CTRL|ALT|SHIFT"),
+		action = route_to_herdr(act.CloseCurrentTab({ confirm = true }), "X"),
 	},
 	{
 		key = "Z",
 		mods = "SHIFT|CTRL",
-		action = route_to_herdr(act.TogglePaneZoomState, "z", "CTRL|ALT"),
+		action = route_to_herdr(act.TogglePaneZoomState, "z"),
 	},
 	{ key = "x", mods = "SHIFT|CTRL", action = act.ActivateCopyMode },
 
