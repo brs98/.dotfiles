@@ -311,6 +311,7 @@ export async function runCli({
   stdout = process.stdout,
   stderr = process.stderr,
   fetchImpl = globalThis.fetch,
+  credentialOptions,
 } = {}) {
   try {
     if (lockedProfile && lockedProfilePath) {
@@ -335,7 +336,13 @@ export async function runCli({
       }
     }
 
-    const result = await executeVerifiedOperation({ profile, query, variables, fetchImpl });
+    const result = await executeVerifiedOperation({
+      profile,
+      query,
+      variables,
+      fetchImpl,
+      credentialOptions,
+    });
     const output = options.envelope || forceEnvelope ? result : result.data;
     stdout.write(`${JSON.stringify(output, null, options.pretty ? 2 : 0)}\n`);
     return 0;
