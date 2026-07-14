@@ -1,0 +1,25 @@
+mutation CustomViewUpdate($id: String!, $input: CustomViewUpdateInput!) {
+  customViewUpdate(id: $id, input: $input) {
+    success
+    customView {
+      id
+      name
+      description
+      icon
+      color
+      shared
+      slugId
+      modelName
+      filterData
+      projectFilterData
+      initiativeFilterData
+      feedItemFilterData
+      createdAt
+      updatedAt
+      archivedAt
+      team { id key name }
+      owner { id name }
+      creator { id name }
+    }
+  }
+}

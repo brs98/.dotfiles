@@ -60,4 +60,41 @@ node "$CLI" "$OPS/comment-create.graphql" --variables \
   '{"input":{"issueId":"issue-uuid","body":"Comment body"}}'
 ```
 
+Manage custom views with the shared catalog:
+
+```bash
+node "$CLI" "$OPS/custom-views.graphql" --variables \
+  '{"filter":{"name":{"containsIgnoreCase":"triage"}}}'
+node "$CLI" "$OPS/custom-view.graphql" --variables '{"id":"view-id-or-slug"}'
+node "$CLI" "$OPS/custom-view-create.graphql" --variables \
+  '{"input":{"name":"Triage queue","teamId":"team-uuid","filterData":{"state":{"name":{"eq":"Triage"}}},"shared":true}}'
+node "$CLI" "$OPS/custom-view-update.graphql" --variables \
+  '{"id":"view-id","input":{"name":"Revised view name"}}'
+node "$CLI" "$OPS/custom-view-issues.graphql" --variables \
+  '{"id":"view-id-or-slug","first":25}'
+node "$CLI" "$OPS/custom-view-has-subscribers.graphql" --variables \
+  '{"id":"view-id"}'
+node "$CLI" "$OPS/custom-view-delete.graphql" --variables '{"id":"view-id"}'
+```
+
+Create input shape for the mode-`0600` variables file:
+
+```json
+{
+  "input": {
+    "name": "Triage queue",
+    "teamId": "team-uuid",
+    "filterData": { "state": { "name": { "eq": "Triage" } } },
+    "shared": true
+  }
+}
+```
+
+`custom-views.graphql` excludes views scoped directly to a project or initiative;
+use `custom-view.graphql` with a known UUID or slug for those. Before deletion,
+fetch the view, check subscribers, state the intended deletion, and get explicit
+user confirmation. Follow `pageInfo` for view and issue result pagination.
+Pass `"includeSubTeams":true` to `custom-view-issues.graphql` when the saved
+view intentionally includes issues from sub-teams.
+
 Responses always have the shape `{"workspace": {...}, "data": {...}}`. Require the workspace ID and URL key documented in `SKILL.md` before trusting `data`. Follow pagination cursors and keep requested fields and variables minimal.

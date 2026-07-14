@@ -1,0 +1,6 @@
+mutation CustomViewDelete($id: String!) {
+  customViewDelete(id: $id) {
+    success
+    entityId
+  }
+}

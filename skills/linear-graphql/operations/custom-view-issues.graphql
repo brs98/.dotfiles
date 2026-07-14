@@ -1,0 +1,39 @@
+query CustomViewIssues(
+  $id: String!
+  $first: Int = 50
+  $after: String
+  $filter: IssueFilter
+  $includeSubTeams: Boolean = false
+  $includeArchived: Boolean = false
+  $orderBy: PaginationOrderBy = updatedAt
+) {
+  customView(id: $id) {
+    id
+    name
+    slugId
+    modelName
+    issues(
+      first: $first
+      after: $after
+      filter: $filter
+      includeSubTeams: $includeSubTeams
+      includeArchived: $includeArchived
+      orderBy: $orderBy
+    ) {
+      nodes {
+        id
+        identifier
+        title
+        priority
+        url
+        updatedAt
+        team { id key name }
+        state { id name type }
+        assignee { id name }
+        project { id name }
+        labels { nodes { id name } }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}

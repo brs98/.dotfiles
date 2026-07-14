@@ -14,6 +14,11 @@ The transport requires an explicit profile, verifies the authenticated
 organization before every operation, and then executes one GraphQL document.
 It never reads ambient API-key variables or accepts an endpoint override.
 
+The shared `operations/` catalog covers routine issue, comment, discovery, and
+custom-view work. Prefer a catalog document over authoring GraphQL. For custom
+view deletion, fetch the view and run `custom-view-has-subscribers.graphql`
+before requesting confirmation and running `custom-view-delete.graphql`.
+
 ## Generic Invocation
 
 ```bash

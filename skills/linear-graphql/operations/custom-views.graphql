@@ -1,0 +1,37 @@
+query CustomViews(
+  $first: Int = 25
+  $after: String
+  $filter: CustomViewFilter
+  $includeArchived: Boolean = false
+  $orderBy: PaginationOrderBy = updatedAt
+) {
+  customViews(
+    first: $first
+    after: $after
+    filter: $filter
+    includeArchived: $includeArchived
+    orderBy: $orderBy
+  ) {
+    nodes {
+      id
+      name
+      description
+      icon
+      color
+      shared
+      slugId
+      modelName
+      filterData
+      projectFilterData
+      initiativeFilterData
+      feedItemFilterData
+      createdAt
+      updatedAt
+      archivedAt
+      team { id key name }
+      owner { id name }
+      creator { id name }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}

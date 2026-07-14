@@ -1,0 +1,5 @@
+query CustomViewHasSubscribers($id: String!) {
+  customViewHasSubscribers(id: $id) {
+    hasSubscribers
+  }
+}

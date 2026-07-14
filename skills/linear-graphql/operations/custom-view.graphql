@@ -1,0 +1,22 @@
+query CustomView($id: String!) {
+  customView(id: $id) {
+    id
+    name
+    description
+    icon
+    color
+    shared
+    slugId
+    modelName
+    filterData
+    projectFilterData
+    initiativeFilterData
+    feedItemFilterData
+    createdAt
+    updatedAt
+    archivedAt
+    team { id key name }
+    owner { id name }
+    creator { id name }
+  }
+}
