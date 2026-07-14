@@ -165,7 +165,8 @@ local act = wezterm.action
 local function is_herdr(pane)
 	local process_path = pane:get_foreground_process_name() or ""
 	local process_name = process_path:match("([^/\\]+)$") or process_path
-	return process_name == "herdr" or process_name == "herdr.exe"
+	local pane_title = (pane:get_title() or ""):lower()
+	return process_name == "herdr" or process_name == "herdr.exe" or pane_title == "herdr"
 end
 
 -- Keep the same physical WezTerm shortcuts while Herdr owns the inner panes.
@@ -189,6 +190,36 @@ local function route_key_to_herdr(default_action, key, mods)
 		end
 
 		window:perform_action(default_action, pane)
+	end)
+end
+
+local herdr_cli = wezterm.home_dir .. "/.local/bin/herdr"
+
+local function focus_herdr_index(default_action, kind, index)
+	return wezterm.action_callback(function(window, pane)
+		if not is_herdr(pane) then
+			window:perform_action(default_action, pane)
+			return
+		end
+
+		local ok, stdout, stderr = wezterm.run_child_process({ herdr_cli, kind, "list" })
+		if not ok then
+			wezterm.log_error("Failed to list Herdr " .. kind .. "s: " .. stderr)
+			return
+		end
+
+		local result = wezterm.json_parse(stdout).result
+		local items = kind == "workspace" and result.workspaces or result.agents
+		local item = items[index]
+		if not item then
+			return
+		end
+
+		local target = kind == "workspace" and item.workspace_id or item.terminal_id
+		local focused, _, focus_stderr = wezterm.run_child_process({ herdr_cli, kind, "focus", target })
+		if not focused then
+			wezterm.log_error("Failed to focus Herdr " .. kind .. ": " .. focus_stderr)
+		end
 	end)
 end
 
@@ -391,28 +422,28 @@ config.keys = { -- Create new tab
 
 	{ key = "Enter", mods = "ALT", action = act.ToggleFullScreen },
 
-	{ key = "1", mods = "ALT", action = route_to_herdr(act.ActivateTab(0), "1") },
-	{ key = "2", mods = "ALT", action = route_to_herdr(act.ActivateTab(1), "2") },
-	{ key = "3", mods = "ALT", action = route_to_herdr(act.ActivateTab(2), "3") },
-	{ key = "4", mods = "ALT", action = route_to_herdr(act.ActivateTab(3), "4") },
-	{ key = "5", mods = "ALT", action = route_to_herdr(act.ActivateTab(4), "5") },
-	{ key = "6", mods = "ALT", action = route_to_herdr(act.ActivateTab(5), "6") },
-	{ key = "7", mods = "ALT", action = route_to_herdr(act.ActivateTab(6), "7") },
-	{ key = "8", mods = "ALT", action = route_to_herdr(act.ActivateTab(7), "8") },
-	{ key = "9", mods = "ALT", action = route_to_herdr(act.ActivateTab(8), "9") },
+	{ key = "phys:1", mods = "ALT", action = focus_herdr_index(act.ActivateTab(0), "workspace", 1) },
+	{ key = "phys:2", mods = "ALT", action = focus_herdr_index(act.ActivateTab(1), "workspace", 2) },
+	{ key = "phys:3", mods = "ALT", action = focus_herdr_index(act.ActivateTab(2), "workspace", 3) },
+	{ key = "phys:4", mods = "ALT", action = focus_herdr_index(act.ActivateTab(3), "workspace", 4) },
+	{ key = "phys:5", mods = "ALT", action = focus_herdr_index(act.ActivateTab(4), "workspace", 5) },
+	{ key = "phys:6", mods = "ALT", action = focus_herdr_index(act.ActivateTab(5), "workspace", 6) },
+	{ key = "phys:7", mods = "ALT", action = focus_herdr_index(act.ActivateTab(6), "workspace", 7) },
+	{ key = "phys:8", mods = "ALT", action = focus_herdr_index(act.ActivateTab(7), "workspace", 8) },
+	{ key = "phys:9", mods = "ALT", action = focus_herdr_index(act.ActivateTab(8), "workspace", 9) },
 	{ key = "0", mods = "ALT", action = act.ActivateTab(9) },
 
-	-- Option+number switches Herdr tabs; Command+number switches Herdr
-	-- workspaces while preserving WezTerm's normal tab behavior elsewhere.
-	{ key = "1", mods = "SUPER", action = route_to_herdr(act.ActivateTab(0), "\x1b1") },
-	{ key = "2", mods = "SUPER", action = route_to_herdr(act.ActivateTab(1), "\x1b2") },
-	{ key = "3", mods = "SUPER", action = route_to_herdr(act.ActivateTab(2), "\x1b3") },
-	{ key = "4", mods = "SUPER", action = route_to_herdr(act.ActivateTab(3), "\x1b4") },
-	{ key = "5", mods = "SUPER", action = route_to_herdr(act.ActivateTab(4), "\x1b5") },
-	{ key = "6", mods = "SUPER", action = route_to_herdr(act.ActivateTab(5), "\x1b6") },
-	{ key = "7", mods = "SUPER", action = route_to_herdr(act.ActivateTab(6), "\x1b7") },
-	{ key = "8", mods = "SUPER", action = route_to_herdr(act.ActivateTab(7), "\x1b8") },
-	{ key = "9", mods = "SUPER", action = route_to_herdr(act.ActivateTab(-1), "\x1b9") },
+	-- Option+number switches Herdr workspaces; Command+Option+number focuses
+	-- agents in panel order. Plain Command+number remains available to AeroSpace.
+	{ key = "phys:1", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "1", mods = "SUPER|ALT" }), "agent", 1) },
+	{ key = "phys:2", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "2", mods = "SUPER|ALT" }), "agent", 2) },
+	{ key = "phys:3", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "3", mods = "SUPER|ALT" }), "agent", 3) },
+	{ key = "phys:4", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "4", mods = "SUPER|ALT" }), "agent", 4) },
+	{ key = "phys:5", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "5", mods = "SUPER|ALT" }), "agent", 5) },
+	{ key = "phys:6", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "6", mods = "SUPER|ALT" }), "agent", 6) },
+	{ key = "phys:7", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "7", mods = "SUPER|ALT" }), "agent", 7) },
+	{ key = "phys:8", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "8", mods = "SUPER|ALT" }), "agent", 8) },
+	{ key = "phys:9", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "9", mods = "SUPER|ALT" }), "agent", 9) },
 
 	{
 		key = "LeftArrow",
