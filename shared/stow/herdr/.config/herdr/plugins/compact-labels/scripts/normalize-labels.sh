@@ -6,6 +6,7 @@ herdr_bin=${HERDR_BIN_PATH:-herdr}
 dry_run=${HERDR_COMPACT_LABELS_DRY_RUN:-0}
 state_dir=${HERDR_PLUGIN_STATE_DIR:-"${TMPDIR:-/tmp}/herdr-compact-labels-${USER:-user}"}
 lock_dir="$state_dir/normalize.lock"
+agent_plan="$state_dir/agent-renames.$$"
 
 if ! command -v jq >/dev/null 2>&1; then
 	echo "compact-labels: jq is required" >&2
@@ -16,7 +17,7 @@ mkdir -p "$state_dir"
 if ! mkdir "$lock_dir" 2>/dev/null; then
 	exit 0
 fi
-trap 'rmdir "$lock_dir" 2>/dev/null || true' EXIT HUP INT TERM
+trap 'rm -f "$agent_plan"; rmdir "$lock_dir" 2>/dev/null || true' EXIT HUP INT TERM
 
 # Several lifecycle events can describe one UI operation. Let the first hook
 # wait until the operation settles; concurrent hooks exit on the lock above.
@@ -179,6 +180,7 @@ done
 agents=$("$herdr_bin" agent list)
 agent_count=$(printf '%s\n' "$agents" | jq '.result.agents | length')
 agent_index=1
+: >"$agent_plan"
 
 while [ "$agent_index" -le "$agent_count" ]; do
 	record=$(printf '%s\n' "$agents" | jq -c --argjson index "$((agent_index - 1))" '.result.agents[$index]')
@@ -190,6 +192,32 @@ while [ "$agent_index" -le "$agent_count" ]; do
 	else
 		desired_name="$agent_index"
 	fi
-	rename_agent "$terminal_id" "$current_name" "$desired_name"
+	if [ "$current_name" != "$desired_name" ]; then
+		jq -cn \
+			--arg terminal_id "$terminal_id" \
+			--arg current_name "$current_name" \
+			--arg desired_name "$desired_name" \
+			'{terminal_id: $terminal_id, current_name: $current_name, desired_name: $desired_name}' >>"$agent_plan"
+	fi
 	agent_index=$((agent_index + 1))
 done
+
+if [ "$dry_run" = 1 ]; then
+	while IFS= read -r plan; do
+		terminal_id=$(printf '%s\n' "$plan" | jq -r '.terminal_id')
+		current_name=$(printf '%s\n' "$plan" | jq -r '.current_name')
+		desired_name=$(printf '%s\n' "$plan" | jq -r '.desired_name')
+		rename_agent "$terminal_id" "$current_name" "$desired_name"
+	done <"$agent_plan"
+else
+	while IFS= read -r plan; do
+		terminal_id=$(printf '%s\n' "$plan" | jq -r '.terminal_id')
+		current_name=$(printf '%s\n' "$plan" | jq -r '.current_name')
+		rename_agent "$terminal_id" "$current_name" "herdr-row-tmp-$terminal_id"
+	done <"$agent_plan"
+	while IFS= read -r plan; do
+		terminal_id=$(printf '%s\n' "$plan" | jq -r '.terminal_id')
+		desired_name=$(printf '%s\n' "$plan" | jq -r '.desired_name')
+		rename_agent "$terminal_id" "herdr-row-tmp-$terminal_id" "$desired_name"
+	done <"$agent_plan"
+fi

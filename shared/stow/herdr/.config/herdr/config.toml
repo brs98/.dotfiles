@@ -5,6 +5,9 @@ name = "terminal"
 agent_panel_sort = "spaces"
 show_agent_labels_on_pane_borders = true
 
+[ui.sidebar.agents]
+rows = [["state_icon", "agent"], ["workspace", "tab"]]
+
 [ui.toast]
 delivery = "terminal"
 delay_seconds = 3
