@@ -1,8 +1,8 @@
 id = "brs98.compact-labels"
 name = "Compact Labels"
-version = "0.1.0"
+version = "0.2.0"
 min_herdr_version = "0.7.0"
-description = "Keep workspace and tab labels compact, classified, and jump-key numbered"
+description = "Keep workspace, tab, and agent labels compact and jump-key numbered"
 platforms = ["macos", "linux"]
 
 [[events]]
@@ -43,6 +43,14 @@ command = ["/bin/sh", "scripts/normalize-labels.sh"]
 
 [[events]]
 on = "pane.created"
+command = ["/bin/sh", "scripts/normalize-labels.sh"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["/bin/sh", "scripts/normalize-labels.sh"]
+
+[[events]]
+on = "pane.closed"
 command = ["/bin/sh", "scripts/normalize-labels.sh"]
 
 [[events]]

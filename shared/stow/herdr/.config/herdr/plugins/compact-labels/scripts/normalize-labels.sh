@@ -43,6 +43,12 @@ tab_base() {
 	esac
 }
 
+agent_base() {
+	printf '%s\n' "$1" |
+		sed -E 's/^[[:space:]]*[0-9]+([[:space:]]+|$)//' |
+		trim_and_collapse
+}
+
 directory_class() {
 	case "$1" in
 		"$HOME/work" | "$HOME/work/"*) printf 'W\n' ;;
@@ -112,6 +118,19 @@ rename_tab() {
 	fi
 }
 
+rename_agent() {
+	id=$1
+	current=$2
+	desired=$3
+	[ "$current" = "$desired" ] && return
+
+	if [ "$dry_run" = 1 ]; then
+		printf 'agent %s: %s -> %s\n' "$id" "$current" "$desired"
+	else
+		"$herdr_bin" agent rename "$id" "$desired" >/dev/null
+	fi
+}
+
 workspaces=$("$herdr_bin" workspace list)
 workspace_count=$(printf '%s\n' "$workspaces" | jq '.result.workspaces | length')
 workspace_index=1
@@ -155,4 +174,22 @@ while [ "$workspace_index" -le "$workspace_count" ]; do
 	done
 
 	workspace_index=$((workspace_index + 1))
+done
+
+agents=$("$herdr_bin" agent list)
+agent_count=$(printf '%s\n' "$agents" | jq '.result.agents | length')
+agent_index=1
+
+while [ "$agent_index" -le "$agent_count" ]; do
+	record=$(printf '%s\n' "$agents" | jq -c --argjson index "$((agent_index - 1))" '.result.agents[$index]')
+	terminal_id=$(printf '%s\n' "$record" | jq -r '.terminal_id')
+	current_name=$(printf '%s\n' "$record" | jq -r '.name // ""')
+	base=$(agent_base "$current_name")
+	if [ -n "$base" ]; then
+		desired_name="$agent_index $base"
+	else
+		desired_name="$agent_index"
+	fi
+	rename_agent "$terminal_id" "$current_name" "$desired_name"
+	agent_index=$((agent_index + 1))
 done
