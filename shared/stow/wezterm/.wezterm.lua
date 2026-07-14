@@ -402,18 +402,17 @@ config.keys = { -- Create new tab
 	{ key = "9", mods = "ALT", action = route_to_herdr(act.ActivateTab(8), "9") },
 	{ key = "0", mods = "ALT", action = act.ActivateTab(9) },
 
-	-- Keep Option+number for tabs and use Option+Shift+number for Herdr
-	-- workspaces. Internally send Alt+number after the raw Herdr prefix because
-	-- terminals cannot distinguish shifted digits from punctuation reliably.
-	{ key = "1", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "1", mods = "SHIFT|ALT" }), "\x1b1") },
-	{ key = "2", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "2", mods = "SHIFT|ALT" }), "\x1b2") },
-	{ key = "3", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "3", mods = "SHIFT|ALT" }), "\x1b3") },
-	{ key = "4", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "4", mods = "SHIFT|ALT" }), "\x1b4") },
-	{ key = "5", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "5", mods = "SHIFT|ALT" }), "\x1b5") },
-	{ key = "6", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "6", mods = "SHIFT|ALT" }), "\x1b6") },
-	{ key = "7", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "7", mods = "SHIFT|ALT" }), "\x1b7") },
-	{ key = "8", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "8", mods = "SHIFT|ALT" }), "\x1b8") },
-	{ key = "9", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "9", mods = "SHIFT|ALT" }), "\x1b9") },
+	-- Option+number switches Herdr tabs; Command+number switches Herdr
+	-- workspaces while preserving WezTerm's normal tab behavior elsewhere.
+	{ key = "1", mods = "SUPER", action = route_to_herdr(act.ActivateTab(0), "\x1b1") },
+	{ key = "2", mods = "SUPER", action = route_to_herdr(act.ActivateTab(1), "\x1b2") },
+	{ key = "3", mods = "SUPER", action = route_to_herdr(act.ActivateTab(2), "\x1b3") },
+	{ key = "4", mods = "SUPER", action = route_to_herdr(act.ActivateTab(3), "\x1b4") },
+	{ key = "5", mods = "SUPER", action = route_to_herdr(act.ActivateTab(4), "\x1b5") },
+	{ key = "6", mods = "SUPER", action = route_to_herdr(act.ActivateTab(5), "\x1b6") },
+	{ key = "7", mods = "SUPER", action = route_to_herdr(act.ActivateTab(6), "\x1b7") },
+	{ key = "8", mods = "SUPER", action = route_to_herdr(act.ActivateTab(7), "\x1b8") },
+	{ key = "9", mods = "SUPER", action = route_to_herdr(act.ActivateTab(-1), "\x1b9") },
 
 	{
 		key = "LeftArrow",
