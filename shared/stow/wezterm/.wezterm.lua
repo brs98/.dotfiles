@@ -422,28 +422,28 @@ config.keys = { -- Create new tab
 
 	{ key = "Enter", mods = "ALT", action = act.ToggleFullScreen },
 
-	{ key = "phys:1", mods = "ALT", action = focus_herdr_index(act.ActivateTab(0), "workspace", 1) },
-	{ key = "phys:2", mods = "ALT", action = focus_herdr_index(act.ActivateTab(1), "workspace", 2) },
-	{ key = "phys:3", mods = "ALT", action = focus_herdr_index(act.ActivateTab(2), "workspace", 3) },
-	{ key = "phys:4", mods = "ALT", action = focus_herdr_index(act.ActivateTab(3), "workspace", 4) },
-	{ key = "phys:5", mods = "ALT", action = focus_herdr_index(act.ActivateTab(4), "workspace", 5) },
-	{ key = "phys:6", mods = "ALT", action = focus_herdr_index(act.ActivateTab(5), "workspace", 6) },
-	{ key = "phys:7", mods = "ALT", action = focus_herdr_index(act.ActivateTab(6), "workspace", 7) },
-	{ key = "phys:8", mods = "ALT", action = focus_herdr_index(act.ActivateTab(7), "workspace", 8) },
-	{ key = "phys:9", mods = "ALT", action = focus_herdr_index(act.ActivateTab(8), "workspace", 9) },
+	{ key = "phys:1", mods = "ALT", action = focus_herdr_index(act.ActivateTab(0), "agent", 1) },
+	{ key = "phys:2", mods = "ALT", action = focus_herdr_index(act.ActivateTab(1), "agent", 2) },
+	{ key = "phys:3", mods = "ALT", action = focus_herdr_index(act.ActivateTab(2), "agent", 3) },
+	{ key = "phys:4", mods = "ALT", action = focus_herdr_index(act.ActivateTab(3), "agent", 4) },
+	{ key = "phys:5", mods = "ALT", action = focus_herdr_index(act.ActivateTab(4), "agent", 5) },
+	{ key = "phys:6", mods = "ALT", action = focus_herdr_index(act.ActivateTab(5), "agent", 6) },
+	{ key = "phys:7", mods = "ALT", action = focus_herdr_index(act.ActivateTab(6), "agent", 7) },
+	{ key = "phys:8", mods = "ALT", action = focus_herdr_index(act.ActivateTab(7), "agent", 8) },
+	{ key = "phys:9", mods = "ALT", action = focus_herdr_index(act.ActivateTab(8), "agent", 9) },
 	{ key = "0", mods = "ALT", action = act.ActivateTab(9) },
 
-	-- Option+number switches Herdr workspaces; Command+Option+number focuses
-	-- agents in panel order. Plain Command+number remains available to AeroSpace.
-	{ key = "phys:1", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "1", mods = "SUPER|ALT" }), "agent", 1) },
-	{ key = "phys:2", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "2", mods = "SUPER|ALT" }), "agent", 2) },
-	{ key = "phys:3", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "3", mods = "SUPER|ALT" }), "agent", 3) },
-	{ key = "phys:4", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "4", mods = "SUPER|ALT" }), "agent", 4) },
-	{ key = "phys:5", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "5", mods = "SUPER|ALT" }), "agent", 5) },
-	{ key = "phys:6", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "6", mods = "SUPER|ALT" }), "agent", 6) },
-	{ key = "phys:7", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "7", mods = "SUPER|ALT" }), "agent", 7) },
-	{ key = "phys:8", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "8", mods = "SUPER|ALT" }), "agent", 8) },
-	{ key = "phys:9", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "9", mods = "SUPER|ALT" }), "agent", 9) },
+	-- Option+number focuses Herdr agents; Command+Option+number switches
+	-- workspaces in panel order. Plain Command+number remains available to AeroSpace.
+	{ key = "phys:1", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "1", mods = "SUPER|ALT" }), "workspace", 1) },
+	{ key = "phys:2", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "2", mods = "SUPER|ALT" }), "workspace", 2) },
+	{ key = "phys:3", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "3", mods = "SUPER|ALT" }), "workspace", 3) },
+	{ key = "phys:4", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "4", mods = "SUPER|ALT" }), "workspace", 4) },
+	{ key = "phys:5", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "5", mods = "SUPER|ALT" }), "workspace", 5) },
+	{ key = "phys:6", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "6", mods = "SUPER|ALT" }), "workspace", 6) },
+	{ key = "phys:7", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "7", mods = "SUPER|ALT" }), "workspace", 7) },
+	{ key = "phys:8", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "8", mods = "SUPER|ALT" }), "workspace", 8) },
+	{ key = "phys:9", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "9", mods = "SUPER|ALT" }), "workspace", 9) },
 
 	{
 		key = "LeftArrow",
