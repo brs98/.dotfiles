@@ -403,17 +403,17 @@ config.keys = { -- Create new tab
 	{ key = "0", mods = "ALT", action = act.ActivateTab(9) },
 
 	-- Keep Option+number for tabs and use Option+Shift+number for Herdr
-	-- workspaces. Shifted digit symbols are what the terminal sends after the
-	-- raw Herdr prefix sequence.
-	{ key = "1", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "1", mods = "SHIFT|ALT" }), "!") },
-	{ key = "2", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "2", mods = "SHIFT|ALT" }), "@") },
-	{ key = "3", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "3", mods = "SHIFT|ALT" }), "#") },
-	{ key = "4", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "4", mods = "SHIFT|ALT" }), "$") },
-	{ key = "5", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "5", mods = "SHIFT|ALT" }), "%") },
-	{ key = "6", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "6", mods = "SHIFT|ALT" }), "^") },
-	{ key = "7", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "7", mods = "SHIFT|ALT" }), "&") },
-	{ key = "8", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "8", mods = "SHIFT|ALT" }), "*") },
-	{ key = "9", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "9", mods = "SHIFT|ALT" }), "(") },
+	-- workspaces. Internally send Alt+number after the raw Herdr prefix because
+	-- terminals cannot distinguish shifted digits from punctuation reliably.
+	{ key = "1", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "1", mods = "SHIFT|ALT" }), "\x1b1") },
+	{ key = "2", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "2", mods = "SHIFT|ALT" }), "\x1b2") },
+	{ key = "3", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "3", mods = "SHIFT|ALT" }), "\x1b3") },
+	{ key = "4", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "4", mods = "SHIFT|ALT" }), "\x1b4") },
+	{ key = "5", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "5", mods = "SHIFT|ALT" }), "\x1b5") },
+	{ key = "6", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "6", mods = "SHIFT|ALT" }), "\x1b6") },
+	{ key = "7", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "7", mods = "SHIFT|ALT" }), "\x1b7") },
+	{ key = "8", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "8", mods = "SHIFT|ALT" }), "\x1b8") },
+	{ key = "9", mods = "SHIFT|ALT", action = route_to_herdr(act.SendKey({ key = "9", mods = "SHIFT|ALT" }), "\x1b9") },
 
 	{
 		key = "LeftArrow",

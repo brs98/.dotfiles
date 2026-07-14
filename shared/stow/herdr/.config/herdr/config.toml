@@ -2,7 +2,7 @@
 name = "terminal"
 
 [keys]
-switch_workspace = "prefix+shift+1..9"
+switch_workspace = "prefix+alt+1..9"
 
 [ui]
 agent_panel_sort = "priority"
