@@ -50,14 +50,6 @@ agent_base() {
 		trim_and_collapse
 }
 
-directory_class() {
-	case "$1" in
-		"$HOME/work" | "$HOME/work/"*) printf 'W\n' ;;
-		"$HOME/personal" | "$HOME/personal/"*) printf 'P\n' ;;
-		*) printf '\n' ;;
-	esac
-}
-
 directory_name() {
 	cwd=$1
 	if [ -n "$cwd" ]; then
@@ -146,14 +138,8 @@ while [ "$workspace_index" -le "$workspace_count" ]; do
 	if use_directory_name "$base"; then
 		base=$(directory_name "$cwd")
 	fi
-	class=$(directory_class "$cwd")
-
-	if [ -n "$class" ] && [ -n "$base" ]; then
-		desired_label="$class $base"
-	elif [ -n "$base" ]; then
+	if [ -n "$base" ]; then
 		desired_label="$base"
-	elif [ -n "$class" ]; then
-		desired_label="$class"
 	else
 		desired_label="space"
 	fi
