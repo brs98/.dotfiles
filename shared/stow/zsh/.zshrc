@@ -18,6 +18,7 @@ setopt SHARE_HISTORY
 # Aliases
 alias p="pi"
 alias c="claude --dangerously-skip-permissions"
+alias cx="codex"
 alias cat="bat --theme=base16"
 alias cdc="cd ~/.config/"
 alias cdd="cd ~/.dotfiles/"
