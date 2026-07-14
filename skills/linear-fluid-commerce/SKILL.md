@@ -16,7 +16,7 @@ node "$FLUID_LINEAR/scripts/linear-fluid-commerce-gql.mjs" <query.graphql> [opti
 
 The launcher is pinned in code to Fluid Commerce's organization UUID, URL key, and credential path. Before every requested operation, it verifies both organization identifiers using the same credential. It has no workspace selector and always returns verified workspace metadata.
 
-For Fluid Commerce work, never use the generic transport, raw HTTP or `curl`, a Linear MCP tool, `linear-triage`'s ambient-key transport, or an ambient `LINEAR_API_KEY`. A valid credential for another workspace must fail before the requested query or mutation runs.
+For Fluid Commerce work, never use the generic transport, raw HTTP or `curl`, a Linear MCP tool, or an ambient `LINEAR_API_KEY`. A valid credential for another workspace must fail before the requested query or mutation runs.
 
 ## Workflow
 
