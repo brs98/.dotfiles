@@ -149,11 +149,13 @@ while [ "$workspace_index" -le "$workspace_count" ]; do
 	class=$(directory_class "$cwd")
 
 	if [ -n "$class" ] && [ -n "$base" ]; then
-		desired_label="$workspace_index $class $base"
+		desired_label="$class $base"
 	elif [ -n "$base" ]; then
-		desired_label="$workspace_index $base"
+		desired_label="$base"
+	elif [ -n "$class" ]; then
+		desired_label="$class"
 	else
-		desired_label="$workspace_index"
+		desired_label="space"
 	fi
 	rename_workspace "$workspace_id" "$current_label" "$desired_label"
 

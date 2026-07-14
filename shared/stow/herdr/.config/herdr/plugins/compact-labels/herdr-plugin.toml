@@ -1,8 +1,8 @@
 id = "brs98.compact-labels"
 name = "Compact Labels"
-version = "0.2.1"
+version = "0.2.2"
 min_herdr_version = "0.7.0"
-description = "Keep workspace, tab, and agent labels compact and jump-key numbered"
+description = "Keep workspace labels compact and tabs and agents jump-key numbered"
 platforms = ["macos", "linux"]
 
 [[events]]
