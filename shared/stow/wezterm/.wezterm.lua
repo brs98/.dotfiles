@@ -509,6 +509,13 @@ config.keys = { -- Create new tab
 
 	{ key = "X", mods = "CTRL", action = act.ActivateCopyMode },
 	{ key = "f", mods = "SUPER", action = act.Search("CurrentSelectionOrEmptyString") },
+	{
+		-- Herdr cannot preserve Command while WezTerm's modern keyboard protocols
+		-- are disabled, so use Neovim's equivalent Ctrl+S mapping in Herdr panes.
+		key = "s",
+		mods = "SUPER",
+		action = route_key_to_herdr(act.SendKey({ key = "s", mods = "SUPER" }), "s", "CTRL"),
+	},
 	{ key = "v", mods = "SUPER", action = act.PasteFrom("Clipboard") },
 	{
 		key = "w",
