@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Factory Ticket"
+  short_description: "Draft and validate factory-ready tickets"
+  default_prompt: "Use $write-factory-ticket to turn this request into a factory-ready software ticket."
