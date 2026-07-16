@@ -27,6 +27,7 @@ test("workspace references route custom-view work through the catalog", async ()
   const referenceUrls = [
     new URL("../../linear-devxperience/REFERENCE.md", import.meta.url),
     new URL("../../linear-fluid-commerce/REFERENCE.md", import.meta.url),
+    new URL("../../linear-titanridge/REFERENCE.md", import.meta.url),
   ];
 
   for (const referenceUrl of referenceUrls) {
