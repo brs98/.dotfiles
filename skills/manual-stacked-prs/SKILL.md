@@ -1,26 +1,29 @@
 ---
-name: stacked-prs
-description: Manage stacked PRs — auto-order branches by diff size/overlap, create chained branches, open PRs targeting previous branch, handle merges and cascading rebases. Use when working on a workstream with multiple related PRs that touch overlapping files.
+name: manual-stacked-prs
+description: Manage stacked PRs manually with plain Git and GitHub CLI, including branch ordering, chained PRs, merges, and cascading rebases. Use when GitHub's native gh-stack workflow is unavailable or the user explicitly requests a plain-Git stack.
 ---
 
-# Stacked PRs
+# Manual Stacked PRs
 
 ## Overview
 
-When a workstream has multiple related PRs that touch overlapping files, merging them one-at-a-time into main creates cascading merge conflicts in all remaining PRs. Stacked PRs solve this by chaining branches so each PR builds on the previous one.
+This is the plain-Git fallback for repositories that cannot use GitHub's native `gh-stack` workflow. When a workstream has multiple related PRs that touch overlapping files, merging them one-at-a-time into main creates cascading merge conflicts in all remaining PRs. Manual stacked PRs solve this by chaining branches so each PR builds on the previous one.
 
 **How it works:** Instead of all branches forking from main, each branch is based on the previous one. Each PR targets the branch before it, so GitHub shows only the incremental diff. After a PR merges, the next PR gets retargeted to main. No external tooling required — just plain git.
 
-**Announce at start:** "I'm using the stacked-prs skill to [create/update/rebase] a branch stack."
+**Announce at start:** "I'm using the manual-stacked-prs skill to [create/update/rebase] a plain-Git branch stack."
 
 ### When to use
 
+- GitHub's native Stacked PRs feature is unavailable for the repository
+- The user explicitly requests a plain-Git or manually managed stack
 - Multiple related PRs in the same workstream that touch overlapping files
 - A large change that's easier to review as a series of smaller, ordered diffs
 - Rename/restructure workstreams where each step builds on the previous
 
 ### When NOT to use
 
+- GitHub's native Stacked PRs feature is available and the user has not opted out — use the `gh-stack` skill
 - Independent PRs that don't share files — just merge them separately
 - Single PRs — no stack needed
 
