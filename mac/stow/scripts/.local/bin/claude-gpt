@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+umask 077
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "Claude Code is not installed or is not on PATH." >&2
+  exit 1
+fi
+
+for argument in "$@"; do
+  if [[ "$argument" == "--bare" || "$argument" == --bare=* ]]; then
+    echo "claude-gpt does not support --bare because the gateway uses ANTHROPIC_AUTH_TOKEN." >&2
+    exit 2
+  fi
+done
+
+if [[ -n "${CLIPROXYAPI_HOME:-}" ]]; then
+  config_dir="$CLIPROXYAPI_HOME"
+else
+  config_dir="$HOME/.cli-proxy-api"
+fi
+
+key_file="$config_dir/api-key"
+if [[ ! -r "$key_file" ]]; then
+  echo "CLIProxyAPI client key not found: $key_file" >&2
+  echo "Run setup-cliproxyapi first." >&2
+  exit 1
+fi
+
+api_key="$(<"$key_file")"
+if [[ ! "$api_key" =~ ^[[:xdigit:]]{64}$ ]]; then
+  echo "Invalid CLIProxyAPI client key: $key_file" >&2
+  exit 1
+fi
+
+# Keep native Claude transcripts and settings separate from GPT-backed ones.
+export CLAUDE_CONFIG_DIR="${CLAUDE_GPT_CONFIG_DIR:-$HOME/.claude-gpt}"
+mkdir -p "$CLAUDE_CONFIG_DIR"
+chmod 700 "$CLAUDE_CONFIG_DIR"
+
+# Force this process onto the local gateway even when the calling shell is
+# configured for another Claude provider or a corporate HTTP proxy.
+unset CLAUDE_CODE_USE_BEDROCK
+unset CLAUDE_CODE_USE_VERTEX
+unset CLAUDE_CODE_USE_FOUNDRY
+unset CLAUDE_CODE_USE_MANTLE
+proxy_bypass="127.0.0.1,localhost"
+export NO_PROXY="${NO_PROXY:+$NO_PROXY,}$proxy_bypass"
+export no_proxy="${no_proxy:+$no_proxy,}$proxy_bypass"
+
+# These overrides apply only to the Claude Code process launched here.
+export ANTHROPIC_BASE_URL="http://127.0.0.1:8317"
+export ANTHROPIC_AUTH_TOKEN="$api_key"
+unset ANTHROPIC_API_KEY
+
+export ANTHROPIC_MODEL="${CLAUDE_GPT_MODEL:-gpt-5.6-sol(high)}"
+export ANTHROPIC_DEFAULT_FABLE_MODEL="${CLAUDE_GPT_FABLE_MODEL:-gpt-5.6-sol(high)}"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="${CLAUDE_GPT_OPUS_MODEL:-gpt-5.6-sol(high)}"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="${CLAUDE_GPT_SONNET_MODEL:-gpt-5.6-terra(medium)}"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="${CLAUDE_GPT_HAIKU_MODEL:-gpt-5.6-luna(low)}"
+unset CLAUDE_CODE_SUBAGENT_MODEL
+
+exec claude "$@"
