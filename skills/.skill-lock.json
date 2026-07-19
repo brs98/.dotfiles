@@ -89,10 +89,10 @@
       "sourceType": "github",
       "sourceUrl": "https://github.com/mattpocock/skills.git",
       "skillPath": "skills/engineering/setup-matt-pocock-skills/SKILL.md",
-      "skillFolderHash": "77638955bebe492948244f1338e54ca1a9445c29",
+      "skillFolderHash": "634cf9b010bca5701642aca736dce899822f08f7",
       "pluginName": "mattpocock-skills",
       "installedAt": "2026-04-30T16:49:08.805Z",
-      "updatedAt": "2026-05-13T03:25:46.447Z"
+      "updatedAt": "2026-07-19T08:10:08.736Z"
     },
     "tdd": {
       "source": "mattpocock/skills",
@@ -208,6 +208,36 @@
       "pluginName": "mattpocock-skills",
       "installedAt": "2026-07-19T08:07:16.455Z",
       "updatedAt": "2026-07-19T08:07:16.455Z"
+    },
+    "domain-modeling": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git",
+      "skillPath": "skills/engineering/domain-modeling/SKILL.md",
+      "skillFolderHash": "959e63161ff78b4b1cd553b2c0e09e0c68418e5f",
+      "pluginName": "mattpocock-skills",
+      "installedAt": "2026-07-19T08:10:08.733Z",
+      "updatedAt": "2026-07-19T08:10:08.733Z"
+    },
+    "research": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git",
+      "skillPath": "skills/engineering/research/SKILL.md",
+      "skillFolderHash": "972a34cd8128b7952b7eb279b06715862db906a7",
+      "pluginName": "mattpocock-skills",
+      "installedAt": "2026-07-19T08:10:08.735Z",
+      "updatedAt": "2026-07-19T08:10:08.735Z"
+    },
+    "grilling": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/mattpocock/skills.git",
+      "skillPath": "skills/productivity/grilling/SKILL.md",
+      "skillFolderHash": "10b0db61f9b3869243db8a1a0ee84f862139b94e",
+      "pluginName": "mattpocock-skills",
+      "installedAt": "2026-07-19T08:10:08.737Z",
+      "updatedAt": "2026-07-19T08:10:08.737Z"
     }
   },
   "dismissed": {
