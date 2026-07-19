@@ -36,6 +36,21 @@ Blockers, open PRs, conflict areas, missing routes, and ticket readiness can
 still make a candidate deferred or dropped. Do not equate “gate-labeled” with
 “runnable.” Use `relay ticket check` and `relay plan` for the final decision.
 
+## Wayfinder handoff
+
+When work originates from a Wayfinder map, follow
+`/Users/brandon/personal/relay/docs/agents/wayfinder-relay-handoff.md`.
+
+- Wayfinder maps and decision tickets are never Relay candidates.
+- Use `to-issues` and `write-factory-ticket` to create separate, self-contained
+  delivery tickets from resolved decisions.
+- Treat source links as provenance only; Relay agents cannot read the tracker,
+  so every binding decision and constraint must be copied into the delivery
+  ticket.
+- Publish without the Relay gate. Apply the configured gate only after Relay
+  validation, semantic human review, and an explicit enqueue request.
+- If a decision changes, remove the gate and return affected tickets to shaping.
+
 ## Run and observe
 
 ```bash

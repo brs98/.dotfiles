@@ -9,6 +9,12 @@ Break a plan into independently-grabbable issues using vertical slices (tracer b
 
 The issue tracker and triage label vocabulary should have been provided to you — run `/setup-matt-pocock-skills` if not.
 
+## Relay destinations
+
+When the user explicitly requests a Relay handoff, or the source Wayfinder map
+names Relay as its destination, read and follow [RELAY.md](RELAY.md). Its ticket
+contract and publication rules override the generic defaults below.
+
 ## Process
 
 ### 1. Gather context
