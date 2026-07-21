@@ -6,6 +6,8 @@ export default {
   testPathIgnorePatterns: ["/node_modules/"],
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
+    "^@earendil-works/pi-coding-agent$": "<rootDir>/tests/mocks/pi-coding-agent.ts",
+    "^@earendil-works/pi-tui$": "<rootDir>/tests/mocks/pi-tui.ts",
   },
   transform: {
     "^.+\\.tsx?$": [

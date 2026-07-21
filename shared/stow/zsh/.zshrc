@@ -101,6 +101,15 @@ pi() {
   command pi "${experimental_args[@]}" "${pi_args[@]}"
 }
 
+# Fusion Harness: official Claude Code subscription architect + ChatGPT Codex builder.
+fusion() {
+  pi \
+    --model openai-codex/gpt-5.6-sol \
+    --architect claude-code/claude-fable-5 \
+    --builder openai-codex/gpt-5.6-sol \
+    "$@"
+}
+
 # Conveyor
 conveyor() {
   bun --env-file=/Users/brandon/personal/conveyor/.env \

@@ -19,6 +19,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["*.ts", "lib/**/*.ts", "tests/**/*.ts"],
+  "include": ["*.ts", "lib/**/*.ts", "tests/**/*.ts", "fusion-harness/*.ts"],
   "exclude": [".turbo", "coverage", "node_modules"]
 }
