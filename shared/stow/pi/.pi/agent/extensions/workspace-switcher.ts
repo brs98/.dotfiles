@@ -257,17 +257,10 @@ function mutateToolInputForWorkspace(
     resolveOptionalPathInput(input, workspace);
   }
 
-  // Quality-of-life for common cwd-aware extension tools without making them required.
+  // Quality-of-life for the cwd-aware diagnostics extension without making it required.
   if (event.toolName === "lsp_diagnostics") {
     resolveRequiredPathInput(input, workspace);
     if (typeof input.cwd !== "string") input.cwd = workspace.path;
-  }
-
-  if (
-    (event.toolName === "peb_plan" || event.toolName === "peb_sync_github") &&
-    typeof input.repo !== "string"
-  ) {
-    input.repo = workspace.path;
   }
 }
 
