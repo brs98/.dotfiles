@@ -28,6 +28,7 @@ export interface AgentCallOptions {
   cwd?: string;
   timeoutMs?: number;
   schema?: unknown;
+  isolation?: "worktree";
 }
 
 export interface AgentInvocation {
@@ -266,6 +267,7 @@ function contentHash(prompt: string, options: AgentCallOptions): string {
     tools: options.tools,
     cwd: options.cwd,
     schema: options.schema,
+    isolation: options.isolation,
   };
   return createHash("sha256")
     .update(prompt)

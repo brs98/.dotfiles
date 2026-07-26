@@ -19,6 +19,13 @@ import {
   SessionJournal,
 } from "./journal.js";
 import { renderWorkflowCall } from "./ui.js";
+import {
+  createAgentWorkspace,
+  harvestAgentWorkspace,
+  repoToplevel,
+  sanitizeWorkspaceName,
+  type AgentWorkspace,
+} from "./worktree.js";
 
 const MAX_RESULT_CHARS = 40_000;
 const PROGRESS_UPDATE_INTERVAL_MS = 150;
@@ -154,7 +161,8 @@ export default function workflow(pi: ExtensionAPI) {
       "Execute a JavaScript workflow script that orchestrates multiple subagents deterministically (fan-out, barriers, per-item pipelines) while keeping the main context clean.",
       "",
       "The script MUST begin with `export const meta = { name, description, phases?: [{ title, detail? }] }` as a pure literal. The body runs in an async context (top-level await and return are allowed) with these injected globals:",
-      "- agent(prompt, opts?): Promise<string|object> — spawn one isolated subagent. opts: { label?, phase?, model?, role?, tools?, cwd?, timeoutMs?, schema? }. Always OMIT model unless the user asked for a specific one — spawned agents inherit the session default. role is optional persona/operating instructions. With schema (a JSON Schema object), the reply is parsed and validated, and agent() returns the object.",
+      "- agent(prompt, opts?): Promise<string|object> — spawn one isolated subagent. opts: { label?, phase?, model?, role?, tools?, cwd?, timeoutMs?, schema?, isolation? }. Always OMIT model unless the user asked for a specific one — spawned agents inherit the session default. role is optional persona/operating instructions. With schema (a JSON Schema object), the reply is parsed and validated, and agent() returns the object.",
+      "- isolation: 'worktree' runs that agent in a fresh isolated copy of the git repo containing its cwd — use whenever agents MUTATE files in parallel, so they cannot conflict. Unchanged copies are auto-deleted; changed ones are kept and their diff is exported as a git patch (paths reported in the result). File changes land in the isolated copy, NOT the main checkout.",
       "- parallel(thunks): Promise<any[]> — run [() => agent(...), ...] concurrently and await all; a failed thunk resolves to null (filter with .filter(Boolean)).",
       "- pipeline(items, ...stages): Promise<any[]> — run each item through the stages independently with NO barrier between stages. Each stage receives (prevResult, originalItem, index); a throwing stage drops that item to null. Prefer this over parallel-per-stage for multi-stage work.",
       "- phase(title): group subsequent agents in the progress display. log(message): emit a progress note. args: the `args` input, verbatim.",
@@ -214,30 +222,80 @@ export default function workflow(pi: ExtensionAPI) {
         : undefined;
       const journal = new SessionJournal(runId, appendEntry, previousRecords);
 
+      const keptWorktrees: { label: string; path: string; patch: string }[] = [];
+
       const runner: AgentRunner = async (invocation, runnerSignal) => {
         agentsSpawned += 1;
-        const details = await runSubagent({
-          task: invocation.prompt,
-          cwd: invocation.options.cwd ? resolve(ctx.cwd, invocation.options.cwd) : ctx.cwd,
-          model: invocation.options.model ?? params.model,
-          role: invocation.options.role,
-          tools: invocation.options.tools,
-          timeoutMs: invocation.options.timeoutMs ?? params.agentTimeoutMs ?? DEFAULT_TIMEOUT_MS,
-          signal: runnerSignal,
-        });
-        usage.input += details.usage.input;
-        usage.output += details.usage.output;
-        usage.cacheRead += details.usage.cacheRead;
-        usage.cacheWrite += details.usage.cacheWrite;
-        usage.cost += details.usage.cost;
-        usage.turns += details.usage.turns;
-        if (details.exitCode !== 0) {
-          const reason = (details.stderr || details.finalOutput || "no output").slice(0, 2_000);
-          throw new Error(
-            `subagent "${invocation.label}" failed (exit ${details.exitCode}): ${reason}`,
+        const requestedCwd = invocation.options.cwd
+          ? resolve(ctx.cwd, invocation.options.cwd)
+          : ctx.cwd;
+
+        let workspace: AgentWorkspace | undefined;
+        let task = invocation.prompt;
+        if (invocation.options.isolation === "worktree") {
+          const baseRepo = await repoToplevel(requestedCwd);
+          workspace = await createAgentWorkspace(
+            baseRepo,
+            sanitizeWorkspaceName(`${runId}-a${agentsSpawned}-${invocation.label}`),
           );
+          task =
+            `You are working in an isolated copy of the repository, located at ${workspace.path} ` +
+            `(your working directory). Work ONLY inside this directory using relative paths; ` +
+            `never modify the original checkout at ${baseRepo}.\n\n${invocation.prompt}`;
         }
-        return { output: details.finalOutput, usage: details.usage };
+
+        try {
+          const details = await runSubagent({
+            task,
+            cwd: workspace?.path ?? requestedCwd,
+            model: invocation.options.model ?? params.model,
+            role: invocation.options.role,
+            tools: invocation.options.tools,
+            timeoutMs: invocation.options.timeoutMs ?? params.agentTimeoutMs ?? DEFAULT_TIMEOUT_MS,
+            signal: runnerSignal,
+          });
+          usage.input += details.usage.input;
+          usage.output += details.usage.output;
+          usage.cacheRead += details.usage.cacheRead;
+          usage.cacheWrite += details.usage.cacheWrite;
+          usage.cost += details.usage.cost;
+          usage.turns += details.usage.turns;
+          if (details.exitCode !== 0) {
+            const reason = (details.stderr || details.finalOutput || "no output").slice(0, 2_000);
+            throw new Error(
+              `subagent "${invocation.label}" failed (exit ${details.exitCode}): ${reason}`,
+            );
+          }
+          let output = details.finalOutput;
+          if (workspace) {
+            const harvest = await harvestAgentWorkspace(workspace);
+            workspace = undefined;
+            if (harvest.changed && harvest.workspacePath && harvest.patchPath) {
+              keptWorktrees.push({
+                label: invocation.label,
+                path: harvest.workspacePath,
+                patch: harvest.patchPath,
+              });
+              output += `\n\n[${harvest.note}]`;
+            }
+          }
+          return { output, usage: details.usage };
+        } finally {
+          if (workspace) {
+            // Failure path: still harvest so partial changes are kept as evidence.
+            await harvestAgentWorkspace(workspace)
+              .then((harvest) => {
+                if (harvest.changed && harvest.workspacePath && harvest.patchPath) {
+                  keptWorktrees.push({
+                    label: invocation.label,
+                    path: harvest.workspacePath,
+                    patch: harvest.patchPath,
+                  });
+                }
+              })
+              .catch(() => {});
+          }
+        }
       };
 
       let name: string | undefined;
@@ -294,6 +352,12 @@ export default function workflow(pi: ExtensionAPI) {
             ? [
                 "Agent errors (their results are null/missing — treat the result below as incomplete):",
                 ...errorLines,
+              ]
+            : []),
+          ...(keptWorktrees.length > 0
+            ? [
+                "Isolated worktrees with changes (apply patches to land them):",
+                ...keptWorktrees.map((w) => `  ✎ ${w.label}: git apply ${w.patch}`),
               ]
             : []),
           "",
