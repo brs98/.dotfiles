@@ -60,6 +60,13 @@ fi
 export PI_SKIP_VERSION_CHECK=1
 
 pi() {
+  # Harness wrapper is for humans at a terminal. Agents, scripts, and pipes
+  # get the bare binary so behavior matches a plain `pi` invocation.
+  if [[ ! -o interactive || -n "${CLAUDECODE:-}" || ! -t 1 ]]; then
+    command pi "$@"
+    return
+  fi
+
   local stamp="${XDG_CACHE_HOME:-$HOME/.cache}/pi-last-update"
   local now last
   local harness="${PI_DEFAULT_HARNESS:-minimal}"
@@ -144,6 +151,7 @@ pi() {
     done
   fi
 
+  print -u2 "pi: harness=$harness (bare binary: 'pi upstream' or 'command pi')"
   PI_HARNESS_PI_BIN="$pi_binary" pi-harness "$harness" "${experimental_args[@]}" "${pi_args[@]}"
 }
 
