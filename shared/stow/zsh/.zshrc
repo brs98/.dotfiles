@@ -17,8 +17,9 @@ setopt SHARE_HISTORY
 
 # Aliases
 alias p="pi"
-alias c="claude-gpt --permission-mode auto"
+alias c="claude --permission-mode auto"
 alias cx="codex"
+alias claudex="claude-gpt --permission-mode auto"
 alias cat="bat --theme=base16"
 alias cdc="cd ~/.config/"
 alias cdd="cd ~/.dotfiles/"
@@ -61,11 +62,56 @@ export PI_SKIP_VERSION_CHECK=1
 pi() {
   local stamp="${XDG_CACHE_HOME:-$HOME/.cache}/pi-last-update"
   local now last
+  local harness="${PI_DEFAULT_HARNESS:-minimal}"
+  local pi_binary="${commands[pi]:-}"
+  local skip_auto_update=0
   local enable_experimental=0
   local experimental_extensions_dir="$HOME/.dotfiles/shared/stow/pi/.pi/agent/extensions-experimental"
   local -a pi_args experimental_args
   pi_args=()
   experimental_args=()
+
+  if [[ -z "$pi_binary" ]]; then
+    printf 'pi: upstream Pi executable not found in PATH\n' >&2
+    return 127
+  fi
+
+  case "${1:-}" in
+    install|remove|uninstall|update|list|config)
+      "$pi_binary" "$@"
+      return
+      ;;
+    harness)
+      shift
+      pi-harness "$@"
+      return
+      ;;
+    upstream)
+      shift
+      "$pi_binary" "$@"
+      return
+      ;;
+    --harness)
+      if (( $# < 2 )); then
+        printf 'pi: --harness requires a harness name\n' >&2
+        return 2
+      fi
+      harness="$2"
+      shift 2
+      ;;
+    *)
+      if [[ -n "${1:-}" ]] && pi-harness exists "$1"; then
+        harness="$1"
+        shift
+      fi
+      ;;
+  esac
+
+  case "${1:-}" in
+    --help|-h|--version|-v)
+      skip_auto_update=1
+      ;;
+  esac
 
   while (( $# > 0 )); do
     case "$1" in
@@ -82,9 +128,9 @@ pi() {
   now=$(date +%s)
   last=$(cat "$stamp" 2>/dev/null || echo 0)
 
-  if (( now - last > 86400 )); then
+  if (( ! skip_auto_update && now - last > 86400 )); then
     mkdir -p "$(dirname "$stamp")"
-    command pi update >/tmp/pi-update.log 2>&1 && printf '%s\n' "$now" > "$stamp"
+    "$pi_binary" update >"${TMPDIR:-/tmp}/pi-update.log" 2>&1 && printf '%s\n' "$now" > "$stamp"
   fi
 
   if (( enable_experimental )) && [[ -d "$experimental_extensions_dir" ]]; then
@@ -98,16 +144,12 @@ pi() {
     done
   fi
 
-  command pi "${experimental_args[@]}" "${pi_args[@]}"
+  PI_HARNESS_PI_BIN="$pi_binary" pi-harness "$harness" "${experimental_args[@]}" "${pi_args[@]}"
 }
 
 # Fusion Harness: official Claude Code subscription architect + ChatGPT Codex builder.
 fusion() {
-  pi \
-    --model openai-codex/gpt-5.6-sol \
-    --architect claude-code/claude-fable-5 \
-    --builder openai-codex/gpt-5.6-sol \
-    "$@"
+  pi fusion "$@"
 }
 
 # Conveyor
