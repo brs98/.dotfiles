@@ -62,6 +62,17 @@ const WorkflowParams = Type.Object({
       description: `Per-agent timeout in milliseconds. Default: ${DEFAULT_TIMEOUT_MS}.`,
     }),
   ),
+  maxCostUsd: Type.Optional(
+    Type.Number({
+      description:
+        "Hard dollar ceiling for spawned agents. Once spending reaches it, further agent() calls throw. Exposed to the script as `budget`.",
+    }),
+  ),
+  maxAgents: Type.Optional(
+    Type.Number({
+      description: "Maximum agents spawned in this run (runaway-loop backstop). Default: 200.",
+    }),
+  ),
 });
 
 export interface WorkflowDetails {
@@ -143,13 +154,15 @@ export default function workflow(pi: ExtensionAPI) {
       "Execute a JavaScript workflow script that orchestrates multiple subagents deterministically (fan-out, barriers, per-item pipelines) while keeping the main context clean.",
       "",
       "The script MUST begin with `export const meta = { name, description, phases?: [{ title, detail? }] }` as a pure literal. The body runs in an async context (top-level await and return are allowed) with these injected globals:",
-      "- agent(prompt, opts?): Promise<string|object> — spawn one isolated subagent. opts: { label?, phase?, model?, tools?, cwd?, timeoutMs?, schema? }. Always OMIT model unless the user asked for a specific one — spawned agents inherit the session default. With schema (a JSON Schema object), the reply is parsed and validated, and agent() returns the object.",
+      "- agent(prompt, opts?): Promise<string|object> — spawn one isolated subagent. opts: { label?, phase?, model?, role?, tools?, cwd?, timeoutMs?, schema? }. Always OMIT model unless the user asked for a specific one — spawned agents inherit the session default. role is optional persona/operating instructions. With schema (a JSON Schema object), the reply is parsed and validated, and agent() returns the object.",
       "- parallel(thunks): Promise<any[]> — run [() => agent(...), ...] concurrently and await all; a failed thunk resolves to null (filter with .filter(Boolean)).",
       "- pipeline(items, ...stages): Promise<any[]> — run each item through the stages independently with NO barrier between stages. Each stage receives (prevResult, originalItem, index); a throwing stage drops that item to null. Prefer this over parallel-per-stage for multi-stage work.",
       "- phase(title): group subsequent agents in the progress display. log(message): emit a progress note. args: the `args` input, verbatim.",
+      "- budget: { total: number|null, spent(): number, remaining(): number } in DOLLARS — set via the maxCostUsd parameter; once spent() reaches total, further agent() calls throw. Guard budget loops: while (budget.total && budget.remaining() > 0.10) { ... }.",
       "",
       "Rules: scripts have no filesystem, network, or Node APIs — subagents do that work. Date.now(), Math.random(), and argless new Date() throw (they would break deterministic resume); pass timestamps or seeds via args. Subagents share no context: every prompt must be self-contained (repo paths, file allowlists, constraints, expected output format).",
       "Every agent() result is journaled under the returned runId. To resume after a failure or script edit, call workflow again with resumeFromRunId (same session): unchanged (prompt, opts) calls return cached results instantly.",
+      "Limits: at most 200 spawned agents per run (maxAgents overrides) and 1024 items per parallel()/pipeline() call.",
     ].join("\n"),
     promptSnippet:
       "Run a deterministic multi-agent workflow script: fan out subagents with agent()/parallel()/pipeline(), journaled for resume.",
@@ -207,6 +220,7 @@ export default function workflow(pi: ExtensionAPI) {
           task: invocation.prompt,
           cwd: invocation.options.cwd ? resolve(ctx.cwd, invocation.options.cwd) : ctx.cwd,
           model: invocation.options.model ?? params.model,
+          role: invocation.options.role,
           tools: invocation.options.tools,
           timeoutMs: invocation.options.timeoutMs ?? params.agentTimeoutMs ?? DEFAULT_TIMEOUT_MS,
           signal: runnerSignal,
@@ -255,6 +269,8 @@ export default function workflow(pi: ExtensionAPI) {
           onProgress,
           signal,
           maxConcurrency: params.maxConcurrency ?? Math.max(1, Math.min(8, cpus().length - 2)),
+          maxCostUsd: params.maxCostUsd,
+          maxAgents: params.maxAgents,
         });
         name = outcome.meta.name;
         description = outcome.meta.description;

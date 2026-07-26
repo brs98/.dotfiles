@@ -11,14 +11,20 @@ import {
 
 const META = "export const meta = { name: 'test', description: 'test workflow' }\n";
 
-function makeRunner(handler: (invocation: AgentInvocation) => string | Promise<string>): {
+function makeRunner(
+  handler: (invocation: AgentInvocation) => string | Promise<string>,
+  costPerCall = 0,
+): {
   runner: AgentRunner;
   calls: AgentInvocation[];
 } {
   const calls: AgentInvocation[] = [];
   const runner: AgentRunner = async (invocation) => {
     calls.push(invocation);
-    return { output: await handler(invocation) };
+    return {
+      output: await handler(invocation),
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: costPerCall, turns: 1 },
+    };
   };
   return { runner, calls };
 }
@@ -249,6 +255,58 @@ describe("runWorkflowScript", () => {
     const script = `${META}return await parallel([1, 2, 3, 4, 5].map((n) => () => agent('task ' + n)))\n`;
     await runWorkflowScript({ script, runner, maxConcurrency: 2 });
     expect(peak).toBe(2);
+  });
+
+  it("exposes budget and stops spawning once maxCostUsd is spent", async () => {
+    const { runner, calls } = makeRunner(() => "ok", 0.03);
+    const script =
+      `${META}const outputs = []\n` +
+      "for (let i = 0; i < 5; i++) {\n" +
+      "  if (budget.total && budget.remaining() <= 0) break\n" +
+      "  outputs.push(await agent('task ' + i))\n" +
+      "}\n" +
+      "return { outputs, total: budget.total, spent: budget.spent() }\n";
+    const { result } = await runWorkflowScript({ script, runner, maxCostUsd: 0.05 });
+    const r = result as { outputs: string[]; total: number; spent: number };
+    expect(calls).toHaveLength(2);
+    expect(r.outputs).toEqual(["ok", "ok"]);
+    expect(r.total).toBe(0.05);
+    expect(r.spent).toBeCloseTo(0.06);
+  });
+
+  it("throws from agent() when the budget is exhausted mid-run", async () => {
+    const { runner } = makeRunner(() => "ok", 0.03);
+    const script = `${META}const a = await agent('one')\nconst b = await agent('two')\nreturn await agent('three')\n`;
+    await expect(runWorkflowScript({ script, runner, maxCostUsd: 0.05 })).rejects.toThrow(
+      /budget exhausted/,
+    );
+  });
+
+  it("enforces the spawned-agent cap", async () => {
+    const { runner, calls } = makeRunner(() => "ok");
+    const script = `${META}for (let i = 0; i < 10; i++) await agent('task ' + i)\nreturn 'done'\n`;
+    await expect(runWorkflowScript({ script, runner, maxAgents: 3 })).rejects.toThrow(/agent cap/);
+    expect(calls).toHaveLength(3);
+  });
+
+  it("rejects oversized parallel and pipeline calls", async () => {
+    const { runner } = echoRunner();
+    const script = `${META}return await parallel(new Array(1025).fill(() => agent('x')))\n`;
+    await expect(runWorkflowScript({ script, runner })).rejects.toThrow(/at most 1024/);
+  });
+
+  it("passes role through to the runner and into journal keys", async () => {
+    const journal = mapJournal();
+    const { runner, calls } = makeRunner((inv) => `r(${inv.options.role ?? "none"})`);
+    const script =
+      `${META}const a = await agent('same prompt', { role: 'skeptic' })\n` +
+      "const b = await agent('same prompt', { role: 'optimist' })\n" +
+      "return [a, b]\n";
+    const { result } = await runWorkflowScript({ script, runner, journal });
+    expect(result).toEqual(["r(skeptic)", "r(optimist)"]);
+    expect(calls.map((c) => c.options.role)).toEqual(["skeptic", "optimist"]);
+    const keys = [...journal.store.keys()];
+    expect(keys[0]?.split("#")[0]).not.toBe(keys[1]?.split("#")[0]);
   });
 
   it("streams progress snapshots", async () => {

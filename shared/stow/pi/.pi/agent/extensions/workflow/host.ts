@@ -23,6 +23,7 @@ export interface AgentCallOptions {
   label?: string;
   phase?: string;
   model?: string;
+  role?: string;
   tools?: string[];
   cwd?: string;
   timeoutMs?: number;
@@ -81,6 +82,10 @@ export interface RunWorkflowOptions {
   onProgress?: (progress: WorkflowProgress) => void;
   signal?: AbortSignal;
   maxConcurrency?: number;
+  /** Hard dollar ceiling for spawned agents; agent() throws once spending reaches it. */
+  maxCostUsd?: number;
+  /** Runaway-loop backstop: maximum agents spawned (journal cache hits are free). */
+  maxAgents?: number;
 }
 
 export interface WorkflowRunResult {
@@ -91,6 +96,8 @@ export interface WorkflowRunResult {
 
 const MAX_LOG_LINES = 500;
 const SCHEMA_ATTEMPTS = 2;
+const DEFAULT_MAX_AGENTS = 200;
+const MAX_ITEMS_PER_CALL = 1024;
 
 /**
  * Determinism guards evaluated inside the sandbox context before the script
@@ -255,6 +262,7 @@ function stableStringify(value: unknown): string {
 function contentHash(prompt: string, options: AgentCallOptions): string {
   const salient = {
     model: options.model,
+    role: options.role,
     tools: options.tools,
     cwd: options.cwd,
     schema: options.schema,
@@ -300,8 +308,29 @@ function describeSchemaErrors(schema: TSchema, value: unknown): string {
 }
 
 export async function runWorkflowScript(options: RunWorkflowOptions): Promise<WorkflowRunResult> {
-  const { runner, signal } = options;
+  const { signal } = options;
   const { meta, body } = extractMeta(options.script);
+  const maxAgents = Math.max(1, Math.floor(options.maxAgents ?? DEFAULT_MAX_AGENTS));
+  const maxCostUsd = options.maxCostUsd;
+  let spawned = 0;
+  let spentUsd = 0;
+
+  const runner: AgentRunner = async (invocation, runnerSignal) => {
+    if (spawned >= maxAgents) {
+      throw new WorkflowScriptError(
+        `agent cap reached (${maxAgents} spawned) — runaway-loop backstop; raise maxAgents if this fan-out is intentional`,
+      );
+    }
+    if (maxCostUsd !== undefined && spentUsd >= maxCostUsd) {
+      throw new WorkflowScriptError(
+        `cost budget exhausted ($${spentUsd.toFixed(3)} spent of $${maxCostUsd} maxCostUsd)`,
+      );
+    }
+    spawned += 1;
+    const outcome = await options.runner(invocation, runnerSignal);
+    spentUsd += outcome.usage?.cost ?? 0;
+    return outcome;
+  };
   const fallbackJournal = new Map<string, JournalRecord>();
   const journal: WorkflowJournal = options.journal ?? {
     get: (key) => fallbackJournal.get(key),
@@ -417,6 +446,11 @@ export async function runWorkflowScript(options: RunWorkflowOptions): Promise<Wo
     if (!Array.isArray(thunks)) {
       throw new WorkflowScriptError("parallel(thunks) requires an array of () => Promise thunks");
     }
+    if (thunks.length > MAX_ITEMS_PER_CALL) {
+      throw new WorkflowScriptError(
+        `parallel() accepts at most ${MAX_ITEMS_PER_CALL} items (got ${thunks.length})`,
+      );
+    }
     return Promise.all(
       thunks.map(async (thunk) => {
         try {
@@ -431,6 +465,11 @@ export async function runWorkflowScript(options: RunWorkflowOptions): Promise<Wo
   const pipeline = async (items: unknown, ...stages: unknown[]): Promise<unknown[]> => {
     if (!Array.isArray(items)) {
       throw new WorkflowScriptError("pipeline(items, ...stages) requires an array of items");
+    }
+    if (items.length > MAX_ITEMS_PER_CALL) {
+      throw new WorkflowScriptError(
+        `pipeline() accepts at most ${MAX_ITEMS_PER_CALL} items (got ${items.length})`,
+      );
     }
     if (stages.some((stage) => typeof stage !== "function")) {
       throw new WorkflowScriptError("pipeline stages must be functions");
@@ -463,12 +502,20 @@ export async function runWorkflowScript(options: RunWorkflowOptions): Promise<Wo
     emit();
   };
 
+  const budget = {
+    total: maxCostUsd ?? null,
+    spent: () => Number(spentUsd.toFixed(4)),
+    remaining: () =>
+      maxCostUsd === undefined ? Infinity : Number(Math.max(0, maxCostUsd - spentUsd).toFixed(4)),
+  };
+
   const sandbox = {
     agent,
     parallel,
     pipeline,
     phase,
     log,
+    budget,
     args: options.args,
     console: {
       log,
