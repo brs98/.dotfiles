@@ -1,0 +1,13 @@
+{
+  "name": "original",
+  "description": "The existing Pi configuration with ambient global and project discovery.",
+  "resources": {
+    "extensions": "discover",
+    "skills": "discover",
+    "prompts": "discover",
+    "themes": "discover"
+  },
+  "packages": [],
+  "extensions": [],
+  "piArguments": []
+}

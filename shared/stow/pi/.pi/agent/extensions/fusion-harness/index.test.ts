@@ -3,9 +3,12 @@ import {
   claudeCodeModelId,
   claudeCodeTools,
   claudeSubscriptionEnv,
+  captureDiagnosticStderr,
+  formatChildFailure,
   isClaudeCodeModel,
   isClaudeSubscriptionAuth,
   parseClaudeCodeEvent,
+  redactDiagnosticText,
 } from "./index.js";
 
 describe("Claude Code subscription transport", () => {
@@ -141,9 +144,139 @@ describe("Claude Code subscription transport", () => {
     ]);
   });
 
+  test("normalizes rejected rate limits and stream API errors", () => {
+    expect(
+      parseClaudeCodeEvent({
+        type: "rate_limit_event",
+        rate_limit_info: {
+          status: "rejected",
+          rateLimitType: "five_hour",
+          resetsAt: 1_784_670_000,
+        },
+      }),
+    ).toEqual([
+      {
+        type: "error",
+        message: "Claude Code rate limit rejected the request (five_hour; resets 2026-07-21T21:40:00.000Z)",
+      },
+    ]);
+    expect(
+      parseClaudeCodeEvent({
+        type: "stream_event",
+        event: {
+          type: "error",
+          error: { type: "overloaded_error", message: "Service overloaded" },
+        },
+      }),
+    ).toEqual([{ type: "error", message: "overloaded_error: Service overloaded" }]);
+    expect(
+      parseClaudeCodeEvent({
+        type: "result",
+        subtype: "error_during_execution",
+        result: "API Error: 429 rate limit",
+      }),
+    ).toEqual([
+      {
+        type: "result",
+        text: "API Error: 429 rate limit",
+        sessionId: undefined,
+        usage: undefined,
+        costUsd: 0,
+        error: "API Error: 429 rate limit",
+      },
+    ]);
+  });
+
+  test("redacts credentials from persisted child diagnostics", () => {
+    const stderr = [
+      "ANTHROPIC_API_KEY=inline-secret",
+      "Authorization: Bearer bearer-secret",
+      "helper failed with env-secret-token",
+      '{"ANTHROPIC_AUTH_TOKEN":"json-secret","Authorization":"Bearer json-bearer"}',
+      '{"apiKey":"camel-secret","access_token":"snake-secret","token":"generic-secret"}',
+      "ordinary diagnostic",
+    ].join("\n");
+    const redacted = redactDiagnosticText(stderr, {
+      CLAUDE_CODE_OAUTH_TOKEN: "env-secret-token",
+    });
+
+    expect(redacted).not.toContain("inline-secret");
+    expect(redacted).not.toContain("bearer-secret");
+    expect(redacted).not.toContain("env-secret-token");
+    expect(redacted).not.toContain("json-secret");
+    expect(redacted).not.toContain("json-bearer");
+    expect(redacted).not.toContain("camel-secret");
+    expect(redacted).not.toContain("snake-secret");
+    expect(redacted).not.toContain("generic-secret");
+    expect(redacted).toContain("ANTHROPIC_API_KEY=[REDACTED]");
+    expect(redacted).toContain("Authorization: Bearer [REDACTED]");
+    expect(redacted).toContain("ordinary diagnostic");
+  });
+
+  test("formats a pre-init child exit with its signal and sanitized stderr", () => {
+    const failure = formatChildFailure(
+      "Claude Code exited before reporting its authentication source (token=message-secret)",
+      1,
+      "SIGTERM",
+      "ANTHROPIC_AUTH_TOKEN=do-not-persist\nstartup failed",
+      { AUTH_TOKEN: "message-secret" },
+    );
+
+    expect(failure).toContain("Claude Code exited before reporting its authentication source");
+    expect(failure).toContain("exit 1 · signal SIGTERM");
+    expect(failure).toContain("ANTHROPIC_AUTH_TOKEN=[REDACTED]");
+    expect(failure).toContain("startup failed");
+    expect(failure).not.toContain("do-not-persist");
+    expect(failure).not.toContain("message-secret");
+  });
+
+  test("redacts credential values split across stderr chunks", () => {
+    let captured = captureDiagnosticStderr("", "ANTHROPIC_AUTH_TOKEN=split-");
+    captured = captureDiagnosticStderr(captured, "secret\nstartup failed");
+    const failure = formatChildFailure("child failed", 1, undefined, captured, {});
+
+    expect(failure).toContain("ANTHROPIC_AUTH_TOKEN=[REDACTED]");
+    expect(failure).toContain("startup failed");
+    expect(failure).not.toContain("split-secret");
+  });
+
+  test("discards later chunks until an omitted oversized stderr line ends", () => {
+    let captured = captureDiagnosticStderr("", `AUTH_TOKEN=${"x".repeat(70_000)}`);
+    captured = captureDiagnosticStderr(captured, "secret-suffix\nstartup failed safely");
+    const failure = formatChildFailure("child failed", 1, undefined, captured, {});
+
+    expect(failure).toContain("oversized stderr line omitted");
+    expect(failure).toContain("startup failed safely");
+    expect(failure).not.toContain("secret-suffix");
+  });
+
+  test("tolerates an out-of-range rate-limit reset timestamp", () => {
+    expect(
+      parseClaudeCodeEvent({
+        type: "rate_limit_event",
+        rate_limit_info: { status: "rejected", resetsAt: 1e300 },
+      }),
+    ).toEqual([{ type: "error", message: "Claude Code rate limit rejected the request" }]);
+  });
+
+  test("bounds persisted stderr while retaining the actionable tail", () => {
+    const failure = formatChildFailure(
+      "child failed",
+      1,
+      undefined,
+      `${"old output\n".repeat(600)}final actionable failure`,
+      {},
+    );
+
+    expect(failure).toContain("earlier stderr truncated");
+    expect(failure).toContain("final actionable failure");
+    expect(failure.length).toBeLessThan(4_200);
+  });
+
   test("ignores malformed or unrelated events", () => {
     expect(parseClaudeCodeEvent(null)).toEqual([]);
     expect(parseClaudeCodeEvent({ type: "rate_limit_event" })).toEqual([]);
+    expect(parseClaudeCodeEvent({ type: "rate_limit_event", rate_limit_info: { status: "allowed" } })).toEqual([]);
     expect(parseClaudeCodeEvent({ type: "assistant", message: { content: "invalid" } })).toEqual(
       [],
     );

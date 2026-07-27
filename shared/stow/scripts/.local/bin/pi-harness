@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+dotfiles_root="${DOTFILES:-$HOME/.dotfiles}"
+runner="$dotfiles_root/shared/stow/pi/.pi/agent/packages/harness-runner/src/cli.ts"
+
+if [[ ! -f "$runner" ]]; then
+  printf 'pi-harness: runner not found at %s\n' "$runner" >&2
+  exit 1
+fi
+
+exec node "$runner" "$@"

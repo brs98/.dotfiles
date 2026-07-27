@@ -3,8 +3,52 @@
 Personal pi configuration managed by GNU stow.
 
 This stow package also contains an isolated Turborepo workspace rooted at
-`.pi/agent`. That keeps Pi-specific validation/package tasks out of the rest of
-this dotfiles repository.
+`.pi/agent`. The workspace separates runnable harness compositions from reusable
+Pi packages while preserving the original global configuration during migration.
+
+## Harnesses and packages
+
+- `harnesses/*` are runnable, named compositions. A harness selects exact Pi
+  packages, resource discovery policies, and startup arguments.
+- `packages/*` are independently validated capabilities. A package may expose
+  Pi extensions, skills, prompts, or themes through its `package.json` `pi`
+  manifest.
+- `extensions/` is the original configuration. It remains runnable through the
+  `original` harness and is the reference source while capabilities move into
+  packages deliberately.
+
+The canonical terms are **harness**, **package**, and **extension**. A harness is
+a runnable composition, a package is a reusable capability bundle, and an
+extension is a TypeScript entrypoint loaded by Pi.
+
+The shell's `pi` function is the user-facing harness selector:
+
+```bash
+pi                    # minimal (the default)
+pi fusion             # lean Fusion composition
+pi original           # original ambient configuration
+pi harness list       # list available harnesses
+pi harness explain fusion
+pi --harness minimal  # explicit long form
+pi upstream --help    # bypass composition
+```
+
+Set `PI_DEFAULT_HARNESS` to change the default harness. Upstream package commands
+(`install`, `remove`, `uninstall`, `update`, `list`, and `config`) bypass harness
+composition. Use `pi upstream` or `command pi` for other direct access to the
+upstream executable. The internal `pi-harness` command remains separate to
+prevent the launcher from recursively invoking itself.
+
+`minimal` disables ambient extension discovery and loads only its declared
+RiceKit package. It continues discovering skills, prompt templates, and themes
+so project-level resources still work. `fusion` disables ambient extensions and
+loads only the current Fusion orchestration extension. `original` preserves all
+existing discovery behavior.
+
+The runner validates workspace dependencies and rejects duplicate tool, command,
+flag, shortcut, and singleton UI declarations before launching Pi. Package and
+harness manifests intentionally use exact paths rather than globs so the
+resolved composition stays inspectable.
 
 ## Monorepo commands
 
@@ -18,6 +62,9 @@ pnpm validate
 The root `package.json` delegates to `turbo run validate`. Package tasks live in:
 
 - `packages/config` — validates `AGENTS.md`, `mcp.json`, and checks that local Pi runtime state is not tracked.
+- `packages/harness-runner` — resolves, validates, explains, and launches harness compositions.
+- `packages/ricekit` — the first capability extracted from the original extensions workspace.
+- `harnesses/*` — validates each runnable composition independently.
 - `extensions` — parses each TypeScript extension with esbuild without bundling or writing output.
 
 Turborepo/package-manager metadata is ignored by GNU stow via `shared/stow/pi/.stow-local-ignore`, so stow Pi with `--no-folding` to install the runtime files without adding monorepo files to `~/.pi/agent`. The repo `install.sh` does this automatically.

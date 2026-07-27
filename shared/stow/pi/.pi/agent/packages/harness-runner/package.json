@@ -1,0 +1,26 @@
+{
+  "name": "@dotfiles/pi-harness-runner",
+  "version": "0.0.0",
+  "private": true,
+  "bin": {
+    "pi-harness": "./src/cli.ts"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/cli.ts"
+  },
+  "scripts": {
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint src --tsconfig tsconfig.json --deny-warnings",
+    "test": "node --test src/cli.test.ts",
+    "typecheck": "tsgo --noEmit -p tsconfig.json",
+    "validate": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test && node src/cli.ts validate"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:"
+  }
+}

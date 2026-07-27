@@ -150,6 +150,7 @@ interface ChildUsage {
 type ClaudeCodeEvent =
   | { type: "session"; id: string; apiKeySource?: string }
   | { type: "delta"; text?: string; thinking?: string }
+  | { type: "error"; message: string }
   | {
       type: "assistant";
       text: string;
@@ -193,6 +194,7 @@ interface AgentRun {
   streamThinking: string; // reasoning of the in-flight assistant message (rendered live — proof of life)
   text: string;
   exitCode: number;
+  exitSignal?: NodeJS.Signals;
   stopReason?: string;
   errorMessage?: string;
   stderr: string;
@@ -209,6 +211,9 @@ interface AgentStat {
   costUsd: number;
   toolCalls: number;
   chars: number;
+  exitCode: number;
+  exitSignal?: NodeJS.Signals;
+  stderr?: string;
   error?: string;
 }
 
@@ -425,8 +430,39 @@ export function parseClaudeCodeEvent(value: unknown): ClaudeCodeEvent[] {
         ]
       : [];
   }
+  if (type === "rate_limit_event") {
+    const info = recordAt(value, "rate_limit_info");
+    if (stringAt(info, "status") !== "rejected") return [];
+    const details: string[] = [];
+    const limitType = stringAt(info, "rateLimitType") ?? stringAt(info, "rate_limit_type");
+    if (limitType) details.push(limitType);
+    const resetsAt = numberAt(info, "resetsAt") || numberAt(info, "resets_at");
+    if (resetsAt > 0) {
+      const resetDate = new Date(resetsAt * 1_000);
+      if (Number.isFinite(resetDate.getTime())) details.push(`resets ${resetDate.toISOString()}`);
+    }
+    return [
+      {
+        type: "error",
+        message: `Claude Code rate limit rejected the request${details.length ? ` (${details.join("; ")})` : ""}`,
+      },
+    ];
+  }
   if (type === "stream_event") {
     const event = recordAt(value, "event");
+    if (stringAt(event, "type") === "error") {
+      const error = recordAt(event, "error");
+      const errorType = stringAt(error, "type");
+      const message = stringAt(error, "message") ?? stringAt(event, "message");
+      return [
+        {
+          type: "error",
+          message:
+            [errorType, message].filter((part): part is string => Boolean(part)).join(": ") ||
+            "Claude Code stream error",
+        },
+      ];
+    }
     if (stringAt(event, "type") !== "content_block_delta") return [];
     const delta = recordAt(event, "delta");
     const deltaType = stringAt(delta, "type");
@@ -456,7 +492,8 @@ export function parseClaudeCodeEvent(value: unknown): ClaudeCodeEvent[] {
     return [{ type: "assistant", text, thinking, tools, usage: usageFrom(message?.usage) }];
   }
   if (type === "result") {
-    const isError = value.is_error === true || stringAt(value, "subtype") === "error";
+    const subtype = stringAt(value, "subtype");
+    const isError = value.is_error === true || subtype?.startsWith("error") === true;
     const text = stringAt(value, "result") ?? "";
     return [
       {
@@ -501,6 +538,92 @@ function appendBoundedTail(current: string, chunk: string, maxBytes: number): st
   const combined = Buffer.from(current + chunk, "utf-8");
   if (combined.length <= maxBytes) return combined.toString("utf-8");
   return `[earlier output truncated]\n${combined.subarray(combined.length - maxBytes).toString("utf-8")}`;
+}
+
+const CREDENTIAL_NAME_PATTERN =
+  /(?:API[_-]?KEY|AUTH[_-]?TOKEN|OAUTH[_-]?TOKEN|ACCESS[_-]?TOKEN|SECRET|PASSWORD|CREDENTIAL|TOKEN)/i;
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Remove credential values before child diagnostics enter panels or persisted artifacts. */
+export function redactDiagnosticText(
+  text: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  let redacted = text
+    .replace(
+      /((?:["'])?[A-Z0-9_]*(?:API[_-]?KEY|AUTH[_-]?TOKEN|OAUTH[_-]?TOKEN|ACCESS[_-]?TOKEN|SECRET|PASSWORD|CREDENTIAL|TOKEN)[A-Z0-9_]*(?:["'])?\s*[:=]\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)/gi,
+      "$1[REDACTED]",
+    )
+    .replace(
+      /(["']Authorization["']\s*:\s*["']Bearer\s+)[^"'\s,;}]+(["'])/gi,
+      "$1[REDACTED]$2",
+    )
+    .replace(/(\bAuthorization\s*:\s*Bearer\s+)[^\s,;]+/gi, "$1[REDACTED]")
+    .replace(/((?:["'])?x-api-key(?:["'])?\s*:\s*)(?:"[^"\n]*"|'[^'\n]*'|[^\s,;]+)/gi, "$1[REDACTED]");
+
+  for (const [name, value] of Object.entries(env)) {
+    if (!value || value.length < 4 || !CREDENTIAL_NAME_PATTERN.test(name)) continue;
+    redacted = redacted.replace(new RegExp(escapeRegExp(value), "g"), "[REDACTED]");
+  }
+  return redacted;
+}
+
+const OMITTED_STDERR_LINE = "[oversized stderr line omitted]";
+
+export function captureDiagnosticStderr(current: string, chunk: string): string {
+  let retained = current;
+  let incoming = chunk;
+  if (retained === OMITTED_STDERR_LINE) {
+    // The previous capture ended inside an oversized physical line. Discard its
+    // continuation through the next newline so a credential suffix cannot survive
+    // after its identifying key was omitted.
+    const newline = incoming.indexOf("\n");
+    if (newline === -1) return OMITTED_STDERR_LINE;
+    retained = `${OMITTED_STDERR_LINE}\n`;
+    incoming = incoming.slice(newline + 1);
+  }
+
+  const combined = Buffer.from(retained + incoming, "utf-8");
+  if (combined.length <= CHILD_STDERR_MAX_BYTES) return combined.toString("utf-8");
+
+  // Keep only complete trailing lines. Cutting through the middle of a credential line
+  // could discard its key while retaining an unredactable value suffix.
+  const tail = combined.subarray(combined.length - CHILD_STDERR_MAX_BYTES).toString("utf-8");
+  const firstNewline = tail.indexOf("\n");
+  if (firstNewline === -1) return OMITTED_STDERR_LINE;
+  return `[earlier stderr truncated]\n${tail.slice(firstNewline + 1)}`;
+}
+
+function diagnosticStderrSnippet(
+  stderr: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const sanitized = redactDiagnosticText(stderr, env).trim();
+  if (sanitized.length <= DETAIL_SNIPPET_MAX) return sanitized;
+  return `… [earlier stderr truncated — ${sanitized.length - DETAIL_SNIPPET_MAX} chars elided]\n${sanitized.slice(-DETAIL_SNIPPET_MAX)}`;
+}
+
+/** Build the actionable process suffix used by UI errors and failed Markdown artifacts. */
+export function formatChildFailure(
+  message: string,
+  exitCode: number,
+  exitSignal?: NodeJS.Signals,
+  stderr = "",
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const processStatus = `exit ${exitCode}${exitSignal ? ` · signal ${exitSignal}` : ""}`;
+  const sanitizedMessage = redactDiagnosticText(message, env);
+  const sanitizedStderr = diagnosticStderrSnippet(stderr, env);
+  return [
+    sanitizedMessage,
+    processStatus,
+    sanitizedStderr ? `stderr:\n${sanitizedStderr}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /** 12345 → "12.3s" */
@@ -563,14 +686,13 @@ function runOk(r: AgentRun): boolean {
 
 /** The most specific failure description available, in priority order. */
 function runError(r: AgentRun): string {
-  return (
-    (r.status === "aborted" ? "stopped by user (escape)" : "") ||
+  if (r.status === "aborted") return "stopped by user (escape)";
+  const message =
     r.errorMessage ||
     (r.status === "timeout" || r.exitCode === 124 ? "timed out" : "") ||
-    r.stderr.trim().slice(-300) ||
-    (r.text.trim() ? "" : "no output") ||
-    `exit ${r.exitCode}`
-  );
+    (r.text.trim() ? `exit ${r.exitCode}` : "no output");
+  if (r.startedAt === undefined) return message;
+  return formatChildFailure(message, r.exitCode, r.exitSignal, r.stderr);
 }
 
 /** Freeze a live AgentRun into the serializable stat used by panels and summary.json. */
@@ -585,6 +707,9 @@ function toStat(r: AgentRun): AgentStat {
     costUsd: r.costUsd,
     toolCalls: r.toolCalls,
     chars: r.text.length,
+    exitCode: r.exitCode,
+    exitSignal: r.exitSignal,
+    stderr: diagnosticStderrSnippet(r.stderr) || undefined,
     error: runOk(r) ? undefined : runError(r),
   };
 }
@@ -806,6 +931,7 @@ function runChild(opts: {
     run.streamThinking = "";
     run.text = "";
     run.exitCode = 0;
+    run.exitSignal = undefined;
     run.stopReason = undefined;
     run.errorMessage = undefined;
     run.stderr = "";
@@ -852,6 +978,9 @@ function runChild(opts: {
             if (normalized.usage) run.ctxTokens = normalized.usage.total;
             run.streamText = "";
             run.streamThinking = "";
+          } else if (normalized.type === "error") {
+            run.stopReason = "error";
+            run.errorMessage = normalized.message;
           } else {
             claudeResultSeen = true;
             if (normalized.sessionId) run.sessionRef = normalized.sessionId;
@@ -1000,7 +1129,7 @@ function runChild(opts: {
       for (const line of lines) processLine(line);
     });
     proc.stderr?.on("data", (data: Buffer) => {
-      run.stderr = appendBoundedTail(run.stderr, data.toString(), CHILD_STDERR_MAX_BYTES);
+      run.stderr = captureDiagnosticStderr(run.stderr, data.toString());
     });
     // SIGTERM, then SIGKILL after the grace period — same escalation as the timeout path.
     const killChild = () => {
@@ -1021,13 +1150,14 @@ function runChild(opts: {
       opts.signal?.removeEventListener("abort", onAbort);
     };
 
-    proc.on("close", (code) => {
+    proc.on("close", (code, signal) => {
       closed = true;
       if (settled) return;
       settled = true;
       buffer += stdoutDecoder.end();
       if (buffer.trim()) processLine(buffer); // flush a final unterminated line
-      run.exitCode = aborted ? 130 : timedOut ? 124 : (code ?? 0);
+      run.exitCode = aborted ? 130 : timedOut ? 124 : (code ?? 1);
+      run.exitSignal = signal ?? undefined;
       cleanup();
       settle();
       resolve(run);
@@ -1035,7 +1165,7 @@ function runChild(opts: {
     proc.on("error", (err) => {
       if (settled) return;
       settled = true;
-      run.stderr += `\nspawn error: ${String(err)}`;
+      run.stderr = captureDiagnosticStderr(run.stderr, `\nspawn error: ${String(err)}`);
       run.exitCode = 1;
       cleanup();
       settle();
@@ -2164,24 +2294,36 @@ export default function (pi: ExtensionAPI) {
    * but says plainly that the user stopped it — an aborted child is !runOk, so without
    * this a stop would surface as "the agents failed", blaming the models for the user.
    */
-  const stoppedPanel = (
+  const stoppedPanel = async (
     command: NonNullable<FhDetails["command"]>,
     runs: AgentRun[],
     artifactsDir: string,
     startedAt: number,
     what: string,
   ) => {
+    const agents = runs.map(toStat);
+    const totalMs = Date.now() - startedAt;
+    const totalCostUsd = runs.reduce((sum, run) => sum + run.costUsd, 0);
     panel(
       {
         kind: "error",
         command,
         ok: false,
-        sources: runs.map(toStat),
+        sources: agents,
         artifactsDir,
-        totalMs: Date.now() - startedAt,
-        totalCostUsd: runs.reduce((s, r) => s + r.costUsd, 0),
+        totalMs,
+        totalCostUsd,
       },
       `⊘ STOPPED — escape pressed. ${what}\nEverything produced up to this point is in ${artifactsDir}.`,
+    );
+    await save(
+      artifactsDir,
+      "summary.json",
+      JSON.stringify(
+        { command, ok: false, stopped: true, reason: what, agents, totalMs, totalCostUsd },
+        null,
+        2,
+      ),
     );
   };
 
@@ -2514,7 +2656,7 @@ export default function (pi: ExtensionAPI) {
         ]);
 
         if (stopper.stopped()) {
-          stoppedPanel(
+          await stoppedPanel(
             "fusion",
             [architect, builder],
             artifactsDir,
@@ -2570,6 +2712,24 @@ export default function (pi: ExtensionAPI) {
             },
             "Fusion skipped: both agents must succeed to fuse. The failure above is attributed to the specific role + model.",
           );
+          await save(
+            artifactsDir,
+            "summary.json",
+            JSON.stringify(
+              {
+                command: "fusion",
+                ok: false,
+                agents: [toStat(architect), toStat(builder), toStat(fuser)],
+                sessions: {
+                  architect: cachedRoleId("architect"),
+                  builder: cachedRoleId("builder"),
+                },
+                ...t,
+              },
+              null,
+              2,
+            ),
+          );
           return;
         }
 
@@ -2599,6 +2759,16 @@ export default function (pi: ExtensionAPI) {
           "fused.md",
           runOk(fuser) ? fuser.text : `FAILED: ${runError(fuser)}`,
         );
+        if (stopper.stopped()) {
+          await stoppedPanel(
+            "fusion",
+            [architect, builder, fuser],
+            artifactsDir,
+            startedAt,
+            "Stopped while the fusion agent was merging the two answers.",
+          );
+          return;
+        }
 
         const t = totals([architect, builder, fuser], startedAt);
         if (runOk(fuser)) {
@@ -2749,8 +2919,15 @@ export default function (pi: ExtensionAPI) {
         undefined,
         startedAt,
       );
-      const fail = (agentStat: AgentStat, body: string, extra: Partial<FhDetails> = {}) => {
+      const fail = async (
+        agentStat: AgentStat,
+        body: string,
+        extra: Partial<FhDetails> = {},
+      ) => {
         const t = totals([validator, builder], startedAt);
+        const agents = [toStat(validator), toStat(builder)].map((stat) =>
+          stat.role === agentStat.role ? agentStat : stat,
+        );
         panel(
           {
             kind: "error",
@@ -2763,6 +2940,29 @@ export default function (pi: ExtensionAPI) {
             ...extra,
           },
           body,
+        );
+        await save(
+          artifactsDir,
+          "summary.json",
+          JSON.stringify(
+            {
+              command: "auto-validate",
+              ok: false,
+              maxValidations: maxV,
+              escalateAt,
+              round: extra.round,
+              gateExitCode: extra.gateExitCode,
+              agent: agentStat,
+              agents,
+              sessions: {
+                architect: cachedRoleId("architect"),
+                builder: cachedRoleId("builder"),
+              },
+              ...t,
+            },
+            null,
+            2,
+          ),
         );
       };
 
@@ -2807,7 +3007,7 @@ export default function (pi: ExtensionAPI) {
           }
         }
         if (stopper.stopped()) {
-          stoppedPanel(
+          await stoppedPanel(
             "auto-validate",
             [validator, builder],
             artifactsDir,
@@ -2819,7 +3019,7 @@ export default function (pi: ExtensionAPI) {
         if (!script) {
           const stat = toStat(validator);
           if (!stat.error) stat.error = `did not write a uv gate script to ${scriptPath}`;
-          fail(
+          await fail(
             stat,
             `✗ VALIDATOR (${aModel}) failed to design the acceptance gate — nothing was built.\nExpected the gate at ${scriptPath}; no file was written and no fenced script was found in its reply.\n\n${validator.text || ""}`,
           );
@@ -2858,7 +3058,7 @@ export default function (pi: ExtensionAPI) {
           label: `uv run gate.py (baseline) → exit ${baseline.code}`,
         });
         if (stopper.stopped()) {
-          stoppedPanel(
+          await stoppedPanel(
             "auto-validate",
             [validator, builder],
             artifactsDir,
@@ -2871,7 +3071,7 @@ export default function (pi: ExtensionAPI) {
         if (baselineHarnessErr) {
           const stat = toStat(validator);
           stat.error = `gate execution error: ${baselineHarnessErr}`;
-          fail(
+          await fail(
             stat,
             `✗ GATE ERROR — ${baselineHarnessErr}\n\nNothing was built. Gate output:\n\`\`\`\n${truncateChars(baseline.output.trim(), DETAIL_SNIPPET_MAX)}\n\`\`\``,
           );
@@ -2960,7 +3160,7 @@ export default function (pi: ExtensionAPI) {
           // Check the stop BEFORE blaming the builder: an escape-killed child is !runOk,
           // and reporting "BUILDER failed" for a user-initiated stop is a lie.
           if (stopper.stopped()) {
-            stoppedPanel(
+            await stoppedPanel(
               "auto-validate",
               [validator, builder],
               artifactsDir,
@@ -2970,7 +3170,7 @@ export default function (pi: ExtensionAPI) {
             return;
           }
           if (!runOk(builder)) {
-            fail(
+            await fail(
               toStat(builder),
               `✗ BUILDER (${bModel}) failed during round ${round}/${maxV} — the loop cannot continue.\n\n${builder.text || ""}`,
               { round, sources: [toStat(validator)] },
@@ -2996,7 +3196,7 @@ export default function (pi: ExtensionAPI) {
             label: `uv run gate.py (round ${round}) → exit ${lastGate.code}`,
           });
           if (stopper.stopped()) {
-            stoppedPanel(
+            await stoppedPanel(
               "auto-validate",
               [validator, builder],
               artifactsDir,
@@ -3009,7 +3209,7 @@ export default function (pi: ExtensionAPI) {
           if (harnessErr) {
             const stat = toStat(validator);
             stat.error = `gate execution error: ${harnessErr}`;
-            fail(
+            await fail(
               stat,
               `✗ GATE ERROR during validation ${round}/${maxV} — ${harnessErr}\n\nGate output:\n\`\`\`\n${truncateChars(lastGate.output.trim(), DETAIL_SNIPPET_MAX)}\n\`\`\``,
               { round },
@@ -3111,6 +3311,16 @@ export default function (pi: ExtensionAPI) {
               `triage-round-${round}.md`,
               runOk(validator) ? validator.text : `FAILED: ${runError(validator)}`,
             );
+            if (stopper.stopped()) {
+              await stoppedPanel(
+                "auto-validate",
+                [validator, builder],
+                artifactsDir,
+                startedAt,
+                `Stopped during validator triage after round ${round}/${maxV}.`,
+              );
+              return;
+            }
             if (runOk(validator)) {
               pendingTriage = validator.text;
               panel(
@@ -3166,7 +3376,7 @@ export default function (pi: ExtensionAPI) {
                     label: `uv run gate.py (post-repair) → exit ${rerun.code}`,
                   });
                   if (stopper.stopped()) {
-                    stoppedPanel(
+                    await stoppedPanel(
                       "auto-validate",
                       [validator, builder],
                       artifactsDir,
@@ -3179,7 +3389,7 @@ export default function (pi: ExtensionAPI) {
                   if (rerunHarnessErr) {
                     const stat = toStat(validator);
                     stat.error = `gate execution error: ${rerunHarnessErr}`;
-                    fail(
+                    await fail(
                       stat,
                       `✗ GATE ERROR on the post-repair run — ${rerunHarnessErr}\n\nGate output:\n\`\`\`\n${truncateChars(rerun.output.trim(), DETAIL_SNIPPET_MAX)}\n\`\`\``,
                       { round },
@@ -3279,7 +3489,7 @@ export default function (pi: ExtensionAPI) {
         // ── 4. Max validations exhausted — halt loudly ──
         const stat = toStat(builder);
         stat.error = `gate still failing after ${maxV}/${maxV} validations`;
-        fail(
+        await fail(
           stat,
           [
             `## ✗ HALTED — development stopped after ${maxV}/${maxV} validations`,
@@ -3374,7 +3584,7 @@ export default function (pi: ExtensionAPI) {
         ]);
 
         if (stopper.stopped()) {
-          stoppedPanel(
+          await stoppedPanel(
             "opinion",
             [architect, builder],
             artifactsDir,

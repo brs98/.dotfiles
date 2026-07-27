@@ -1,0 +1,13 @@
+{
+  "name": "minimal",
+  "description": "A lean Pi with explicit extensions and the RiceKit working indicator.",
+  "resources": {
+    "extensions": "explicit",
+    "skills": "discover",
+    "prompts": "discover",
+    "themes": "discover"
+  },
+  "packages": ["@dotfiles/pi-extension-ricekit"],
+  "extensions": [],
+  "piArguments": []
+}

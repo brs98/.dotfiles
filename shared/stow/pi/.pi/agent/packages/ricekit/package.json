@@ -1,0 +1,37 @@
+{
+  "name": "@dotfiles/pi-extension-ricekit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint src --tsconfig tsconfig.json --deny-warnings",
+    "typecheck": "tsgo --noEmit -p tsconfig.json",
+    "validate": "pnpm run format:check && pnpm run lint && pnpm run typecheck"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "piHarness": {
+    "provides": {
+      "uiSlots": [
+        "working-indicator"
+      ]
+    }
+  }
+}

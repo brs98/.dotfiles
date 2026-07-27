@@ -6,6 +6,8 @@ shared/.claude/
 shared/stow/pi/.pi/agent/node_modules/
 shared/stow/pi/.pi/agent/.turbo/
 shared/stow/pi/.pi/agent/packages/*/.turbo/
+shared/stow/pi/.pi/agent/packages/*/node_modules/
+shared/stow/pi/.pi/agent/harnesses/*/node_modules/
 shared/stow/pi/.pi/agent/extensions/node_modules/
 shared/stow/pi/.pi/agent/extensions/.turbo/
 shared/stow/pi/.pi/agent/extensions/coverage/
