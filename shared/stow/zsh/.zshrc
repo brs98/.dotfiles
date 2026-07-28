@@ -2,7 +2,7 @@
 [[ -f ~/.secrets ]] && source ~/.secrets
 
 # Path configuration
-export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/fvm/default/bin:$PATH"
 export VISUAL="nvim"
 export EDITOR="nvim"
 
