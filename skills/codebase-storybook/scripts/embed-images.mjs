@@ -28,11 +28,30 @@ if (!file) {
   process.exit(1);
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Wikimedia rate-limits bursts of thumbnail fetches with 429s (seen in real runs:
+// 4/18 plates failed on a cold run). Retry in-process with backoff — harnesses may
+// block foreground `sleep`, so the wait must live here, not in a rerun loop.
 async function fetchBytes(url) {
-  const res = await fetch(url, { headers: UA, redirect: "follow" });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-  const mime = (res.headers.get("content-type") || "image/jpeg").split(";")[0];
-  return { mime, buf: Buffer.from(await res.arrayBuffer()) };
+  const delays = [0, 15000, 45000, 90000];
+  let lastErr;
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (delays[attempt]) {
+      console.log(`     retrying in ${delays[attempt] / 1000}s…`);
+      await sleep(delays[attempt]);
+    }
+    const res = await fetch(url, { headers: UA, redirect: "follow" });
+    if (res.ok) {
+      const mime = (res.headers.get("content-type") || "image/jpeg").split(";")[0];
+      return { mime, buf: Buffer.from(await res.arrayBuffer()) };
+    }
+    lastErr = new Error(`HTTP ${res.status} for ${url}`);
+    if (res.status !== 429 && res.status < 500) throw lastErr; // 4xx (not 429): no point retrying
+    const retryAfter = parseInt(res.headers.get("retry-after") || "", 10);
+    if (retryAfter && attempt + 1 < delays.length) delays[attempt + 1] = Math.max(delays[attempt + 1], retryAfter * 1000);
+  }
+  throw lastErr;
 }
 
 async function commonsThumbUrl(title) {
@@ -92,8 +111,13 @@ const TOKEN = /%%(AVATAR|PLATE|IMG):(.+?)%%/g;
     return;
   }
   let failures = 0;
+  // avatars first (github.com rarely rate-limits); plates spaced out to stay polite
+  tokens.sort((a, b) => (a.startsWith("%%AVATAR") ? 0 : 1) - (b.startsWith("%%AVATAR") ? 0 : 1));
+  let firstPlate = true;
   for (const token of tokens) {
     const [, kind, value] = token.match(/%%(AVATAR|PLATE|IMG):(.+)%%/s);
+    if (kind !== "AVATAR" && !firstPlate) await sleep(2000);
+    if (kind !== "AVATAR") firstPlate = false;
     try {
       const fetched = await resolve(kind, value);
       const { buf, mime } = kind === "AVATAR" ? fetched : compress(fetched.buf, fetched.mime);

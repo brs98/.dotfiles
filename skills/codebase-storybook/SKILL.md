@@ -16,7 +16,8 @@ book styling, and image plumbing are prebuilt — never rebuild them from scratc
    contributors with resolved GitHub logins/avatars, monthly activity, largest commits
    (import detection), and incident-flavored "why" subjects, in one pass. Then spawn
    parallel Explore subagents only for what needs judgment: era narratives, commit-body
-   quotes, cross-repo connections. See [REFERENCE.md](REFERENCE.md) § Research for the
+   quotes, cross-repo connections — telling each to SendMessage its full report to
+   "main" (idle notifications carry no content). See [REFERENCE.md](REFERENCE.md) § Research for the
    playbook (imports, renames, `--follow`, squash-body echoes of predecessor repos).
 
 2. **Write the story.** Structure: cover → colophon → title page → dramatis personae

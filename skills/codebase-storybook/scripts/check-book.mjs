@@ -61,8 +61,13 @@ pages.forEach((raw) => {
     .replace(/&\w+;/g, "x")
     .trim();
   const words = text ? text.split(/\s+/).length : 0;
-  const budget = hasPlate ? WORD_BUDGET_PLATE : hasTitle ? WORD_BUDGET_TITLE : WORD_BUDGET;
-  if (words > budget) warnings.push(`page ${folio}: ~${words} words (budget ${budget}${hasPlate ? ", has plate" : hasTitle ? ", has title block" : ""}) — likely overflow`);
+  let budget = hasPlate ? WORD_BUDGET_PLATE : hasTitle ? WORD_BUDGET_TITLE : WORD_BUDGET;
+  // structural elements cost height beyond their words (real-run lesson: 2 paras +
+  // a 4-item .beats list overflowed a page that was fine by raw word count)
+  const beatItems = (scope.match(/class="bd"/g) || []).length;
+  const callouts = (scope.match(/class="callout"/g) || []).length;
+  budget -= beatItems * 18 + callouts * 25;
+  if (words > budget) warnings.push(`page ${folio}: ~${words} words (budget ${budget}${hasPlate ? ", plate" : ""}${hasTitle ? ", title block" : ""}${beatItems ? `, ${beatItems} beats` : ""}${callouts ? `, ${callouts} callout` : ""}) — likely overflow`);
 });
 
 // 5. size

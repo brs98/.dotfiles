@@ -43,15 +43,17 @@ def search(query, limit=10, width=560):
         md = ii.get("extmetadata", {}) or {}
         lic = (md.get("LicenseShortName", {}) or {}).get("value", "?")
         rows.append((p.get("index", 99), title, lic, ii.get("thumburl", "")))
+    if not rows:
+        print("  (no bitmap results — rephrase; see the query tips in this script's docstring)")
     for _, title, lic, thumb in sorted(rows)[:6]:
         print(f"{title}\n    [{lic}] {thumb}")
 
 
 if __name__ == "__main__":
-    queries = sys.argv[1:]
-    if not queries:
+    queries = [a for a in sys.argv[1:] if not a.startswith("-")]
+    if not queries or any(a in ("-h", "--help") for a in sys.argv[1:]):
         print(__doc__)
-        sys.exit(1)
+        sys.exit(0 if queries or len(sys.argv) > 1 else 1)
     for q in queries:
         print(f"== {q} ==")
         try:

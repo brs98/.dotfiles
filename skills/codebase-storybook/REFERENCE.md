@@ -10,7 +10,10 @@ per repo/subsystem involved.
 Then run judgment research in parallel Explore/general-purpose subagents (one per repo
 or concern) so the main context stays clean: era narratives, commit-body quotes,
 cross-repo influence, predecessor-repo echoes. Ask each for a structured report with
-dates, PR numbers, authors, and direct quotes.
+dates, PR numbers, authors, and direct quotes — and **tell each subagent explicitly to
+SendMessage its full report to "main" when done**: background agents' idle
+notifications carry no content, and chasing reports afterward costs a round trip per
+agent (real-run lesson).
 
 Commands behind the script, for targeted follow-ups:
 
@@ -77,9 +80,22 @@ Budget per page (580×740px, padding included):
 - Chapter title block (kicker + h2 + dates) ≈ ⅓ page.
 - A plate (`max-height: 148px` + caption) ≈ ⅓ page. One plate per chapter, on
   whichever of its two pages has slack.
-- 5 cast cards, or ~7 timeline rows, per page.
+- 5 cast cards, or ~7 timeline rows, per page. `.beats` items and `.callout` boxes
+  cost height beyond their words (~18 and ~25 words of budget each) — check-book.mjs
+  accounts for this.
 - Pages clip overflow (`overflow: hidden`): an overrun eats the folio/caption
-  silently — this is the #1 verification target.
+  silently — this is the #1 verification target. **Content must end ≈658px from the
+  page top** (740 − 52 bottom padding − folio). Do not debug overflow with
+  `scrollHeight − clientHeight`: the folio's `margin-top: auto` absorbs slack, so
+  that delta stays ~constant while the page overruns by 50px+ (verify-book.sh
+  measures content-end correctly).
+
+Plan the leaf count before writing: pages = 2×leaves − 1 (cover face excluded), and
+"The End" must land on a `.page.back`. Worked example (10 leaves): cover+colophon |
+title+cast | cast2+ch1 | … | timeline2+The End — i.e. colophon, title, 2 cast pages,
+12 chapter pages, 2 timeline pages, The End = 19 pages = 2×10 − 1. If your page plan
+comes out even, add or drop one page (an ornament verso, a split chapter) rather than
+leaving The End on a front.
 
 ## Images
 
@@ -89,7 +105,11 @@ Budget per page (580×740px, padding included):
   URL (from the commits API `.author.avatar_url`) with `%%IMG:...%%`.
 - **Plates**: `scripts/commons-search.py "query" ...` → pick PD/CC0 (or CC BY with
   caption credit) → `%%PLATE:File:exact title.jpg%%`. Never hand-build Commons thumb
-  URLs (they 400 for many files); the embed script asks the API.
+  URLs (they 400 for many files); the embed script asks the API. Any exact title is
+  safe in the token — spaces, parentheses, ellipses — because resolution goes through
+  the API's `titles` param; only `%` in a title would break the token syntax.
+  Wikimedia 429-rate-limits bursts; embed-images.mjs retries with backoff in-process,
+  so just let it run (it can take a few minutes on plate-heavy books).
 - **Embedding**: `node scripts/embed-images.mjs book.html`. Recompresses via PIL
   (sips keeps huge metadata blocks — a 520px scan can stay 450KB through sips; PIL
   gets it to ~45KB). Idempotent; re-run after adding tokens.
