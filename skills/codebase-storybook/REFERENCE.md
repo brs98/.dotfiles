@@ -2,11 +2,17 @@
 
 ## Research: git archaeology playbook
 
-Run research in parallel Explore/general-purpose subagents (one per repo or concern) so
-the main context stays clean. Ask each for a structured report with dates, PR numbers,
-authors, and direct quotes from commit bodies.
+Start with `scripts/git-archaeology.sh <repo-dir> [pathspec]` — it emits the whole
+deterministic fact sheet (creation, volume, contributors + GitHub logins + avatar URLs,
+monthly activity, largest commits, incident-flavored subjects) in one pass. Run it once
+per repo/subsystem involved.
 
-Useful commands (have subagents prefer `git log --oneline/--stat` over reading files):
+Then run judgment research in parallel Explore/general-purpose subagents (one per repo
+or concern) so the main context stays clean: era narratives, commit-body quotes,
+cross-repo influence, predecessor-repo echoes. Ask each for a structured report with
+dates, PR numbers, authors, and direct quotes.
+
+Commands behind the script, for targeted follow-ups:
 
 ```bash
 # When did a path first appear? (survives renames)
@@ -90,19 +96,19 @@ Budget per page (580×740px, padding included):
 - **Credits**: colophon names the sources collectively; CC BY works also get named in
   their own captions.
 
-## Verification checklist (agent-browser)
+## Verification (scripted + eyeballs)
 
 ```bash
-agent-browser set viewport 1440 900
-agent-browser open "file://<path>/book.html"
-agent-browser press ArrowRight   # repeat to walk spreads
-agent-browser screenshot <path>/check.png
+node scripts/check-book.mjs book.html        # static lint: placeholders, folios, word budgets
+scripts/verify-book.sh book.html ./verify    # overflow report + screenshot of every spread
 ```
 
-Look at, minimum: (1) closed cover — only the cover visible, no board sticking out;
-(2) cast spread — portraits round, sepia, nothing clipped; (3) every plate page —
-caption AND folio visible; (4) End state — "The End" page centered, no right board.
-Fix, reload, re-shoot. Close the browser when done.
+The overflow report is authoritative for clipping: any folio with `over > 2` is losing
+its caption/folio — trim that page's text or shrink its plate, then re-run. The
+screenshots still need reading (scripts can't judge typography): (1) closed cover —
+only the cover visible, no board sticking out; (2) cast spread — portraits round,
+sepia, nothing clipped; (3) every plate page — caption AND folio visible; (4) End
+state — "The End" page centered, no right board.
 
 ## Sharing
 
