@@ -17,7 +17,7 @@ setopt SHARE_HISTORY
 
 # Aliases
 alias p="pi"
-alias c="claude --permission-mode auto"
+alias c="claude --dangerously-skip-permissions"
 alias cx="codex"
 alias claudex="claude-gpt --permission-mode auto"
 alias cat="bat --theme=base16"
