@@ -238,6 +238,15 @@
       "pluginName": "mattpocock-skills",
       "installedAt": "2026-07-19T08:10:08.737Z",
       "updatedAt": "2026-07-19T08:10:08.737Z"
+    },
+    "assess-me": {
+      "source": "blowmage/harness",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/blowmage/harness.git",
+      "skillPath": "skills/assess-me/SKILL.md",
+      "skillFolderHash": "e08fc2ddd4ffb1e9d55042f0fc4beaa620160d48",
+      "installedAt": "2026-07-29T20:45:29.797Z",
+      "updatedAt": "2026-07-29T20:45:29.797Z"
     }
   },
   "dismissed": {

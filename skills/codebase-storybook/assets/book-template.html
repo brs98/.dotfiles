@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{BOOK_TITLE}}</title>
+<style>
+/* RiceKit palette (active userstyle vars when present, safe fallbacks otherwise) */
+@import url("file:///Users/brandon/.config/ricekit/active/userstyles/rk-vars.css");
+
+:root {
+  color-scheme: dark;
+  --bg: var(--rk-background, #0f111a);
+  --bg2: var(--rk-mantle, #151826);
+  --fg: var(--rk-foreground, #c0caf5);
+  --muted: var(--rk-muted, #8b93b4);
+  --accent: var(--rk-accent, #bb9af7);
+  --accent2: var(--rk-blue, #7aa2f7);
+  --info: var(--rk-cyan, #7dcfff);
+  --warn: var(--rk-yellow, #e0af68);
+  --ok: var(--rk-green, #9ece6a);
+
+  /* book materials */
+  --leather: color-mix(in srgb, var(--accent) 32%, #171320);
+  --leather-2: color-mix(in srgb, var(--accent2) 22%, #120f1a);
+  --gilt: color-mix(in srgb, var(--warn) 78%, #fff2c9);
+  --paper: #f2e9d6;
+  --paper-2: #e9ddc4;
+  --ink: #2b241d;
+  --ink-soft: #56493c;
+  --ink-accent: color-mix(in srgb, var(--accent) 62%, #3a2a4a);
+  --ink-accent2: color-mix(in srgb, var(--accent2) 60%, #2a3350);
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
+  --sans: "Plus Jakarta Sans", Inter, ui-sans-serif, system-ui, sans-serif;
+
+  --page-w: 580px;
+  --page-h: 740px;
+  --flip-ms: 950ms;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--sans);
+  color: var(--fg);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 36rem),
+    radial-gradient(circle at 85% 20%, color-mix(in srgb, var(--accent2) 15%, transparent), transparent 32rem),
+    linear-gradient(140deg, var(--bg), var(--bg2) 55%, color-mix(in srgb, var(--bg) 84%, #000));
+}
+body::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.stage {
+  position: fixed; inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  place-items: center;
+  padding: 18px 0 8px;
+}
+.scaler { transform-origin: center center; }
+
+/* ---------- the book ---------- */
+.book {
+  position: relative;
+  width: calc(var(--page-w) * 2);
+  height: var(--page-h);
+  perspective: 3000px;
+  transform: translateX(-25%);
+  transition: transform 1.1s cubic-bezier(0.4, 0.05, 0.2, 1);
+  filter: drop-shadow(0 42px 60px rgba(0,0,0,0.55));
+}
+.book.open { transform: translateX(0); }
+.book.ended { transform: translateX(25%); }
+
+/* boards (covers seen beneath the pages) */
+.board {
+  position: absolute; top: -12px; bottom: -12px; width: calc(var(--page-w) + 14px);
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--gilt) 6%, transparent), transparent 60%),
+    linear-gradient(135deg, var(--leather), var(--leather-2));
+  z-index: 0;
+  transition: opacity 0.8s ease;
+}
+.book:not(.open):not(.ended) .board.left { opacity: 0; }
+.book.ended .board.right { opacity: 0; }
+.board.left  { left: -14px;  border-radius: 16px 4px 4px 16px; box-shadow: inset -6px 0 14px rgba(0,0,0,0.5); }
+.board.right { right: -14px; border-radius: 4px 16px 16px 4px; box-shadow: inset 6px 0 14px rgba(0,0,0,0.5); }
+.board::after {
+  content: ""; position: absolute; top: 10px; bottom: 10px; width: 10px; opacity: 0.9;
+  background: repeating-linear-gradient(90deg, var(--paper-2) 0 1.5px, #c9bb9e 1.5px 3px);
+}
+.board.left::after  { right: 0; border-radius: 2px 0 0 2px; }
+.board.right::after { left: 0;  border-radius: 0 2px 2px 0; }
+.spine {
+  position: absolute; top: -12px; bottom: -12px; left: 50%; width: 26px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.55) 35%, rgba(0,0,0,0.7) 50%, rgba(0,0,0,0.55) 65%, transparent);
+  z-index: 40; pointer-events: none; opacity: 0;
+  transition: opacity 0.8s ease;
+}
+.book.open .spine { opacity: 1; }
+.book.ended .spine { opacity: 0; }
+
+/* leaves */
+.leaf {
+  position: absolute; top: 0; right: 0;
+  width: var(--page-w); height: var(--page-h);
+  transform-style: preserve-3d;
+  transform-origin: left center;
+  transition: transform var(--flip-ms) cubic-bezier(0.35, 0.06, 0.18, 1);
+}
+.leaf.flipped { transform: rotateY(-180deg); }
+
+.page {
+  position: absolute; inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255,255,255,0.5), transparent 40rem),
+    linear-gradient(105deg, var(--paper), var(--paper-2));
+  color: var(--ink);
+  font-family: var(--serif);
+}
+.page.back { transform: rotateY(180deg); }
+.page.front::before, .page.back::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(43,31,16,0.18), transparent 7%, transparent 93%, rgba(43,31,16,0.06));
+}
+.page.back::before {
+  background: linear-gradient(-90deg, rgba(43,31,16,0.18), transparent 7%, transparent 93%, rgba(43,31,16,0.06));
+}
+
+.page-inner {
+  position: absolute; inset: 0;
+  padding: 46px 52px 52px;
+  display: flex; flex-direction: column;
+}
+.page.back .page-inner { padding: 46px 58px 52px 52px; }
+.page.front .page-inner { padding: 46px 52px 52px 58px; }
+
+/* running header + folio */
+.runhead {
+  font-family: var(--sans);
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.28em; text-transform: uppercase;
+  color: var(--ink-accent);
+  text-align: center; margin-bottom: 1.6rem;
+  border-bottom: 1px solid rgba(43,36,29,0.22);
+  padding-bottom: 0.55rem;
+}
+.folio {
+  margin-top: auto; padding-top: 0.8rem;
+  font-family: var(--serif); font-size: 0.78rem; color: var(--ink-soft);
+  text-align: center;
+}
+
+/* typography on paper */
+.page h2 {
+  font-family: var(--serif); font-weight: 600;
+  font-size: 1.9rem; letter-spacing: 0.01em; line-height: 1.12;
+  margin: 0 0 0.35rem; color: var(--ink);
+}
+.page .chapter-kicker {
+  font-family: var(--sans); font-size: 0.68rem; font-weight: 800;
+  letter-spacing: 0.3em; text-transform: uppercase;
+  color: var(--ink-accent2); margin-bottom: 0.7rem;
+}
+.page .era-dates {
+  font-family: var(--mono); font-size: 0.72rem; color: var(--ink-soft);
+  margin-bottom: 1.3rem;
+}
+.page p { font-size: 0.925rem; line-height: 1.62; margin: 0 0 0.9rem; text-align: justify; hyphens: auto; }
+.page p.nojust { text-align: left; }
+.drop::first-letter {
+  float: left; font-size: 3.15em; line-height: 0.82;
+  padding: 0.04em 0.1em 0 0; font-weight: 600; color: var(--ink-accent);
+}
+.page code {
+  font-family: var(--mono); font-size: 0.78em;
+  background: rgba(43,36,29,0.08); border: 1px solid rgba(43,36,29,0.16);
+  border-radius: 4px; padding: 0.08em 0.3em; color: var(--ink-accent2);
+}
+.page a { color: var(--ink-accent2); text-decoration-thickness: 0.07em; text-underline-offset: 0.16em; }
+.page strong { color: #191410; }
+.ornament {
+  text-align: center; color: var(--ink-accent); opacity: 0.85;
+  font-size: 1rem; letter-spacing: 0.6em; margin: 1.1rem 0;
+}
+
+.callout {
+  border-left: 3px solid color-mix(in srgb, var(--warn) 70%, #7a5b23);
+  background: rgba(150, 116, 47, 0.1);
+  border-radius: 6px; padding: 0.8rem 1rem; margin: 0.4rem 0 1rem;
+}
+.callout .co-title {
+  font-family: var(--sans); font-size: 0.62rem; font-weight: 800;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--warn) 60%, #6b4d16); margin-bottom: 0.35rem;
+}
+.callout p { font-size: 0.86rem; margin: 0; }
+
+.moral {
+  border-left: 3px solid var(--ink-accent);
+  background: rgba(94, 66, 138, 0.09);
+  border-radius: 6px; padding: 0.85rem 1rem; margin: 0.3rem 0 0.9rem;
+}
+.moral p { font-size: 0.87rem; margin: 0; font-style: italic; }
+.moral p strong { font-style: normal; }
+
+/* portraits (GitHub avatars, engraved-plate treatment) */
+.portrait {
+  float: left; width: 46px; height: 46px; border-radius: 50%;
+  margin: 0.12rem 0.68rem 0.15rem 0;
+  border: 2px solid color-mix(in srgb, var(--ink-accent) 50%, transparent);
+  box-shadow: 0 0 0 1px rgba(43,36,29,0.28), 0 1px 3px rgba(0,0,0,0.25);
+  filter: sepia(0.38) saturate(0.75) contrast(0.96);
+  background: var(--paper-2);
+}
+.portrait-pair { float: left; display: flex; gap: 5px; margin: 0.12rem 0.68rem 0.15rem 0; }
+.portrait-pair .portrait { float: none; width: 40px; height: 40px; margin: 0; }
+.medallion {
+  width: 76px; height: 76px; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--gilt) 60%, transparent);
+  padding: 5px; margin-top: 2.2rem;
+  filter: sepia(0.25) saturate(0.7); opacity: 0.95;
+}
+.medallion.small {
+  width: 54px; height: 54px; margin: 0 0 1.1rem;
+  border-color: rgba(43,36,29,0.35);
+  filter: sepia(0.45) saturate(0.6) contrast(0.95); opacity: 0.9;
+}
+
+/* tipped-in plates (period illustrations) */
+.plate { margin: 0.3rem auto 0; text-align: center; }
+.plate img {
+  max-width: 80%; max-height: 148px; width: auto; height: auto;
+  border: 1px solid rgba(43,36,29,0.45); padding: 5px; background: #fbf4e4;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+  filter: sepia(0.28) saturate(0.85) contrast(0.97);
+}
+.plate figcaption { font-size: 0.7rem; font-style: italic; color: var(--ink-soft); margin-top: 0.35rem; }
+
+/* cast pages */
+.cast { display: flex; flex-direction: column; gap: 0.66rem; }
+.cast-card { border-bottom: 1px dotted rgba(43,36,29,0.3); padding-bottom: 0.58rem; overflow: hidden; }
+.cast-card h4 { margin: 0; font-size: 1rem; font-weight: 700; color: #191410; display: inline; }
+.cast-card .role {
+  font-family: var(--sans); font-size: 0.6rem; font-weight: 800;
+  letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-accent2);
+  display: inline; margin-left: 0.5rem;
+}
+.cast-card p { font-size: 0.82rem; line-height: 1.5; margin: 0.18rem 0 0; text-align: left; }
+
+/* timeline pages */
+.tl { list-style: none; margin: 0.2rem 0 0; padding: 0; }
+.tl li {
+  display: grid; grid-template-columns: 108px 1fr;
+  gap: 0.7rem; padding: 0.5rem 0;
+  border-bottom: 1px dotted rgba(43,36,29,0.28);
+  font-size: 0.82rem; line-height: 1.45;
+}
+.tl .d { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-accent2); padding-top: 0.15rem; }
+.tl .who { color: var(--ink-soft); font-size: 0.76rem; display: block; }
+
+/* dated event beats (mini timeline inside a chapter) */
+.beats { list-style: none; padding: 0; margin: 0; }
+.beats li { position: relative; padding: 0 0 0.85rem 1.15rem; }
+.beats li::before {
+  content: ""; position: absolute; left: 0; top: 0.42em;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ink-accent); opacity: 0.8;
+}
+.beats li::after {
+  content: ""; position: absolute; left: 3.5px; top: 1.1em; bottom: -0.1em;
+  width: 1px; background: rgba(43,36,29,0.25);
+}
+.beats li:last-child::after { display: none; }
+.beats .bd { font-family: var(--mono); font-size: 0.7rem; color: var(--ink-accent2); display: block; }
+.beats p { font-size: 0.85rem; margin: 0.1rem 0 0; text-align: left; }
+
+/* ---------- cover ---------- */
+.cover {
+  background:
+    radial-gradient(circle at 28% 18%, color-mix(in srgb, var(--gilt) 10%, transparent), transparent 55%),
+    linear-gradient(135deg, var(--leather), var(--leather-2));
+  color: var(--gilt);
+  border-radius: 4px 14px 14px 4px;
+}
+.cover::before { background: none !important; }
+.cover .page-inner { align-items: center; justify-content: center; text-align: center; padding: 60px 54px; }
+.cover-frame {
+  border: 2px solid color-mix(in srgb, var(--gilt) 55%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--gilt) 25%, transparent);
+  outline-offset: 6px;
+  border-radius: 6px;
+  padding: 3.2rem 2.2rem;
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.cover .kicker {
+  font-family: var(--sans); font-size: 0.62rem; font-weight: 800;
+  letter-spacing: 0.42em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--gilt) 80%, transparent); margin-bottom: 2rem;
+}
+.cover h1 {
+  font-family: var(--serif); font-weight: 600;
+  font-size: 3.1rem; line-height: 1.12; margin: 0 0 1.4rem;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.5);
+}
+.cover .sub { font-family: var(--serif); font-style: italic; font-size: 0.98rem; color: color-mix(in srgb, var(--gilt) 78%, #fff); margin-bottom: 2.4rem; }
+.cover .orn { letter-spacing: 0.8em; font-size: 1.05rem; opacity: 0.9; }
+.cover .press {
+  margin-top: 2.6rem; font-family: var(--sans); font-size: 0.6rem; font-weight: 700;
+  letter-spacing: 0.3em; text-transform: uppercase; opacity: 0.75;
+}
+.back-matter .page-inner { align-items: center; justify-content: center; text-align: center; }
+.back-matter p { text-align: center; }
+
+/* title page */
+.titlepage .page-inner { align-items: center; justify-content: center; text-align: center; }
+.titlepage h2 { font-size: 2.5rem; margin-bottom: 0.6rem; }
+.titlepage p { text-align: center; }
+.titlepage .rule { width: 130px; height: 1px; background: rgba(43,36,29,0.4); margin: 1.4rem auto; }
+
+/* colophon */
+.colophon .page-inner { justify-content: flex-end; }
+.colophon p { font-size: 0.8rem; color: var(--ink-soft); text-align: left; }
+
+/* ---------- controls ---------- */
+.controls {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 0 12px;
+  z-index: 60;
+  font-family: var(--sans);
+}
+.controls button {
+  appearance: none; cursor: pointer;
+  width: 42px; height: 42px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--fg); font-size: 1.05rem; line-height: 1;
+  transition: background 0.2s, transform 0.15s;
+}
+.controls button:hover { background: color-mix(in srgb, var(--accent) 30%, transparent); transform: translateY(-1px); }
+.controls button:disabled { opacity: 0.3; cursor: default; transform: none; }
+.controls .hint { font-size: 0.74rem; color: var(--muted); letter-spacing: 0.04em; }
+.controls .pageno { font-family: var(--mono); font-size: 0.72rem; color: var(--info); min-width: 5.5em; text-align: center; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="scaler" id="scaler">
+    <div class="book" id="book">
+      <div class="board left"></div>
+      <div class="board right"></div>
+
+      <!--
+        LEAVES. Each .leaf has a .page.front (right-hand page) and a .page.back
+        (the following left-hand page). After flipping leaf k, the visible spread is
+        back-of-leaf-k (left) | front-of-leaf-k+1 (right). Add as many leaves as
+        needed; the JS counts them automatically. Keep folio numbers sequential.
+
+        Image tokens (resolved by scripts/embed-images.mjs into data URIs):
+          %%AVATAR:github-login%%           GitHub user avatar
+          %%PLATE:File:Some Commons file.jpg%%   Wikimedia Commons image (560px, recompressed)
+          %%IMG:https://example.com/x.png%%      any direct image URL
+      -->
+
+      <!-- LEAF 0 : cover / colophon -->
+      <div class="leaf">
+        <div class="page front cover">
+          <div class="page-inner">
+            <div class="cover-frame">
+              <div class="kicker">A repository history</div>
+              <h1>{{BOOK_TITLE}}</h1>
+              <div class="sub">{{SUBTITLE — e.g. "Being a true account of X, in N chapters & an epilogue"}}</div>
+              <div class="orn">&#10086; &#10087; &#10086;</div>
+              <!-- optional org emblem: <img class="medallion" src="%%AVATAR:org-login%%" alt=""> -->
+              <div class="press">Reconstructed from the git record &middot; {{YEAR_ROMAN}}</div>
+            </div>
+          </div>
+        </div>
+        <div class="page back colophon">
+          <div class="page-inner">
+            <p>Compiled from the commit history of <code>{{owner/repo}}</code> ({{N}} commits touching <code>{{path}}</code>).</p>
+            <p>Portraits are the contributors' own, via GitHub. Plates are period prints via Wikimedia Commons; credit each source, and name CC BY works in their captions.</p>
+            <p>Every date, pull request, and name herein appears in the record. Nothing has been invented; a few things have been forgiven.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEAF 1 : title page / cast (dramatis personae) -->
+      <div class="leaf">
+        <div class="page front titlepage">
+          <div class="page-inner">
+            <div class="chapter-kicker">{{DATE_RANGE}}</div>
+            <h2>{{BOOK_TITLE}}</h2>
+            <div class="rule"></div>
+            <p><em>{{One-sentence promise of the story.}}</em></p>
+            <div class="ornament">&#10086;</div>
+          </div>
+        </div>
+        <div class="page back">
+          <div class="page-inner">
+            <div class="runhead">Dramatis Personae</div>
+            <div class="cast">
+              <div class="cast-card"><img class="portrait" src="%%AVATAR:login1%%" alt=""><h4>{{Name}}</h4><span class="role">{{The Epithet}}</span>
+                <p>{{One or two sentences on what they built and why it matters. ~5 cards fit per page.}}</p></div>
+              <div class="cast-card"><span class="portrait-pair"><img class="portrait" src="%%AVATAR:login2%%" alt=""><img class="portrait" src="%%AVATAR:login3%%" alt=""></span><h4>{{Duo Name}}</h4><span class="role">{{Shared Epithet}}</span>
+                <p>{{Use portrait-pair for duos or bot+org pairings.}}</p></div>
+            </div>
+            <div class="folio">ii</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEAF 2 : chapter spread example (duplicate per chapter) -->
+      <div class="leaf">
+        <div class="page front">
+          <div class="page-inner">
+            <div class="runhead">Chapter I &middot; {{Chapter Title}}</div>
+            <div class="chapter-kicker">Chapter I</div>
+            <h2>{{Chapter Title}}</h2>
+            <div class="era-dates">{{Date range}} &middot; {{optional epigram}}</div>
+            <p class="drop">{{Opening paragraph — the .drop class gives a drop cap. Budget ~200&ndash;300 words per page; a title block eats about a third of the page.}}</p>
+            <p>{{Second paragraph.}}</p>
+            <figure class="plate"><img src="%%PLATE:File:Some Commons engraving.jpg%%" alt=""><figcaption>{{Caption tying the image to the chapter's metaphor.}} &mdash; {{Source}}</figcaption></figure>
+            <div class="folio">1</div>
+          </div>
+        </div>
+        <div class="page back">
+          <div class="page-inner">
+            <div class="runhead">Chapter I &middot; {{Chapter Title}}</div>
+            <div class="callout">
+              <div class="co-title">{{Why sidebar title, e.g. "Why two websocket stacks?"}}</div>
+              <p>{{Use .callout for a "the record explains why" aside.}}</p>
+            </div>
+            <ul class="beats">
+              <li><span class="bd">{{Month D, YYYY}}</span>
+                <p><strong>{{Someone does the thing.}}</strong> {{Use .beats for dated event sequences within a chapter.}}</p></li>
+            </ul>
+            <div class="moral">
+              <p><strong>The moral the record teaches:</strong> {{use .moral once, near the end, for the synthesis paragraph.}}</p>
+            </div>
+            <div class="folio">2</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEAF 3 : timeline appendix / the end -->
+      <div class="leaf">
+        <div class="page front">
+          <div class="page-inner">
+            <div class="runhead">Appendix &middot; Timeline at a Glance</div>
+            <ul class="tl">
+              <li><span class="d">{{YYYY-MM}}</span><span>{{Event}} &mdash; {{#PR}}<span class="who">{{Author}}</span></span></li>
+              <li><span class="d">{{YYYY-MM}}</span><span>{{~7 rows fit per page; split across a spread if longer.}}<span class="who">{{Author}}</span></span></li>
+            </ul>
+            <div class="folio">3</div>
+          </div>
+        </div>
+        <div class="page back back-matter">
+          <div class="page-inner">
+            <div class="ornament">&#10086;</div>
+            <p style="font-size:1.3rem; font-style:italic;">The End</p>
+            <p style="font-size:0.82rem; color:var(--ink-soft); max-width: 34ch;">{{Closing line pointing at the unwritten next chapter.}}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="spine"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="prev" aria-label="Previous page">&#8592;</button>
+    <span class="pageno" id="pageno">cover</span>
+    <button id="next" aria-label="Next page">&#8594;</button>
+    <span class="hint">click a page, or use &#8592; &#8594;</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  const book = document.getElementById("book");
+  const scaler = document.getElementById("scaler");
+  const leaves = Array.from(book.querySelectorAll(".leaf"));
+  const prevBtn = document.getElementById("prev");
+  const nextBtn = document.getElementById("next");
+  const pageno = document.getElementById("pageno");
+  const N = leaves.length;
+  let current = 0; // number of flipped leaves
+
+  function update() {
+    leaves.forEach(function (leaf, i) {
+      const flipped = i < current;
+      leaf.classList.toggle("flipped", flipped);
+      if (!leaf._animating) leaf.style.zIndex = flipped ? i + 1 : N - i;
+    });
+    book.classList.toggle("open", current > 0 && current < N);
+    book.classList.toggle("ended", current === N);
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === N;
+    pageno.textContent =
+      current === 0 ? "cover" :
+      current === N ? "back cover" :
+      "spread " + current + " / " + (N - 1);
+  }
+
+  function flip(dir) {
+    const idx = dir > 0 ? current : current - 1;
+    if (idx < 0 || idx >= N) return;
+    const leaf = leaves[idx];
+    current += dir;
+    leaf._animating = true;
+    leaf.style.zIndex = N + 2;
+    update();
+    clearTimeout(leaf._t);
+    leaf._t = setTimeout(function () {
+      leaf._animating = false;
+      update();
+    }, 980);
+  }
+
+  prevBtn.addEventListener("click", function () { flip(-1); });
+  nextBtn.addEventListener("click", function () { flip(1); });
+
+  book.addEventListener("click", function (e) {
+    if (e.target.closest("a")) return;
+    const rect = book.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (x >= rect.width / 2) flip(1); else flip(-1);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); flip(1); }
+    if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); flip(-1); }
+    if (e.key === "Home") { e.preventDefault(); current = 0; update(); }
+    if (e.key === "End") { e.preventDefault(); current = N; update(); }
+  });
+
+  function rescale() {
+    const bw = 1160 + 80, bh = 740 + 120;
+    const s = Math.min((window.innerWidth - 24) / bw, (window.innerHeight - 90) / bh, 1);
+    scaler.style.transform = "scale(" + s + ")";
+  }
+  window.addEventListener("resize", rescale);
+
+  rescale();
+  update();
+})();
+</script>
+</body>
+</html>
