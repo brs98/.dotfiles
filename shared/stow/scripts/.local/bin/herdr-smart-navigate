@@ -34,9 +34,10 @@ else
   exit 1
 fi
 
-# Resolve focus only after taking the lock; values captured when the detached
-# command was spawned may already be stale after a repeated key press.
-current_result="$("$herdr_bin" pane current --current)"
+# Resolve the session's live UI focus only after taking the lock. `--current`
+# would resolve the detached command's launch-time pane, which can be stale
+# after an earlier repeated key press moves focus.
+current_result="$("$herdr_bin" pane current)"
 workspace_id="$(jq -r '.result.pane.workspace_id // empty' <<<"$current_result")"
 current_tab_id="$(jq -r '.result.pane.tab_id // empty' <<<"$current_result")"
 current_pane_id="$(jq -r '.result.pane.pane_id // empty' <<<"$current_result")"

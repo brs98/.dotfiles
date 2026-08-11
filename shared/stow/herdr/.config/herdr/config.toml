@@ -2,7 +2,9 @@ onboarding = false
 
 [keys]
 # WezTerm routes Option+Left/Right to prefix+h/l while Herdr is focused.
-# Replace the built-in pane-only actions so reaching an edge wraps through tabs.
+# Replace the pane-only actions with pane-first, modulo tab wrapping that enters
+# the target tab from the opposite pane edge. The helper inherits HERDR_SOCKET_PATH,
+# so the behavior remains scoped to the default or named Herdr session.
 focus_pane_left = ""
 focus_pane_right = ""
 

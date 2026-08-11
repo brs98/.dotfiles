@@ -4,7 +4,7 @@ set -euo pipefail
 if [[ "${HERDR_SMART_NAVIGATE_TEST_FAKE:-}" == 1 ]]; then
   state_dir="${HERDR_SMART_NAVIGATE_TEST_STATE:?}"
 
-  if [[ "${1:-}" == pane && "${2:-}" == current && "${3:-}" == --current ]]; then
+  if [[ "${1:-}" == pane && "${2:-}" == current && $# -eq 2 ]]; then
     if [[ -f "$state_dir/block" ]]; then
       printf '%s\n' "$$" >"$state_dir/child-pid"
       touch "$state_dir/entered"
@@ -40,6 +40,7 @@ test_root="$(mktemp -d "$repo_root/.tmp-herdr-smart-navigate.XXXXXX")"
 holder_pid=""
 child_pid=""
 
+# shellcheck disable=SC2329 # Invoked by the EXIT trap below.
 cleanup() {
   [[ -z "$holder_pid" ]] || kill -9 "$holder_pid" 2>/dev/null || true
   [[ -z "$child_pid" ]] || kill -9 "$child_pid" 2>/dev/null || true
@@ -112,5 +113,7 @@ if (( visited_count != invocation_count )); then
   printf 'expected %s completed navigations, got %s\n' "$invocation_count" "$visited_count" >&2
   exit 1
 fi
+
+printf 'CONCURRENCY killed-owner lock recovered; %s rapid invocations serialized and completed\n' "$invocation_count"
 
 exit "$result"
