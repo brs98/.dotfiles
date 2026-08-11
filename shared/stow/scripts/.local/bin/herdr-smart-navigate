@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+direction="${1:-}"
+case "$direction" in
+  left)
+    opposite_direction="right"
+    tab_step=-1
+    ;;
+  right)
+    opposite_direction="left"
+    tab_step=1
+    ;;
+  *)
+    printf 'usage: herdr-smart-navigate left|right\n' >&2
+    exit 2
+    ;;
+esac
+
+herdr_bin="${HERDR_BIN_PATH:-herdr}"
+socket_path="${HERDR_SOCKET_PATH:-default}"
+
+# Herdr launches shell keybindings in the background. Serialize them so key
+# repeat cannot start multiple navigations from the same stale pane or tab.
+lock_key="$(printf '%s' "$socket_path" | cksum | awk '{print $1}')"
+lock_file="${TMPDIR:-/tmp}/herdr-smart-navigate-${UID}-${lock_key}.mutex"
+exec 9>>"$lock_file"
+if command -v flock >/dev/null 2>&1; then
+  flock -w 10 9 || exit 0
+elif command -v lockf >/dev/null 2>&1; then
+  lockf -s -t 10 9 || exit 0
+else
+  printf 'herdr-smart-navigate requires flock or lockf\n' >&2
+  exit 1
+fi
+
+# Resolve the session's live UI focus only after taking the lock. `--current`
+# would resolve the detached command's launch-time pane, which can be stale
+# after an earlier repeated key press moves focus.
+current_result="$("$herdr_bin" pane current)"
+workspace_id="$(jq -r '.result.pane.workspace_id // empty' <<<"$current_result")"
+current_tab_id="$(jq -r '.result.pane.tab_id // empty' <<<"$current_result")"
+current_pane_id="$(jq -r '.result.pane.pane_id // empty' <<<"$current_result")"
+if [[ -z "$workspace_id" || -z "$current_tab_id" || -z "$current_pane_id" ]]; then
+  exit 0
+fi
+
+focus_pane() {
+  "$herdr_bin" pane focus --direction "$1" --pane "$2"
+}
+
+# Prefer the neighboring pane. The response is synchronous, so a false
+# `changed` value means this pane is at the edge and tab wrapping can begin.
+focus_result="$(focus_pane "$direction" "$current_pane_id")"
+if jq -e '.result.focus.changed == true' >/dev/null <<<"$focus_result"; then
+  exit 0
+fi
+
+tabs_result="$("$herdr_bin" tab list --workspace "$workspace_id")"
+tab_ids=()
+while IFS= read -r tab_id; do
+  [[ -n "$tab_id" ]] && tab_ids+=("$tab_id")
+done < <(jq -r '.result.tabs[].tab_id' <<<"$tabs_result")
+
+if (( ${#tab_ids[@]} == 0 )); then
+  exit 0
+fi
+
+current_index=-1
+for index in "${!tab_ids[@]}"; do
+  if [[ "${tab_ids[$index]}" == "$current_tab_id" ]]; then
+    current_index=$index
+    break
+  fi
+done
+
+if (( current_index < 0 )); then
+  exit 0
+fi
+
+tab_count=${#tab_ids[@]}
+target_index=$(( (current_index + tab_step + tab_count) % tab_count ))
+target_tab_id="${tab_ids[$target_index]}"
+"$herdr_bin" tab focus "$target_tab_id" >/dev/null
+
+# Match WezTerm's wrapping behavior: after changing tabs, enter from the
+# opposite edge instead of restoring a pane in the middle of the layout.
+panes_result="$("$herdr_bin" pane list --workspace "$workspace_id")"
+current_pane_id="$(
+  jq -r --arg tab_id "$target_tab_id" \
+    '.result.panes[] | select(.tab_id == $tab_id and .focused == true) | .pane_id' \
+    <<<"$panes_result" | head -n 1
+)"
+
+if [[ -z "$current_pane_id" ]]; then
+  exit 0
+fi
+
+while :; do
+  focus_result="$(focus_pane "$opposite_direction" "$current_pane_id")"
+  if ! jq -e '.result.focus.changed == true' >/dev/null <<<"$focus_result"; then
+    break
+  fi
+
+  current_pane_id="$(jq -r '.result.focus.focused_pane_id // empty' <<<"$focus_result")"
+  [[ -n "$current_pane_id" ]] || break
+done

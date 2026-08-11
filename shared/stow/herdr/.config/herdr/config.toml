@@ -1,4 +1,34 @@
 onboarding = false
+
+[keys]
+# WezTerm routes Option+Left/Right to prefix+h/l while Herdr is focused.
+# Replace the pane-only actions with pane-first, modulo tab wrapping that enters
+# the target tab from the opposite pane edge. The helper inherits HERDR_SOCKET_PATH,
+# so the behavior remains scoped to the default or named Herdr session.
+focus_pane_left = ""
+focus_pane_right = ""
+
+[[keys.command]]
+key = "prefix+h"
+type = "shell"
+command = "herdr-smart-navigate left"
+
+[[keys.command]]
+key = "prefix+l"
+type = "shell"
+command = "herdr-smart-navigate right"
+
+# Keep the same shortcuts working when Herdr runs outside WezTerm.
+[[keys.command]]
+key = "alt+left"
+type = "shell"
+command = "herdr-smart-navigate left"
+
+[[keys.command]]
+key = "alt+right"
+type = "shell"
+command = "herdr-smart-navigate right"
+
 [theme]
 name = "terminal"
 
