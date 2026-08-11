@@ -13,3 +13,6 @@ case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
+
+# Keep the system awake while putting the display to sleep.
+alias goodnight='caffeinate -is & pmset displaysleepnow; fg'
