@@ -23,23 +23,16 @@ socket_path="${HERDR_SOCKET_PATH:-default}"
 # Herdr launches shell keybindings in the background. Serialize them so key
 # repeat cannot start multiple navigations from the same stale pane or tab.
 lock_key="$(printf '%s' "$socket_path" | cksum | awk '{print $1}')"
-lock_dir="${TMPDIR:-/tmp}/herdr-smart-navigate-${lock_key}.lock"
-attempts=0
-until mkdir "$lock_dir" 2>/dev/null; do
-  if [[ -f "$lock_dir/pid" ]]; then
-    lock_owner="$(cat "$lock_dir/pid" 2>/dev/null || true)"
-    if [[ "$lock_owner" =~ ^[0-9]+$ ]] && ! kill -0 "$lock_owner" 2>/dev/null; then
-      rm -rf "$lock_dir"
-      continue
-    fi
-  fi
-
-  attempts=$((attempts + 1))
-  (( attempts < 1000 )) || exit 0
-  sleep 0.01
-done
-printf '%s\n' "$$" >"$lock_dir/pid"
-trap 'rm -rf "$lock_dir"' EXIT
+lock_file="${TMPDIR:-/tmp}/herdr-smart-navigate-${UID}-${lock_key}.mutex"
+exec 9>>"$lock_file"
+if command -v flock >/dev/null 2>&1; then
+  flock -w 10 9 || exit 0
+elif command -v lockf >/dev/null 2>&1; then
+  lockf -s -t 10 9 || exit 0
+else
+  printf 'herdr-smart-navigate requires flock or lockf\n' >&2
+  exit 1
+fi
 
 # Resolve focus only after taking the lock; values captured when the detached
 # command was spawned may already be stale after a repeated key press.
