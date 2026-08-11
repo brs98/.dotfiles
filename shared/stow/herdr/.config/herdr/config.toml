@@ -1,4 +1,32 @@
 onboarding = false
+
+[keys]
+# WezTerm routes Option+Left/Right to prefix+h/l while Herdr is focused.
+# Replace the built-in pane-only actions so reaching an edge wraps through tabs.
+focus_pane_left = ""
+focus_pane_right = ""
+
+[[keys.command]]
+key = "prefix+h"
+type = "shell"
+command = "herdr-smart-navigate left"
+
+[[keys.command]]
+key = "prefix+l"
+type = "shell"
+command = "herdr-smart-navigate right"
+
+# Keep the same shortcuts working when Herdr runs outside WezTerm.
+[[keys.command]]
+key = "alt+left"
+type = "shell"
+command = "herdr-smart-navigate left"
+
+[[keys.command]]
+key = "alt+right"
+type = "shell"
+command = "herdr-smart-navigate right"
+
 [theme]
 name = "terminal"
 
