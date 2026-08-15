@@ -134,8 +134,21 @@ make_scripts_executable() {
     done
 }
 
+# Herdr writes runtime state beside config.toml, so Stow cannot fold the whole
+# directory. Preserve an unmanaged config before linking the tracked version.
+prepare_herdr_config() {
+    local target="$HOME/.config/herdr/config.toml"
+
+    if [ -e "$target" ] && [ ! -L "$target" ]; then
+        local backup="$target.pre-dotfiles.$(date +%s)"
+        mv "$target" "$backup"
+        echo "    ✓ Backed up existing Herdr config to $backup"
+    fi
+}
+
 # Make scripts executable before stowing
 make_scripts_executable
+prepare_herdr_config
 
 # Stow all shared configs
 echo "  → Stowing shared configs..."

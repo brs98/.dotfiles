@@ -11,23 +11,23 @@ focus_pane_right = ""
 [[keys.command]]
 key = "prefix+h"
 type = "shell"
-command = "herdr-smart-navigate left"
+command = "$HOME/.local/bin/herdr-smart-navigate left"
 
 [[keys.command]]
 key = "prefix+l"
 type = "shell"
-command = "herdr-smart-navigate right"
+command = "$HOME/.local/bin/herdr-smart-navigate right"
 
 # Keep the same shortcuts working when Herdr runs outside WezTerm.
 [[keys.command]]
 key = "alt+left"
 type = "shell"
-command = "herdr-smart-navigate left"
+command = "$HOME/.local/bin/herdr-smart-navigate left"
 
 [[keys.command]]
 key = "alt+right"
 type = "shell"
-command = "herdr-smart-navigate right"
+command = "$HOME/.local/bin/herdr-smart-navigate right"
 
 [theme]
 name = "terminal"
