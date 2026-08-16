@@ -16,3 +16,7 @@ zsh-autosuggestions
 zsh-syntax-highlighting
 
 zen-browser-bin
+
+cliamp
+easyeffects
+lsp-plugins-lv2

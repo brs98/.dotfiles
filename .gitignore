@@ -32,3 +32,15 @@ shared/stow/starship/
 # only resolve when the repo lives at ~/.dotfiles; install.sh regenerates them.
 shared/stow/agents/.config/crush/skills/
 shared/stow/agents/.config/goose/skills/
+
+# cliamp writes runtime state next to its config. On a machine where
+# ~/.config/cliamp does not exist yet, stow folds the whole directory into a
+# symlink and those writes land inside the repo — including the Spotify OAuth
+# cache. Only config.toml is tracked; never commit the credentials.
+shared/stow/cliamp/.config/cliamp/spotify_credentials.json
+shared/stow/cliamp/.config/cliamp/qobuz_credentials.json
+shared/stow/cliamp/.config/cliamp/ytmusic_cache.json
+shared/stow/cliamp/.config/cliamp/history.toml
+shared/stow/cliamp/.config/cliamp/cliamp.log
+shared/stow/cliamp/.config/cliamp/cliamp.sock
+shared/stow/cliamp/.config/cliamp/cliamp.sock.pid

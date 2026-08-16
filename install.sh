@@ -220,6 +220,12 @@ if [ -d "shared/stow" ]; then
             # default tree-folding would symlink ~/.pi to the package directory
             # and expose files ignored by shared/stow/pi/.stow-local-ignore.
             stow_pkg "$pkg" -d shared/stow --no-folding
+        elif [ "$pkg" = "cliamp" ]; then
+            # Only config.toml belongs in the repo. On a fresh machine
+            # ~/.config/cliamp does not exist, so tree-folding would symlink the
+            # whole directory into the package and cliamp would write its runtime
+            # state — including spotify_credentials.json — inside the repo.
+            stow_pkg "$pkg" -d shared/stow --no-folding
         else
             stow_pkg "$pkg" -d shared/stow
         fi
@@ -316,7 +322,15 @@ else
     echo "  → Detected Linux, stowing linux configs..."
     if [ -d "linux/stow" ]; then
         for pkg_path in linux/stow/*/; do
-            stow_pkg "$(basename "$pkg_path")" -d linux/stow
+            pkg="$(basename "$pkg_path")"
+            if [ "$pkg" = "easyeffects" ]; then
+                # Only the tracked preset belongs in the repo. Tree-folding would
+                # symlink ~/.local/share/easyeffects into the package, so presets
+                # saved from the GUI would be written back into the repo.
+                stow_pkg "$pkg" -d linux/stow --no-folding
+            else
+                stow_pkg "$pkg" -d linux/stow
+            fi
         done
     fi
 
