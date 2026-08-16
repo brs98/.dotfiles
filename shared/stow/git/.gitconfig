@@ -6,12 +6,16 @@
     editor = nvim
     ignorecase = false
 
+# MISE_QUIET=1 is required: when gh is installed via mise, the shim prints
+# "mise <config> tools: gh@<version>" to stdout. A credential helper's stdout
+# must contain only key=value credential lines, so git rejects that line
+# ("invalid credential line") and the push fails to authenticate.
 [credential "https://github.com"]
 	helper =
-	helper = !gh auth git-credential
+	helper = !MISE_QUIET=1 gh auth git-credential
 [credential "https://gist.github.com"]
 	helper =
-	helper = !gh auth git-credential
+	helper = !MISE_QUIET=1 gh auth git-credential
 
 [pull]
     rebase = false
