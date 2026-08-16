@@ -69,6 +69,18 @@ if is_macos then
 	end)
 end
 
+-- Omarchy generates this Lua color table from the active theme whenever its
+-- theme is changed. Keep it Linux-only so macOS continues to use Ricekit.
+if is_linux then
+	local omarchy_colors = wezterm.home_dir .. "/.local/state/omarchy/current/theme/wezterm.lua"
+	wezterm.add_to_config_reload_watch_list(omarchy_colors)
+
+	local ok, colors = pcall(dofile, omarchy_colors)
+	if ok and colors then
+		config.colors = colors
+	end
+end
+
 -- Dim inactive panes (useful with or without ricekit)
 config.inactive_pane_hsb = {
 	saturation = 0.7,
@@ -112,12 +124,13 @@ else
 	config.font = wezterm.font("Hack Nerd Font")
 end
 
--- Adaptive font size based on platform and screen
+-- Linux is running under Hyprland's display scaling, so a smaller point size
+-- matches the visual scale of the macOS configuration.
 local font_size = 14.0
 if is_macos then
 	font_size = 16.0 -- Slightly larger on macOS
 elseif is_linux then
-	font_size = 14.0 -- Standard size on Linux with DPI scaling
+	font_size = 12.0
 end
 config.font_size = font_size
 
@@ -127,8 +140,9 @@ if is_macos then
 	config.initial_rows = 35
 end
 
--- Window configuration
-config.window_decorations = "RESIZE"
+-- Hyprland supplies window management, including resize gestures, so omit
+-- WezTerm's client-side titlebar and its close/maximize controls on Linux.
+config.window_decorations = is_linux and "NONE" or "RESIZE"
 config.window_background_opacity = 0.75
 -- Herdr currently drops Escape when WezTerm enables Kitty keyboard reporting.
 config.enable_kitty_keyboard = false

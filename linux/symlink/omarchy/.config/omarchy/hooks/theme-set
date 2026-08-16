@@ -2,7 +2,13 @@
 
 # Delegate to devx-custom hook (canonical copy, shared across platforms)
 if [ -x "$HOME/.config/devx-custom/hooks/theme-set" ]; then
-    exec "$HOME/.config/devx-custom/hooks/theme-set" "$@"
+    "$HOME/.config/devx-custom/hooks/theme-set" "$@"
 else
     echo "Warning: devx-custom theme-set hook not found" >&2
+fi
+
+# WezTerm watches its config file, so touching it makes all running windows
+# pick up Omarchy's newly generated theme/wezterm.lua color table.
+if command -v wezterm >/dev/null 2>&1 && [ -e "$HOME/.wezterm.lua" ]; then
+    touch "$HOME/.wezterm.lua"
 fi
