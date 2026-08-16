@@ -22,3 +22,13 @@ shared/stow/starship/
 .pebbles/*
 !.pebbles/
 !.pebbles/db.sqlite
+
+# macOS Finder metadata
+.DS_Store
+
+# Per-machine skill link farms written into the stowed agent config dirs by
+# `skills add` (it resolves ~/.config/{crush,goose} through their stow symlinks
+# and writes back into the repo). These are symlinks into ~/.agents/skills that
+# only resolve when the repo lives at ~/.dotfiles; install.sh regenerates them.
+shared/stow/agents/.config/crush/skills/
+shared/stow/agents/.config/goose/skills/
