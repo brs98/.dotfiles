@@ -1,0 +1,29 @@
+[Desktop Entry]
+# Augmented WezTerm entry for the Default Terminal Specification.
+#
+# The packaged /usr/share/applications entry has the TerminalEmulator category
+# but none of the X-TerminalArg* keys, so xdg-terminal-exec (which Omarchy uses
+# for `omarchy launch terminal`, TUI .desktop entries, and $TERMINAL) cannot
+# pass it a working directory or a command to run. This user-level copy adds
+# them. Only the keys WezTerm actually supports are declared — `wezterm start`
+# has no --title or --hold equivalent, so X-TerminalArgTitle/Hold are omitted.
+Type=Application
+TryExec=wezterm
+Exec=wezterm start
+Icon=org.wezfurlong.wezterm
+Terminal=false
+Categories=System;TerminalEmulator;Utility;
+Name=WezTerm
+GenericName=Terminal
+Comment=Wez's Terminal Emulator
+Keywords=shell;prompt;command;commandline;cmd;
+StartupNotify=true
+StartupWMClass=org.wezfurlong.wezterm
+Actions=New;
+X-TerminalArgExec=--
+X-TerminalArgAppId=--class=
+X-TerminalArgDir=--cwd=
+
+[Desktop Action New]
+Name=New Terminal
+Exec=wezterm start

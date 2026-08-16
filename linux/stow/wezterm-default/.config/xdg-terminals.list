@@ -1,0 +1,9 @@
+# Default terminal preference, in descending order, for xdg-terminal-exec.
+# Omarchy routes $TERMINAL, `omarchy launch terminal`, and TUI .desktop entries
+# through xdg-terminal-exec, so this file is the single place that decides which
+# terminal opens. Entries are Desktop Entry IDs resolved from the XDG
+# applications directories (~/.local/share/applications wins over /usr/share).
+org.wezfurlong.wezterm.desktop
+com.mitchellh.ghostty.desktop
+Alacritty.desktop
+foot.desktop
