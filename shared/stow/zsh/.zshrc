@@ -189,7 +189,19 @@ fi
 # immediately reconciled into the dotfiles repo (skills-sync), keeping authored
 # and cloned skills tracked and in lockstep with the universal pool.
 skills() {
-  command npx -y skills "$@"
+  # npx is not a given — Arch ships nodejs without npm, so a machine can have
+  # node and still have no npx. bunx runs the same package.
+  local runner
+  if command -v npx >/dev/null 2>&1; then
+    runner=npx
+  elif command -v bunx >/dev/null 2>&1; then
+    runner=bunx
+  else
+    print -u2 "skills: neither npx nor bunx found"
+    return 127
+  fi
+
+  command "$runner" -y skills "$@"
   local rc=$?
   case "${1:-}" in
     add|update|remove|uninstall|install|sync)

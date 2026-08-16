@@ -244,15 +244,32 @@ setup_skills_link() {
 
 # Install this repo's skills into ~/.agents/skills via the skills.sh CLI,
 # so they live in the same managed pool as anything from `npx skills add`.
+
+# Resolve a runner for the `skills` CLI. npx is not a given: Arch ships the
+# nodejs package without npm, so a machine can have node and still have no npx.
+# bunx runs the same package, and bun is already this setup's default JS
+# toolchain, so prefer npx and fall back to it.
+skills_runner() {
+    if command -v npx >/dev/null 2>&1; then
+        echo "npx"
+    elif command -v bunx >/dev/null 2>&1; then
+        echo "bunx"
+    fi
+}
+
 install_dotfile_skills() {
-    if ! command -v npx >/dev/null 2>&1; then
-        echo "    ⚠ npx not found; skipping. Run manually once installed:"
+    local runner
+    runner="$(skills_runner)"
+
+    if [ -z "$runner" ]; then
+        echo "    ⚠ Neither npx nor bunx found; skipping. Run manually once one is installed:"
         echo "        npx skills add $PWD --skill '*' -g -y"
         return
     fi
-    echo "  → Installing dotfile skills via npx skills..."
-    npx -y skills add "$PWD" --skill '*' -g -y || \
-        echo "    ⚠ npx skills add failed; resolve collisions manually with: npx skills add $PWD --skill '*' -g"
+
+    echo "  → Installing dotfile skills via $runner skills..."
+    "$runner" -y skills add "$PWD" --skill '*' -g -y || \
+        echo "    ⚠ $runner skills add failed; resolve collisions manually with: $runner skills add $PWD --skill '*' -g"
 }
 
 # Install the pre-commit hook (claims the unused pre-commit slot; peb keeps
