@@ -7,12 +7,22 @@ THEME_NAME="$1"
 DEVX_OVERRIDE="$HOME/.config/devx-custom/themes/$THEME_NAME/neovim.lua"
 NVIM_THEME_TARGET="$HOME/.config/nvim/lua/plugins/theme.lua"
 
+# Omarchy 4 moved `current/` from ~/.config/omarchy to ~/.local/state/omarchy.
+# Resolve whichever layout this machine has.
+OMARCHY_CURRENT=""
+for candidate in "$HOME/.local/state/omarchy/current" "$HOME/.config/omarchy/current"; do
+    if [ -d "$candidate" ]; then
+        OMARCHY_CURRENT="$candidate"
+        break
+    fi
+done
+
 # Use devx-custom neovim override if available (avoids LazyVim-format defaults)
 if [ -f "$DEVX_OVERRIDE" ]; then
     ln -sf "$DEVX_OVERRIDE" "$NVIM_THEME_TARGET"
-else
+elif [ -n "$OMARCHY_CURRENT" ] && [ -f "$OMARCHY_CURRENT/theme/neovim.lua" ]; then
     # Fall back to omarchy's default
-    ln -sf "$HOME/.config/omarchy/current/theme/neovim.lua" "$NVIM_THEME_TARGET"
+    ln -sf "$OMARCHY_CURRENT/theme/neovim.lua" "$NVIM_THEME_TARGET"
 fi
 
 # Reload tmux configuration for all running tmux sessions
