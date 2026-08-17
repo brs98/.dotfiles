@@ -92,17 +92,6 @@ config.tab_bar_at_bottom = true
 config.tab_max_width = 32
 config.audible_bell = "Disabled"
 
--- Claude Code alert: toast notification when waiting for input
-wezterm.on("user-var-changed", function(window, pane, name, value)
-	if name == "claude_status" and value ~= "" then
-		local messages = {
-			permission = "Needs permission approval",
-			idle = "Waiting for your input",
-		}
-		window:toast_notification("Claude Code", messages[value] or "Needs attention", nil, 5000)
-	end
-end)
-
 -- Custom tab title: "1 → zsh" (respects explicitly set tab titles)
 wezterm.on("format-tab-title", function(tab, _, _, _, _, max_width)
 	local title = tab.tab_title
