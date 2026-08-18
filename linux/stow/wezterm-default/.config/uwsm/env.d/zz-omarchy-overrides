@@ -1,0 +1,9 @@
+# Keep user overrides of packaged omarchy-* commands (currently the WezTerm
+# screensaver shim) ahead of /usr/share/omarchy/bin and /usr/bin for the whole
+# Hyprland session.
+#
+# uwsm sources ~/.config/uwsm/env.d/* last, in ls order, so this file must
+# sort after 99-omarchy-upgrade-env (which prepends $OMARCHY_PATH/bin) for
+# this prepend to end up in front of it. Changes require a relaunch of
+# Hyprland to take effect.
+export PATH="$HOME/.local/share/omarchy-overrides/bin:$PATH"

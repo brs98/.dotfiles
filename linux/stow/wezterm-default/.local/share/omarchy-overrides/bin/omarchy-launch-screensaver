@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# WezTerm support for the Omarchy screensaver.
+#
+# The packaged omarchy-launch-screensaver only knows how to launch the
+# screensaver in Alacritty, Foot, Ghostty, or Kitty, and sends a "Screensaver
+# only runs in ..." notification for anything else. This shim shadows it from
+# ~/.local/share/omarchy-overrides/bin (put ahead of the packaged script by
+# ~/.config/uwsm/env.d/zz-omarchy-overrides and the ~/.bashrc PATH prepend):
+# when the default terminal is WezTerm it launches the screensaver itself,
+# mirroring the packaged script's per-monitor flow; any other terminal is
+# delegated to the packaged script untouched.
+#
+# Mirrored from /usr/bin/omarchy-launch-screensaver (Omarchy quattro). If a
+# future Omarchy update changes that script's flow, re-sync this copy.
+
+packaged=/usr/bin/omarchy-launch-screensaver
+
+terminal=$(xdg-terminal-exec --print-id)
+
+case $terminal in
+*wezterm*) ;;
+*) exec "$packaged" "$@" ;;
+esac
+
+if omarchy-cmd-missing ttfx; then
+  exit 1
+fi
+
+# Exit early if screensaver is already running
+pgrep -f '[o]rg.omarchy.screensaver' && exit 0
+
+# Allow screensaver to be turned off but also force started
+if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
+  exit 1
+fi
+
+focused=$(omarchy-hyprland-monitor-focused)
+
+hypr_focus_monitor() {
+  hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
+}
+
+hypr_exec() {
+  local command
+  printf -v command '%q ' "$@"
+
+  hyprctl dispatch "hl.dsp.exec_cmd([[$command]])" >/dev/null 2>&1 || hyprctl dispatch exec -- bash -lc "$command" >/dev/null
+}
+
+SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+
+# Open Hyprland's event stream before spawning anything, so a terminal that maps
+# quickly can't emit its openwindow event before we are listening for it.
+exec {events}< <(socat -U - "UNIX-CONNECT:$SOCKET")
+
+# hypr_exec is async and a new window maps on whatever monitor is focused at that
+# moment. Block until this monitor's screensaver actually opens before moving
+# focus on -- otherwise slow-starting terminals all pile onto the last monitor.
+# The deadline is a safety net in case the window never appears.
+wait_for_screensaver_window() {
+  local line deadline=$((SECONDS + 5))
+  while ((SECONDS < deadline)) && IFS= read -r -t $((deadline - SECONDS)) -u "$events" line; do
+    [[ $line == openwindow\>\>*,org.omarchy.screensaver,* ]] && return 0
+  done
+}
+
+# The --config overrides replicate what the stock per-terminal screensaver
+# configs set (black background, font size 18, zero padding, opaque window)
+# and make sure the window closes cleanly when omarchy-screensaver exits.
+for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
+  hypr_focus_monitor "$m"
+
+  hypr_exec wezterm \
+    --config 'enable_tab_bar=false' \
+    --config 'window_padding={left=0,right=0,top=0,bottom=0}' \
+    --config 'font_size=18' \
+    --config 'window_background_opacity=1.0' \
+    --config 'colors={background="#000000",cursor_bg="#000000"}' \
+    --config 'window_close_confirmation="NeverPrompt"' \
+    --config 'exit_behavior="Close"' \
+    start --class org.omarchy.screensaver -- omarchy-screensaver
+
+  wait_for_screensaver_window
+done
+
+hypr_focus_monitor "$focused"
