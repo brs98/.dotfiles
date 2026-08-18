@@ -575,5 +575,31 @@ config.keys = { -- Create new tab
 	{ key = "DownArrow", mods = "SHIFT|ALT|CTRL", action = act.AdjustPaneSize({ "Down", 1 }) },
 }
 
+-- Omarchy's SUPER+C / SUPER+V "universal clipboard" bindings don't paste on
+-- their own — default/hypr/bindings/clipboard.lua synthesizes a chord, and picks
+-- which one from the window's "terminal" tag: tagged windows get Ctrl+Insert /
+-- Shift+Insert, everything else gets Ctrl+C / Ctrl+V.
+--
+-- Those Insert chords only reach the CLIPBOARD because Omarchy ships a foot.ini
+-- that remaps them. Every terminal's stock binding sends them to the PRIMARY
+-- selection instead — WezTerm, Ghostty and Alacritty all do. Omarchy tags foot,
+-- ghostty, kitty and wezterm as terminals but only ships that config for foot,
+-- so tagging WezTerm (see hypr/bindings.lua) routes SUPER+C/V onto chords that
+-- would otherwise hit PRIMARY. Mirror foot's [key-bindings] block here:
+--
+--   clipboard-copy=Control+Insert Control+Shift+c XF86Copy
+--   primary-paste=none
+--   clipboard-paste=Shift+Insert Control+Shift+v XF86Paste
+if is_linux then
+	table.insert(config.keys, { key = "Insert", mods = "SHIFT", action = act.PasteFrom("Clipboard") })
+	table.insert(config.keys, { key = "Insert", mods = "CTRL", action = act.CopyTo("Clipboard") })
+
+	-- foot's `primary-paste=none` also unbinds middle-click. Drop this block to
+	-- keep WezTerm's stock middle-click-pastes-PRIMARY behaviour.
+	config.mouse_bindings = {
+		{ event = { Down = { streak = 1, button = "Middle" } }, mods = "NONE", action = act.Nop },
+	}
+end
+
 -- and finally, return the configuration to wezterm
 return config
