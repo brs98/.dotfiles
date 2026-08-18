@@ -9,6 +9,11 @@ export EDITOR="nvim"
 # Initialize completions
 autoload -U compinit && compinit
 
+# History
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=50000
+SAVEHIST=50000
+
 # Zsh options
 setopt AUTO_CD
 setopt HIST_IGNORE_DUPS
