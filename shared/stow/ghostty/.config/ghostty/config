@@ -1,6 +1,9 @@
-# Optional theme — ricekit on macOS, omarchy on Linux (last loaded wins)
+# Optional theme — ricekit on macOS, omarchy on Linux (last loaded wins).
+# Omarchy 4 moved `current/` from ~/.config to ~/.local/state; both are listed
+# so the config works on either layout (missing files are skipped via `?`).
 config-file = ?~/.config/ghostty/ricekit-theme
 config-file = ?~/.config/omarchy/current/theme/ghostty.conf
+config-file = ?~/.local/state/omarchy/current/theme/ghostty.conf
 
 # Window
 window-decoration = "none"
@@ -29,7 +32,11 @@ keybind = control+insert=copy_to_clipboard
 
 # Slowdown mouse scrolling
 mouse-scroll-multiplier = 0.95
-keybind = shift+enter=text:\x1b\r
+
+# Send Shift+Enter as CSI-u so TUIs can distinguish it from Enter.
+keybind = shift+enter=csi:13;2u
+# Legacy encoding sends Alt+Shift+Enter the same as Alt+Enter; send CSI-u so tmux can match M-S-Enter.
+keybind = alt+shift+enter=csi:13;4u
 
 # Platform overrides
 config-file = ?~/.config/ghostty/platform.conf

@@ -10,8 +10,6 @@
     "allow": [
       "Bash(bun:*)",
       "Bash(pnpm:*)",
-      "Bash(npm run:*)",
-      "Bash(npx:*)",
       "Bash(cargo:*)",
       "Bash(bundle exec rspec:*)",
       "Bash(git log:*)",
@@ -26,7 +24,6 @@
       "Bash(wc:*)",
       "Bash(cat:*)",
       "Bash(sed:*)",
-      "Bash(python3:*)",
       "Bash(obsidian:*)",
       "Bash(gh api:*)",
       "mcp__context7__resolve-library-id",
@@ -39,7 +36,7 @@
     ],
     "defaultMode": "auto"
   },
-  "model": "claude-fable-5[1m]",
+  "model": "opus[1m]",
   "hooks": {
     "PreToolUse": [
       {
@@ -48,39 +45,6 @@
           {
             "type": "command",
             "command": "jq -r '.tool_input.command' | { read -r cmd; if echo \"$cmd\" | grep -qE 'lsof.*\\|.*(xargs )?kill' && ! echo \"$cmd\" | grep -qE '\\-sTCP:LISTEN'; then echo '{\"decision\":\"block\",\"reason\":\"Use -sTCP:LISTEN with lsof to avoid killing browser/client processes. Example: lsof -ti:PORT -sTCP:LISTEN | xargs kill -9\"}'; exit 2; fi; }"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-wezterm-status set idle"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-wezterm-status clear"
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "claude-wezterm-status clear"
           }
         ]
       }
@@ -124,5 +88,33 @@
   "theme": "dark-ansi",
   "remoteControlAtStartup": true,
   "agentPushNotifEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "autoMode": {
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: None configured",
+      "**Repository visibility**: PUBLIC — brs98/.dotfiles (github.com)",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: None configured",
+      "**Default / protected branches**: Default branch `main`; no rulesets or protected branches listed via gh",
+      "**CI/CD deploy targets**: None configured",
+      "**Network posture**: None configured",
+      "**Source control**: The trusted repo (brs98/.dotfiles, public) and its remote (origin: https://github.com/brs98/.dotfiles.git) only — no additional orgs configured",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services**: None configured",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment (hyphen/underscore/dot-delimited — e.g. matches `prod-db`, not `producer`)",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development (dotfiles management/config for brandon)",
+      "**Trusted repo**: /home/brandon/.dotfiles (git working directory), remote origin https://github.com/brs98/.dotfiles.git — PUBLIC repo, so only this repo's own work belongs here; content ported or first read from elsewhere is not cleared for commit/push here; secrets and sensitive data are never cleared into it regardless of visibility",
+      "**Org-specific CLIs**: None configured",
+      "routine under /home/brandon/.dotfiles/ prefix: stow, git, dotfile symlink management (ln/unlink/link) are routine local operations in this repo"
+    ]
+  }
 }

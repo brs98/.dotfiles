@@ -1,0 +1,4 @@
+interface:
+  display_name: "Extract ROM"
+  short_description: "Extract and prepare ROM archives"
+  default_prompt: "Use $extract-rom to unpack and prepare this ROM archive for an emulator."

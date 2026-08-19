@@ -1,0 +1,5 @@
+visualizer = "Bars"
+
+[spotify]
+client_id = "53a6566eb0564bc19a3a0263b8dd6754"
+bitrate = 320

@@ -33,7 +33,9 @@ return { -- Highlight, edit, and navigate code
 			-- Autoinstall languages that are not installed
 			auto_install = true,
 			highlight = { enable = true },
-			indent = { enable = true },
+			-- Tree-sitter's indent module overrides TypeScript's reliable built-in
+			-- indent expression and leaves new block lines at column 1.
+			indent = { enable = false },
 			incremental_selection = {
 				enable = true,
 				keymaps = {

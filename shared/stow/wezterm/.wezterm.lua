@@ -3,47 +3,82 @@ local wezterm = require("wezterm")
 
 -- This will hold the configuration.
 local config = wezterm.config_builder()
+local is_macos = wezterm.target_triple:find("darwin") ~= nil
+local is_linux = wezterm.target_triple:find("linux") ~= nil
+local primary_mods = is_linux and "CTRL|SHIFT" or "SUPER"
+local primary_alt_mods = is_linux and "CTRL|ALT" or "SUPER|ALT"
+local move_tab_mods = is_linux and "CTRL|SHIFT" or "SUPER|CTRL"
+local move_tab_previous_key = is_linux and "PageUp" or "LeftArrow"
+local move_tab_next_key = is_linux and "PageDown" or "RightArrow"
 
-config.enable_wayland = false
+-- Use the native compositor on Omarchy while leaving the macOS backend alone.
+if is_linux then
+	config.enable_wayland = true
+end
 
--- Ricekit v2 WezTerm integration (macOS only, pcall guards for Linux)
-local ricekit_colors = wezterm.home_dir .. "/.config/ricekit/active/wezterm/ricekit-colors.lua"
-wezterm.add_to_config_reload_watch_list(ricekit_colors)
+if is_macos then
+	-- Ricekit v2 WezTerm integration.
+	local ricekit_colors = wezterm.home_dir .. "/.config/ricekit/active/wezterm/ricekit-colors.lua"
+	wezterm.add_to_config_reload_watch_list(ricekit_colors)
 
--- Watch AeroSpace state file for fullscreen and opacity toggles
-local wezterm_state_file = wezterm.home_dir .. "/.config/aerospace/wezterm-fullscreen-state.lua"
-wezterm.add_to_config_reload_watch_list(wezterm_state_file)
+	-- Watch AeroSpace state for fullscreen and opacity toggles.
+	local wezterm_state_file = wezterm.home_dir .. "/.config/aerospace/wezterm-fullscreen-state.lua"
+	wezterm.add_to_config_reload_watch_list(wezterm_state_file)
 
-local ok, colors = pcall(dofile, ricekit_colors)
-if ok and colors then
-	config.colors = colors
+	local ok, colors = pcall(dofile, ricekit_colors)
+	if ok and colors then
+		config.colors = colors
 
-	-- Fix tab bar contrast (Ricekit's tab_bar colors have poor contrast)
-	config.colors.tab_bar = {
-		background = "transparent",
-		active_tab = {
-			bg_color = "transparent",
-			fg_color = config.colors.ansi[7],
-		},
-		inactive_tab = {
-			bg_color = "transparent",
-			fg_color = config.colors.ansi[8],
-		},
-		inactive_tab_hover = {
-			bg_color = config.colors.selection_bg,
-			fg_color = config.colors.ansi[8],
-		},
-		new_tab = {
-			bg_color = "transparent",
-			fg_color = config.colors.ansi[7],
-		},
-		new_tab_hover = {
-			bg_color = config.colors.selection_bg,
-			fg_color = config.colors.ansi[8],
-		},
-	}
+		-- Fix tab bar contrast (Ricekit's tab_bar colors have poor contrast).
+		config.colors.tab_bar = {
+			background = "transparent",
+			active_tab = {
+				bg_color = "transparent",
+				fg_color = config.colors.ansi[7],
+			},
+			inactive_tab = {
+				bg_color = "transparent",
+				fg_color = config.colors.ansi[8],
+			},
+			inactive_tab_hover = {
+				bg_color = config.colors.selection_bg,
+				fg_color = config.colors.ansi[8],
+			},
+			new_tab = {
+				bg_color = "transparent",
+				fg_color = config.colors.ansi[7],
+			},
+			new_tab_hover = {
+				bg_color = config.colors.selection_bg,
+				fg_color = config.colors.ansi[8],
+			},
+		}
 
-	-- split color is already set by ricekit ({{border}} with accent tint)
+		-- Split color is already set by Ricekit ({{border}} with accent tint).
+	end
+
+	wezterm.on("window-config-reloaded", function(window, _)
+		local state_ok, state = pcall(dofile, wezterm_state_file)
+		local overrides = window:get_config_overrides() or {}
+		if state_ok and state and state.opaque then
+			overrides.window_background_opacity = 1.0
+		else
+			overrides.window_background_opacity = nil
+		end
+		window:set_config_overrides(overrides)
+	end)
+end
+
+-- Omarchy generates this Lua color table from the active theme whenever its
+-- theme is changed. Keep it Linux-only so macOS continues to use Ricekit.
+if is_linux then
+	local omarchy_colors = wezterm.home_dir .. "/.local/state/omarchy/current/theme/wezterm.lua"
+	wezterm.add_to_config_reload_watch_list(omarchy_colors)
+
+	local ok, colors = pcall(dofile, omarchy_colors)
+	if ok and colors then
+		config.colors = colors
+	end
 end
 
 -- Dim inactive panes (useful with or without ricekit)
@@ -56,30 +91,6 @@ config.use_fancy_tab_bar = false
 config.tab_bar_at_bottom = true
 config.tab_max_width = 32
 config.audible_bell = "Disabled"
-
--- Claude Code alert: toast notification when waiting for input
-wezterm.on("user-var-changed", function(window, pane, name, value)
-	if name == "claude_status" and value ~= "" then
-		local messages = {
-			permission = "Needs permission approval",
-			idle = "Waiting for your input",
-		}
-		window:toast_notification("Claude Code", messages[value] or "Needs attention", nil, 5000)
-	end
-end)
-
--- Toggle opacity based on the opaque flag in the state file.
--- Both fullscreen-toggle.sh and opacity-toggle.sh write to this flag.
-wezterm.on("window-config-reloaded", function(window, pane)
-	local ok, state = pcall(dofile, wezterm_state_file)
-	local overrides = window:get_config_overrides() or {}
-	if ok and state and state.opaque then
-		overrides.window_background_opacity = 1.0
-	else
-		overrides.window_background_opacity = nil
-	end
-	window:set_config_overrides(overrides)
-end)
 
 -- Custom tab title: "1 → zsh" (respects explicitly set tab titles)
 wezterm.on("format-tab-title", function(tab, _, _, _, _, max_width)
@@ -95,30 +106,39 @@ wezterm.on("format-tab-title", function(tab, _, _, _, _, max_width)
 	return " " .. formatted .. " "
 end)
 
-config.font = wezterm.font("Hack Nerd Font")
+if is_linux then
+	-- Match Omarchy's installed terminal font family.
+	config.font = wezterm.font("CaskaydiaMono Nerd Font Mono")
+else
+	config.font = wezterm.font("Hack Nerd Font")
+end
 
--- Adaptive font size based on platform and screen
+-- Linux is running under Hyprland's display scaling, so a smaller point size
+-- matches the visual scale of the macOS configuration.
 local font_size = 14.0
-if wezterm.target_triple:find("darwin") then
+if is_macos then
 	font_size = 16.0 -- Slightly larger on macOS
-elseif wezterm.target_triple:find("linux") then
-	font_size = 14.0 -- Standard size on Linux with DPI scaling
+elseif is_linux then
+	font_size = 12.0
 end
 config.font_size = font_size
 
--- Better default window size
-config.initial_cols = 120
-config.initial_rows = 35
+-- Hyprland controls Linux window geometry; these dimensions are useful on macOS.
+if is_macos then
+	config.initial_cols = 120
+	config.initial_rows = 35
+end
 
--- Window configuration
-config.window_decorations = "RESIZE"
+-- Hyprland supplies window management, including resize gestures, so omit
+-- WezTerm's client-side titlebar and its close/maximize controls on Linux.
+config.window_decorations = is_linux and "NONE" or "RESIZE"
 config.window_background_opacity = 0.75
 -- Herdr currently drops Escape when WezTerm enables Kitty keyboard reporting.
 config.enable_kitty_keyboard = false
 config.enable_csi_u_key_encoding = false
 
 -- macOS-specific improvements
-if wezterm.target_triple:find("darwin") then
+if is_macos then
 	config.native_macos_fullscreen_mode = false
 	config.use_dead_keys = false
 	-- Treat Option as raw modifier for keybindings (disables special character input via Option+key)
@@ -193,7 +213,27 @@ local function route_key_to_herdr(default_action, key, mods)
 	end)
 end
 
-local herdr_cli = wezterm.home_dir .. "/.local/bin/herdr"
+local function resolve_herdr_cli()
+	local candidates = {
+		wezterm.home_dir .. "/.local/bin/herdr",
+		"/opt/homebrew/bin/herdr",
+		"/usr/local/bin/herdr",
+		"/usr/bin/herdr",
+	}
+
+	for _, candidate in ipairs(candidates) do
+		local file = io.open(candidate, "r")
+		if file then
+			file:close()
+			return candidate
+		end
+	end
+
+	-- This still supports installations exposed through the GUI app's PATH.
+	return "herdr"
+end
+
+local herdr_cli = resolve_herdr_cli()
 
 local function focus_herdr_index(default_action, kind, index)
 	return wezterm.action_callback(function(window, pane)
@@ -244,7 +284,7 @@ config.keys = { -- Create new tab
 	},
 	{
 		key = "t",
-		mods = "SUPER",
+		mods = primary_mods,
 		action = route_to_herdr(act.SpawnTab("CurrentPaneDomain"), "c"),
 	},
 	{ key = "Enter", mods = "SHIFT", action = wezterm.action({ SendString = "\x1b\r" }) },
@@ -255,21 +295,21 @@ config.keys = { -- Create new tab
 		action = route_to_herdr(act.CloseCurrentTab({ confirm = true }), "X"),
 	},
 	-- Move tab to the left
-	{ key = "LeftArrow", mods = "SUPER|CTRL", action = act.MoveTabRelative(-1) },
+	{ key = move_tab_previous_key, mods = move_tab_mods, action = act.MoveTabRelative(-1) },
 
 	-- Move tab to the right
-	{ key = "RightArrow", mods = "SUPER|CTRL", action = act.MoveTabRelative(1) },
+	{ key = move_tab_next_key, mods = move_tab_mods, action = act.MoveTabRelative(1) },
 
 	-- Switch to default workspace
 	{
 		key = "1",
-		mods = "SUPER|ALT",
+		mods = primary_alt_mods,
 		action = switch_with_reload("default"),
 	},
 	-- Switch to .dotfiles workspace
 	{
 		key = "2",
-		mods = "SUPER|ALT",
+		mods = primary_alt_mods,
 		action = switch_with_reload(".dotfiles", {
 			cwd = wezterm.home_dir .. "/.dotfiles",
 		}),
@@ -277,7 +317,7 @@ config.keys = { -- Create new tab
 	-- Switch to work workspace
 	-- {
 	-- 	key = "3",
-	-- 	mods = "SUPER|ALT",
+	-- 	mods = primary_alt_mods,
 	-- 	action = act.SwitchToWorkspace({
 	-- 		name = "Work",
 	-- 		spawn = {
@@ -288,7 +328,7 @@ config.keys = { -- Create new tab
 	-- Prompt for a name to use for a new workspace and switch to it.
 	{
 		key = "n",
-		mods = "SUPER|ALT",
+		mods = primary_alt_mods,
 		action = act.PromptInputLine({
 			description = wezterm.format({
 				{ Attribute = { Intensity = "Bold" } },
@@ -311,7 +351,7 @@ config.keys = { -- Create new tab
 	-- instead (lets us reload config after switching — see switch_with_reload).
 	{
 		key = "s",
-		mods = "SUPER|ALT",
+		mods = primary_alt_mods,
 		action = wezterm.action_callback(function(window, pane)
 			local current = window:active_workspace()
 			-- config.colors is absent when the ricekit file didn't load
@@ -433,17 +473,17 @@ config.keys = { -- Create new tab
 	{ key = "phys:9", mods = "ALT", action = focus_herdr_index(act.ActivateTab(8), "agent", 9) },
 	{ key = "0", mods = "ALT", action = act.ActivateTab(9) },
 
-	-- Option+number focuses Herdr agents; Command+Option+number switches
-	-- workspaces in panel order. Plain Command+number remains available to AeroSpace.
-	{ key = "phys:1", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "1", mods = "SUPER|ALT" }), "workspace", 1) },
-	{ key = "phys:2", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "2", mods = "SUPER|ALT" }), "workspace", 2) },
-	{ key = "phys:3", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "3", mods = "SUPER|ALT" }), "workspace", 3) },
-	{ key = "phys:4", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "4", mods = "SUPER|ALT" }), "workspace", 4) },
-	{ key = "phys:5", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "5", mods = "SUPER|ALT" }), "workspace", 5) },
-	{ key = "phys:6", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "6", mods = "SUPER|ALT" }), "workspace", 6) },
-	{ key = "phys:7", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "7", mods = "SUPER|ALT" }), "workspace", 7) },
-	{ key = "phys:8", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "8", mods = "SUPER|ALT" }), "workspace", 8) },
-	{ key = "phys:9", mods = "SUPER|ALT", action = focus_herdr_index(act.SendKey({ key = "9", mods = "SUPER|ALT" }), "workspace", 9) },
+	-- Option+number focuses Herdr agents. Primary+Option+number switches
+	-- workspaces in panel order (Command on macOS, Control on Linux).
+	{ key = "phys:1", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "1", mods = primary_alt_mods }), "workspace", 1) },
+	{ key = "phys:2", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "2", mods = primary_alt_mods }), "workspace", 2) },
+	{ key = "phys:3", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "3", mods = primary_alt_mods }), "workspace", 3) },
+	{ key = "phys:4", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "4", mods = primary_alt_mods }), "workspace", 4) },
+	{ key = "phys:5", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "5", mods = primary_alt_mods }), "workspace", 5) },
+	{ key = "phys:6", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "6", mods = primary_alt_mods }), "workspace", 6) },
+	{ key = "phys:7", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "7", mods = primary_alt_mods }), "workspace", 7) },
+	{ key = "phys:8", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "8", mods = primary_alt_mods }), "workspace", 8) },
+	{ key = "phys:9", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "9", mods = primary_alt_mods }), "workspace", 9) },
 
 	{
 		key = "LeftArrow",
@@ -478,22 +518,22 @@ config.keys = { -- Create new tab
 
 	{
 		key = "RightArrow",
-		mods = "SUPER|ALT",
+		mods = primary_alt_mods,
 		action = route_to_herdr(act.SplitHorizontal({ domain = "CurrentPaneDomain" }), "v"),
 	},
 	{
 		key = "DownArrow",
-		mods = "SUPER|ALT",
+		mods = primary_alt_mods,
 		action = route_to_herdr(act.SplitVertical({ domain = "CurrentPaneDomain" }), "-"),
 	},
 	{
 		key = "x",
-		mods = "SUPER|ALT",
+		mods = primary_alt_mods,
 		action = route_to_herdr(act.CloseCurrentPane({ confirm = true }), "x"),
 	},
 	{
 		key = "k",
-		mods = "SUPER",
+		mods = primary_mods,
 		action = route_key_to_herdr(
 			act.Multiple({
 				act.ClearScrollback("ScrollbackAndViewport"),
@@ -508,18 +548,18 @@ config.keys = { -- Create new tab
 	{ key = "R", mods = "SHIFT|CTRL", action = act.ReloadConfiguration },
 
 	{ key = "X", mods = "CTRL", action = act.ActivateCopyMode },
-	{ key = "f", mods = "SUPER", action = act.Search("CurrentSelectionOrEmptyString") },
+	{ key = "f", mods = primary_mods, action = act.Search("CurrentSelectionOrEmptyString") },
 	{
 		-- Herdr cannot preserve Command while WezTerm's modern keyboard protocols
 		-- are disabled, so use Neovim's equivalent Ctrl+S mapping in Herdr panes.
 		key = "s",
-		mods = "SUPER",
-		action = route_key_to_herdr(act.SendKey({ key = "s", mods = "SUPER" }), "s", "CTRL"),
+		mods = primary_mods,
+		action = route_key_to_herdr(act.SendKey({ key = "s", mods = primary_mods }), "s", "CTRL"),
 	},
-	{ key = "v", mods = "SUPER", action = act.PasteFrom("Clipboard") },
+	{ key = "v", mods = primary_mods, action = act.PasteFrom("Clipboard") },
 	{
 		key = "w",
-		mods = "SUPER",
+		mods = primary_mods,
 		action = route_to_herdr(act.CloseCurrentTab({ confirm = true }), "X"),
 	},
 	{
@@ -534,6 +574,32 @@ config.keys = { -- Create new tab
 	{ key = "UpArrow", mods = "SHIFT|ALT|CTRL", action = act.AdjustPaneSize({ "Up", 1 }) },
 	{ key = "DownArrow", mods = "SHIFT|ALT|CTRL", action = act.AdjustPaneSize({ "Down", 1 }) },
 }
+
+-- Omarchy's SUPER+C / SUPER+V "universal clipboard" bindings don't paste on
+-- their own — default/hypr/bindings/clipboard.lua synthesizes a chord, and picks
+-- which one from the window's "terminal" tag: tagged windows get Ctrl+Insert /
+-- Shift+Insert, everything else gets Ctrl+C / Ctrl+V.
+--
+-- Those Insert chords only reach the CLIPBOARD because Omarchy ships a foot.ini
+-- that remaps them. Every terminal's stock binding sends them to the PRIMARY
+-- selection instead — WezTerm, Ghostty and Alacritty all do. Omarchy tags foot,
+-- ghostty, kitty and wezterm as terminals but only ships that config for foot,
+-- so tagging WezTerm (see hypr/bindings.lua) routes SUPER+C/V onto chords that
+-- would otherwise hit PRIMARY. Mirror foot's [key-bindings] block here:
+--
+--   clipboard-copy=Control+Insert Control+Shift+c XF86Copy
+--   primary-paste=none
+--   clipboard-paste=Shift+Insert Control+Shift+v XF86Paste
+if is_linux then
+	table.insert(config.keys, { key = "Insert", mods = "SHIFT", action = act.PasteFrom("Clipboard") })
+	table.insert(config.keys, { key = "Insert", mods = "CTRL", action = act.CopyTo("Clipboard") })
+
+	-- foot's `primary-paste=none` also unbinds middle-click. Drop this block to
+	-- keep WezTerm's stock middle-click-pastes-PRIMARY behaviour.
+	config.mouse_bindings = {
+		{ event = { Down = { streak = 1, button = "Middle" } }, mods = "NONE", action = act.Nop },
+	}
+end
 
 -- and finally, return the configuration to wezterm
 return config

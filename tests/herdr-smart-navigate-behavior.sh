@@ -203,10 +203,10 @@ commands = {
     for entry in keys["command"]
 }
 expected = {
-    ("prefix+h", "shell", "herdr-smart-navigate left"),
-    ("prefix+l", "shell", "herdr-smart-navigate right"),
-    ("alt+left", "shell", "herdr-smart-navigate left"),
-    ("alt+right", "shell", "herdr-smart-navigate right"),
+    ("prefix+h", "shell", "$HOME/.local/bin/herdr-smart-navigate left"),
+    ("prefix+l", "shell", "$HOME/.local/bin/herdr-smart-navigate right"),
+    ("alt+left", "shell", "$HOME/.local/bin/herdr-smart-navigate left"),
+    ("alt+right", "shell", "$HOME/.local/bin/herdr-smart-navigate right"),
 }
 assert commands == expected
 PY

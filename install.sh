@@ -7,6 +7,36 @@ echo "Installing dotfiles..."
 # Navigate to dotfiles directory
 cd "$(dirname "$0")"
 
+# Omarchy 4 moved `current/` from ~/.config/omarchy to ~/.local/state/omarchy.
+# Resolve whichever layout this machine has so theming keeps working on both.
+OMARCHY_CURRENT=""
+for candidate in "$HOME/.local/state/omarchy/current" "$HOME/.config/omarchy/current"; do
+    if [ -d "$candidate" ]; then
+        OMARCHY_CURRENT="$candidate"
+        break
+    fi
+done
+
+# Stow a package, reporting conflicts instead of aborting the whole install.
+# Without this, one pre-existing real file (e.g. a config Omarchy rewrote in
+# place) would kill the script via `set -e` before anything else ran.
+STOW_CONFLICTS=()
+stow_pkg() {
+    local pkg="$1"
+    shift
+    local err
+    err="$(mktemp)"
+    if stow "$@" -t ~ "$pkg" 2>"$err"; then
+        rm -f "$err"
+        return 0
+    fi
+    echo "    ⚠ Conflict stowing '$pkg' — skipped. Details:"
+    sed 's/^/        /' "$err"
+    rm -f "$err"
+    STOW_CONFLICTS+=("$pkg")
+    return 0
+}
+
 # Function to create symlinks for a package
 create_symlinks() {
     local package_name="$1"
@@ -61,7 +91,7 @@ setup_zen_browser() {
     # Define source files
     local dotfiles_dir="$PWD"
     local base_css="$dotfiles_dir/shared/symlink/zen/profile/chrome/base.css"
-    local omarchy_theme="$HOME/.config/omarchy/current/theme/zen-browser.css"
+    local omarchy_theme="$OMARCHY_CURRENT/theme/zen-browser.css"
     local user_js="$dotfiles_dir/shared/symlink/zen/profile/user.js"
 
     # Create symlinks
@@ -134,23 +164,72 @@ make_scripts_executable() {
     done
 }
 
+# Herdr writes runtime state beside config.toml, so Stow cannot fold the whole
+# directory. Preserve an unmanaged config before linking the tracked version.
+prepare_herdr_config() {
+    local target="$HOME/.config/herdr/config.toml"
+
+    if [ -e "$target" ] && [ ! -L "$target" ]; then
+        local backup="$target.pre-dotfiles.$(date +%s)"
+        mv "$target" "$backup"
+        echo "    ✓ Backed up existing Herdr config to $backup"
+    fi
+}
+
 # Make scripts executable before stowing
 make_scripts_executable
+prepare_herdr_config
+
+# Starship's palette is rewritten by ricekit/omarchy theme hooks, so the repo
+# gitignores its contents (see .gitignore). On a fresh clone the package dir
+# therefore doesn't exist and the stow symlink would dangle — seed it.
+seed_starship_config() {
+    local pkg_dir="shared/stow/starship/.config"
+    local pkg_file="$pkg_dir/starship.toml"
+
+    [ -f "$pkg_file" ] && return
+
+    local seed=""
+    for candidate in \
+        "$HOME/.local/share/omarchy/config/starship.toml" \
+        "$HOME/.config/starship.toml"; do
+        if [ -f "$candidate" ]; then
+            seed="$candidate"
+            break
+        fi
+    done
+
+    if [ -z "$seed" ]; then
+        echo "    ⚠ No starship config to seed from; skipping starship package"
+        return
+    fi
+
+    mkdir -p "$pkg_dir"
+    cp "$seed" "$pkg_file"
+    echo "    ✓ Seeded starship config from $seed"
+}
 
 # Stow all shared configs
 echo "  → Stowing shared configs..."
+seed_starship_config
 if [ -d "shared/stow" ]; then
-    (cd shared/stow && for pkg in */; do
-        pkg="${pkg%/}"
+    for pkg_path in shared/stow/*/; do
+        pkg="$(basename "$pkg_path")"
         if [ "$pkg" = "pi" ]; then
             # Keep Pi's validation monorepo metadata in the repo only. Stow's
             # default tree-folding would symlink ~/.pi to the package directory
             # and expose files ignored by shared/stow/pi/.stow-local-ignore.
-            stow --no-folding -t ~ "$pkg"
+            stow_pkg "$pkg" -d shared/stow --no-folding
+        elif [ "$pkg" = "cliamp" ]; then
+            # Only config.toml belongs in the repo. On a fresh machine
+            # ~/.config/cliamp does not exist, so tree-folding would symlink the
+            # whole directory into the package and cliamp would write its runtime
+            # state — including spotify_credentials.json — inside the repo.
+            stow_pkg "$pkg" -d shared/stow --no-folding
         else
-            stow -t ~ "$pkg"
+            stow_pkg "$pkg" -d shared/stow
         fi
-    done)
+    done
 fi
 
 # Wire ~/.claude/skills to the skills.sh-managed ~/.agents/skills universal location,
@@ -171,15 +250,32 @@ setup_skills_link() {
 
 # Install this repo's skills into ~/.agents/skills via the skills.sh CLI,
 # so they live in the same managed pool as anything from `npx skills add`.
+
+# Resolve a runner for the `skills` CLI. npx is not a given: Arch ships the
+# nodejs package without npm, so a machine can have node and still have no npx.
+# bunx runs the same package, and bun is already this setup's default JS
+# toolchain, so prefer npx and fall back to it.
+skills_runner() {
+    if command -v npx >/dev/null 2>&1; then
+        echo "npx"
+    elif command -v bunx >/dev/null 2>&1; then
+        echo "bunx"
+    fi
+}
+
 install_dotfile_skills() {
-    if ! command -v npx >/dev/null 2>&1; then
-        echo "    ⚠ npx not found; skipping. Run manually once installed:"
+    local runner
+    runner="$(skills_runner)"
+
+    if [ -z "$runner" ]; then
+        echo "    ⚠ Neither npx nor bunx found; skipping. Run manually once one is installed:"
         echo "        npx skills add $PWD --skill '*' -g -y"
         return
     fi
-    echo "  → Installing dotfile skills via npx skills..."
-    npx -y skills add "$PWD" --skill '*' -g -y || \
-        echo "    ⚠ npx skills add failed; resolve collisions manually with: npx skills add $PWD --skill '*' -g"
+
+    echo "  → Installing dotfile skills via $runner skills..."
+    "$runner" -y skills add "$PWD" --skill '*' -g -y || \
+        echo "    ⚠ $runner skills add failed; resolve collisions manually with: $runner skills add $PWD --skill '*' -g"
 }
 
 # Install the pre-commit hook (claims the unused pre-commit slot; peb keeps
@@ -218,23 +314,35 @@ setup_skill_sync
 if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "  → Detected macOS, stowing mac configs..."
     if [ -d "mac/stow" ]; then
-        (cd mac/stow && stow -t ~ *)
+        for pkg_path in mac/stow/*/; do
+            stow_pkg "$(basename "$pkg_path")" -d mac/stow
+        done
     fi
 else
     echo "  → Detected Linux, stowing linux configs..."
     if [ -d "linux/stow" ]; then
-        (cd linux/stow && stow -t ~ *)
+        for pkg_path in linux/stow/*/; do
+            pkg="$(basename "$pkg_path")"
+            if [ "$pkg" = "easyeffects" ]; then
+                # Only the tracked preset belongs in the repo. Tree-folding would
+                # symlink ~/.local/share/easyeffects into the package, so presets
+                # saved from the GUI would be written back into the repo.
+                stow_pkg "$pkg" -d linux/stow --no-folding
+            else
+                stow_pkg "$pkg" -d linux/stow
+            fi
+        done
     fi
 
     # Link nvim theme — Linux only (macOS uses ricekit's colors/ricekit.lua symlink instead)
     # Prefer devx-custom override, fall back to omarchy default
-    CURRENT_THEME=$(cat "$HOME/.config/omarchy/current/theme.name" 2>/dev/null)
+    CURRENT_THEME=$(cat "$OMARCHY_CURRENT/theme.name" 2>/dev/null)
     DEVX_OVERRIDE="$HOME/.config/devx-custom/themes/$CURRENT_THEME/neovim.lua"
     if [ -n "$CURRENT_THEME" ] && [ -f "$DEVX_OVERRIDE" ]; then
         ln -sf "$DEVX_OVERRIDE" "$HOME/.config/nvim/lua/plugins/theme.lua"
         echo "    ✓ Linked nvim theme to devx-custom override ($CURRENT_THEME)"
-    elif [ -f "$HOME/.config/omarchy/current/theme/neovim.lua" ]; then
-        ln -sf "$HOME/.config/omarchy/current/theme/neovim.lua" "$HOME/.config/nvim/lua/plugins/theme.lua"
+    elif [ -n "$OMARCHY_CURRENT" ] && [ -f "$OMARCHY_CURRENT/theme/neovim.lua" ]; then
+        ln -sf "$OMARCHY_CURRENT/theme/neovim.lua" "$HOME/.config/nvim/lua/plugins/theme.lua"
         echo "    ✓ Linked nvim theme to omarchy default ($CURRENT_THEME)"
     else
         echo "    ⚠ Warning: omarchy nvim theme not found, skipping..."
@@ -301,6 +409,27 @@ fi
 
 echo "✓ Dotfiles installed successfully!"
 echo ""
+
+if [ ${#STOW_CONFLICTS[@]} -gt 0 ]; then
+    echo "⚠ These packages were skipped due to conflicts with existing real files:"
+    for pkg in "${STOW_CONFLICTS[@]}"; do
+        echo "    - $pkg"
+    done
+    echo ""
+    echo "  To keep the live file and track it in the repo:"
+    echo "      cd $PWD && stow --adopt -t ~ <package> && git diff"
+    echo "  To discard the live file and use the repo version:"
+    echo "      rm <conflicting file> && cd $PWD && ./install.sh"
+    echo ""
+fi
+
+# The aliases in .zshrc only load if zsh is your login shell.
+if [ "$(basename "${SHELL:-}")" != "zsh" ] && command -v zsh >/dev/null 2>&1; then
+    echo "⚠ Your login shell is '${SHELL:-unknown}', not zsh — .zshrc (and its"
+    echo "  aliases) will not load. To fix:  chsh -s \"$(command -v zsh)\""
+    echo ""
+fi
+
 echo "Note: Make sure you have the following tools installed:"
 echo "  - starship (prompt)"
 echo "  - zoxide (smart cd)"
