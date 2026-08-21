@@ -543,6 +543,11 @@ config.keys = { -- Create new tab
 			"CTRL"
 		),
 	},
+	-- Scrollback controls for compact keyboards without Page Up/Page Down.
+	{ key = "UpArrow", mods = "CTRL|SHIFT", action = act.ScrollByPage(-1) },
+	{ key = "DownArrow", mods = "CTRL|SHIFT", action = act.ScrollByPage(1) },
+	{ key = "Home", mods = "CTRL|SHIFT", action = act.ScrollToTop },
+	{ key = "End", mods = "CTRL|SHIFT", action = act.ScrollToBottom },
 	{ key = "L", mods = "SHIFT|CTRL", action = act.ShowDebugOverlay },
 	{ key = "P", mods = "SHIFT|CTRL", action = act.ActivateCommandPalette },
 	{ key = "R", mods = "SHIFT|CTRL", action = act.ReloadConfiguration },
