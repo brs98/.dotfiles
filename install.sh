@@ -348,6 +348,14 @@ else
             fi
         done
     fi
+
+    # Omarchy's shell.json is copy-deployed, not symlinked: the shell rewrites
+    # it atomically at runtime, which would replace a symlink with a real file.
+    # Seed it only when absent so we never clobber a live config.
+    if [ -x "linux/scripts/omarchy-shell-config-sync" ]; then
+        echo "  → Seeding Omarchy shell.json (if missing)..."
+        DOTFILES="$PWD" linux/scripts/omarchy-shell-config-sync seed
+    fi
 fi
 
 echo "✓ Dotfiles installed successfully!"

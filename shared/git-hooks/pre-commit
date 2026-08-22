@@ -7,6 +7,8 @@
 #
 # Reconciles the universal pool (~/.agents/skills) against the repo, then stages
 # skills/ so the commit always captures a consistent, drift-free skill tree.
+# Also mirrors Omarchy's live shell.json into the repo (it cannot be symlinked;
+# the shell's atomic writes would replace the link with a regular file).
 # It never blocks a commit; it fixes drift and tells you what it changed.
 
 # Resolve skills-sync: prefer PATH (stowed to ~/.local/bin), fall back to repo.
@@ -26,4 +28,10 @@ after="$(git diff --cached --name-only -- skills 2>/dev/null)"
 if [ "$before" != "$after" ]; then
     echo "→ skills-sync reconciled the skill tree and staged skills/ for this commit." >&2
 fi
+
+# Mirror Omarchy's live shell.json into the repo. No-ops off Omarchy hosts.
+repo_root="${repo_root:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+SHELL_SYNC="$repo_root/linux/scripts/omarchy-shell-config-sync"
+[ -x "$SHELL_SYNC" ] && DOTFILES="$repo_root" "$SHELL_SYNC" stage || true
+
 exit 0

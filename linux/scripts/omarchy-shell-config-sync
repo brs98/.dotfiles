@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+#
+# Keep the tracked copy of Omarchy's shell.json in step with the live file.
+#
+# Why a copy and not a symlink: the Omarchy shell owns this file at runtime.
+# Its Quickshell FileView is declared `atomicWrites: true`, so every in-shell
+# settings change (bar rearrange, `omarchy bar ...`, plugin enable/disable)
+# writes a temp file and renames it over the path. A rename replaces a symlink
+# with a regular file, silently detaching it from the repo. Verified by
+# observation, not theory -- `omarchy bar transparent toggle` clobbers it on
+# the first write.
+#
+# So the live file stays canonical and we mirror it into the repo.
+#
+#   sync   copy live -> repo (default)
+#   stage  same, then `git add` the result
+#   seed   copy repo -> live, only when live is missing (fresh machine)
+
+set -euo pipefail
+
+LIVE="$HOME/.config/omarchy/shell.json"
+REPO_ROOT="${DOTFILES:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$HOME/.dotfiles")}"
+TRACKED="$REPO_ROOT/linux/omarchy/shell.json"
+
+case "${1:-sync}" in
+  seed)
+    if [ ! -e "$LIVE" ] && [ -f "$TRACKED" ]; then
+      mkdir -p "$(dirname "$LIVE")"
+      cp "$TRACKED" "$LIVE"
+      echo "    ✓ seeded ~/.config/omarchy/shell.json from dotfiles"
+    fi
+    ;;
+  sync|stage)
+    [ -f "$LIVE" ] || exit 0
+    # A symlink here means something re-linked it; the shell will break the
+    # link on its next write, so restore a real file from the live content.
+    if [ -L "$LIVE" ]; then
+      target="$(readlink -f "$LIVE")"
+      cp "$target" "$LIVE.tmp" && mv "$LIVE.tmp" "$LIVE"
+      echo "    ⚠ shell.json was a symlink; replaced with a real file" >&2
+    fi
+    mkdir -p "$(dirname "$TRACKED")"
+    if ! cmp -s "$LIVE" "$TRACKED"; then
+      cp "$LIVE" "$TRACKED"
+      chmod 644 "$TRACKED"
+      echo "→ omarchy shell.json changed; refreshed the tracked copy." >&2
+    fi
+    [ "${1:-sync}" = "stage" ] && git -C "$REPO_ROOT" add "$TRACKED"
+    ;;
+  *)
+    echo "usage: omarchy-shell-config-sync [sync|stage|seed]" >&2
+    exit 1
+    ;;
+esac
