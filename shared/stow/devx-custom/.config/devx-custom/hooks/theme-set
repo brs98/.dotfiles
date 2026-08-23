@@ -24,10 +24,3 @@ elif [ -n "$OMARCHY_CURRENT" ] && [ -f "$OMARCHY_CURRENT/theme/neovim.lua" ]; th
     # Fall back to omarchy's default
     ln -sf "$OMARCHY_CURRENT/theme/neovim.lua" "$NVIM_THEME_TARGET"
 fi
-
-# Reload tmux configuration for all running tmux sessions
-if command -v tmux &> /dev/null; then
-    if tmux info &> /dev/null; then
-        tmux source-file ~/.tmux.conf
-    fi
-fi

@@ -4,10 +4,6 @@
 
 o.bind("SUPER + SHIFT + R", "RetroArch", "omarchy-launch-or-focus retroarch")
 
--- Clear the clipboard (cliptail). No restart bind: clicking the bar widget
--- restarts the daemon, and SUPER + SHIFT + R is RetroArch above.
-o.bind("SUPER + SHIFT + V", "Clear clipboard", "omarchy-shell cliptail clear")
-
 -- Tag WezTerm as a terminal. Omarchy's default/hypr/apps/terminals.lua matches
 -- the literal "wezterm", but WezTerm's actual app-id is "org.wezfurlong.wezterm"
 -- and the class is matched in full, so the tag never applied.

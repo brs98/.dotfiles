@@ -67,58 +67,6 @@ create_symlinks() {
     echo "    ✓ $package_name symlinks created"
 }
 
-# Setup Zen browser theming
-setup_zen_browser() {
-    echo "  → Setting up Zen browser theming..."
-
-    # Find the Zen profile directory
-    local zen_profile=""
-    if [ -d "$HOME/.zen" ]; then
-        zen_profile=$(find "$HOME/.zen" -maxdepth 1 -name "*.Default*" -type d | head -1)
-    fi
-
-    if [ -z "$zen_profile" ]; then
-        echo "    ⚠ Warning: Zen browser profile not found, skipping..."
-        echo "      Run Zen browser once to create a profile, then re-run this script"
-        return
-    fi
-
-    echo "    Found Zen profile: $zen_profile"
-
-    # Create chrome directory if it doesn't exist
-    mkdir -p "$zen_profile/chrome"
-
-    # Define source files
-    local dotfiles_dir="$PWD"
-    local base_css="$dotfiles_dir/shared/symlink/zen/profile/chrome/base.css"
-    local omarchy_theme="$OMARCHY_CURRENT/theme/zen-browser.css"
-    local user_js="$dotfiles_dir/shared/symlink/zen/profile/user.js"
-
-    # Create symlinks
-    if [ -f "$base_css" ]; then
-        ln -sf "$base_css" "$zen_profile/chrome/base.css"
-        echo "    ✓ Symlinked base.css"
-    else
-        echo "    ⚠ Warning: base.css not found at $base_css"
-    fi
-
-    if [ -f "$omarchy_theme" ]; then
-        ln -sf "$omarchy_theme" "$zen_profile/chrome/userChrome.css"
-        echo "    ✓ Symlinked userChrome.css → omarchy theme"
-    else
-        echo "    ⚠ Warning: omarchy theme not found at $omarchy_theme"
-    fi
-
-    if [ -f "$user_js" ]; then
-        ln -sf "$user_js" "$zen_profile/user.js"
-        echo "    ✓ Symlinked user.js"
-    else
-        echo "    ⚠ Warning: user.js not found at $user_js"
-    fi
-
-    echo "    ✓ Zen browser theming setup complete"
-}
-
 # Setup RetroArch saves symlinks
 setup_retroarch_saves() {
     echo "  → Setting up RetroArch saves symlinks..."
@@ -366,11 +314,6 @@ if [ -d "shared/symlink" ]; then
     for package in shared/symlink/*/; do
         if [ -d "$package" ]; then
             package_name="$(basename "$package")"
-            # Skip zen - it has special setup requirements
-            if [ "$package_name" = "zen" ]; then
-                setup_zen_browser
-                continue
-            fi
             # Skip retroarch - it has special setup requirements
             if [ "$package_name" = "retroarch" ]; then
                 setup_retroarch_saves
