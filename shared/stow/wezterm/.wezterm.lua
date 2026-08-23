@@ -78,6 +78,29 @@ if is_linux then
 	local ok, colors = pcall(dofile, omarchy_colors)
 	if ok and colors then
 		config.colors = colors
+		config.colors.tab_bar = {
+			background = "transparent",
+			active_tab = {
+				bg_color = "transparent",
+				fg_color = colors.foreground,
+			},
+			inactive_tab = {
+				bg_color = "transparent",
+				fg_color = colors.brights[1],
+			},
+			inactive_tab_hover = {
+				bg_color = colors.selection_bg,
+				fg_color = colors.foreground,
+			},
+			new_tab = {
+				bg_color = "transparent",
+				fg_color = colors.brights[1],
+			},
+			new_tab_hover = {
+				bg_color = colors.selection_bg,
+				fg_color = colors.foreground,
+			},
+		}
 	end
 end
 
@@ -90,6 +113,7 @@ config.inactive_pane_hsb = {
 config.use_fancy_tab_bar = false
 config.tab_bar_at_bottom = true
 config.tab_max_width = 32
+config.show_new_tab_button_in_tab_bar = false
 config.audible_bell = "Disabled"
 
 -- Custom tab title: "1 → zsh" (respects explicitly set tab titles)
