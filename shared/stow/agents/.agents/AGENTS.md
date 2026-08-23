@@ -3,7 +3,7 @@
 ### Isolated Workspaces, Not Bare Branches
 
 - Prefer isolated workspaces/worktrees for repository tasks instead of working directly on the main checkout or switching branches in-place.
-- Use the `patchtree` skill/workspace primitives when creating a task workspace.
+- Use native Git worktrees when creating a task workspace.
 - Do not share one writable workspace across parallel implementation agents.
 
 ### Agent Team and Subagent Strategy

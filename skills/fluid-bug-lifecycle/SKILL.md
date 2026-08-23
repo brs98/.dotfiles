@@ -22,7 +22,6 @@ Use these installed skills instead of reimplementing them:
 
 - `agent-browser` for reproduction evidence and the challenge form.
 - `linear-fluid-commerce` for every Linear operation.
-- `patchtree` for one isolated workspace per affected repository.
 - `firefighting` for assessment, confidence, stop conditions, and narrow TDD fixes.
 - Applicable repository TypeScript, React, Jest, architecture, and local `AGENTS.md` guidance.
 - `ship-pr` only for commit/push/PR creation; this wrapper owns `greploop`, Committee,
@@ -51,7 +50,7 @@ rule. All other firefighting safety gates remain in force.
 5. **Assess and fix**
    - Post the Firefighting Assessment before code changes.
    - Implement only at confidence `>= 0.85` with no stop condition; otherwise mark `ai:needs-human` and pause.
-   - Move to `ai:in-progress`, create a Patchtree worktree, prove the defect, make the narrow fix, and run scoped plus required checks.
+   - Move to `ai:in-progress`, create an isolated Git worktree, prove the defect, make the narrow fix, and run scoped plus required checks.
 6. **Open the PR**
    - Use a conventional title and a body linking Linear and the challenge report, with root cause, fix, impact, and commands actually run.
    - Move the Linear marker to `ai:pr-opened` and comment with the PR URL.

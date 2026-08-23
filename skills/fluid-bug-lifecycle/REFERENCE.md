@@ -136,7 +136,7 @@ of meaningful local verification.
 
 For an eligible fix:
 
-1. Create one Patchtree workspace for the affected repository using Git-worktree materialization.
+1. Create one isolated Git worktree for the affected repository.
 2. Load root and nearest `AGENTS.md` plus technology-specific skills.
 3. Use branch `firefighting/<linear-id-lowercase>-<short-slug>`.
 4. Add a focused failing test first when feasible; otherwise preserve equivalent before/after

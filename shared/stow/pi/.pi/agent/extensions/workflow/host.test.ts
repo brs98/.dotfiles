@@ -111,6 +111,16 @@ describe("runWorkflowScript", () => {
     expect(result).toBe(42);
   });
 
+  it("rejects the removed isolation option before spawning an agent", async () => {
+    const { runner, calls } = echoRunner();
+    const script = `${META}return agent('task', { isolation: 'worktree' })\n`;
+
+    await expect(runWorkflowScript({ script, runner })).rejects.toThrow(
+      /no longer supports the isolation option/,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
   it("resolves failed parallel thunks to null", async () => {
     const { runner } = makeRunner((invocation) => {
       if (invocation.prompt.includes("boom")) throw new Error("boom");

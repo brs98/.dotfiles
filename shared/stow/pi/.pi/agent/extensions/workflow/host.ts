@@ -28,7 +28,6 @@ export interface AgentCallOptions {
   cwd?: string;
   timeoutMs?: number;
   schema?: unknown;
-  isolation?: "worktree";
 }
 
 export interface AgentInvocation {
@@ -267,7 +266,6 @@ function contentHash(prompt: string, options: AgentCallOptions): string {
     tools: options.tools,
     cwd: options.cwd,
     schema: options.schema,
-    isolation: options.isolation,
   };
   return createHash("sha256")
     .update(prompt)
@@ -394,6 +392,11 @@ export async function runWorkflowScript(options: RunWorkflowOptions): Promise<Wo
       throw new WorkflowScriptError("agent(prompt, opts?) requires a non-empty string prompt");
     }
     if (signal?.aborted) throw new Error("workflow aborted");
+    if (rawOptions && typeof rawOptions === "object" && "isolation" in rawOptions) {
+      throw new WorkflowScriptError(
+        "agent() no longer supports the isolation option; create an isolated workspace and pass its path with cwd instead",
+      );
+    }
 
     const callOptions = (rawOptions ?? {}) as AgentCallOptions satisfies AgentCallOptions;
     const key = nextKey(prompt, callOptions);

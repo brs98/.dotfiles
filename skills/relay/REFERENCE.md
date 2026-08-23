@@ -106,6 +106,6 @@ Viewer shutdown never stops the underlying run.
 - **Global CLI missing/stale:** from `/Users/brandon/personal/relay`, run
   `pnpm build` and `pnpm link --global`, then verify `command -v relay`.
 
-For implementation work on Relay itself, use an isolated Patchtree workspace,
+For implementation work on Relay itself, use an isolated Git worktree,
 run the complete test/typecheck/build/package checks, and preserve unrelated
 changes in the main checkout.
