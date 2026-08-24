@@ -1,5 +1,6 @@
 return {
 	"stevearc/aerial.nvim",
+	commit = "5e687b5a14004fa2dd9eccbee042b96869fe1557",
 	opts = {},
 	dependencies = {
 		"nvim-treesitter/nvim-treesitter",
