@@ -220,3 +220,6 @@ skills() {
 
 # Machine-local config (never committed)
 [[ -f ~/.config/zsh/local.zsh ]] && source ~/.config/zsh/local.zsh
+
+# Prime Agent
+alias prime='prime-agent'
