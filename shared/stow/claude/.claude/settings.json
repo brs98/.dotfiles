@@ -64,7 +64,9 @@
     "pyright-lsp@claude-plugins-official": true,
     "worktrunk@worktrunk": true,
     "ruby-lsp@claude-plugins-official": true,
-    "swift-lsp@claude-plugins-official": true
+    "swift-lsp@claude-plugins-official": true,
+    "mattpocock-skills@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "worktrunk": {
@@ -111,9 +113,9 @@
       "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
       "### User-specific",
       "**Primary use of Claude Code**: software development (dotfiles management/config for brandon)",
-      "**Trusted repo**: /home/brandon/.dotfiles (git working directory), remote origin https://github.com/brs98/.dotfiles.git — PUBLIC repo, so only this repo's own work belongs here; content ported or first read from elsewhere is not cleared for commit/push here; secrets and sensitive data are never cleared into it regardless of visibility",
+      "**Trusted repo**: ~/.dotfiles (git working directory), remote origin https://github.com/brs98/.dotfiles.git — PUBLIC repo, so only this repo's own work belongs here; content ported or first read from elsewhere is not cleared for commit/push here; secrets and sensitive data are never cleared into it regardless of visibility",
       "**Org-specific CLIs**: None configured",
-      "routine under /home/brandon/.dotfiles/ prefix: stow, git, dotfile symlink management (ln/unlink/link) are routine local operations in this repo"
+      "routine under ~/.dotfiles/ prefix: stow, git, dotfile symlink management (ln/unlink/link) are routine local operations in this repo"
     ]
   }
 }
