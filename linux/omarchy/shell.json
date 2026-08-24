@@ -1,27 +1,14 @@
 {
+  "version": 1,
+  "idle": {
+    "screensaver": 901,
+    "lock": 900
+  },
   "bar": {
+    "position": "top",
+    "transparent": false,
     "centerAnchor": "omarchy.clock",
     "layout": {
-      "center": [
-        {
-          "id": "omarchy.indicators"
-        },
-        {
-          "id": "omarchy.weather"
-        },
-        {
-          "format": "dddd HH:mm",
-          "formatAlt": "d MMMM 'W'ww yyyy",
-          "id": "omarchy.clock",
-          "verticalFormat": "HH\n—\nmm"
-        },
-        {
-          "id": "omarchy.keyboard-layout"
-        },
-        {
-          "id": "omarchy.system-update"
-        }
-      ],
       "left": [
         {
           "id": "omarchy.menu"
@@ -30,18 +17,29 @@
           "id": "omarchy.workspaces"
         }
       ],
+      "center": [
+        {
+          "id": "omarchy.indicators"
+        },
+        {
+          "id": "omarchy.clock",
+          "format": "dddd HH:mm",
+          "formatAlt": "d MMMM 'W'ww yyyy",
+          "verticalFormat": "HH\n—\nmm"
+        },
+        {
+          "id": "omarchy.keyboard-layout"
+        },
+        {
+          "id": "omarchy.weather"
+        },
+        {
+          "id": "omarchy.system-update"
+        }
+      ],
       "right": [
         {
           "id": "omarchy.tray"
-        },
-        {
-          "id": "brs98.instant-replay"
-        },
-        {
-          "id": "brs98.cliptail"
-        },
-        {
-          "id": "omarchy.tailscale"
         },
         {
           "id": "omarchy.agents"
@@ -59,18 +57,10 @@
           "id": "omarchy.monitor"
         },
         {
-          "id": "omarchy.power",
-          "showPercentage": true
+          "id": "omarchy.power"
         }
       ]
-    },
-    "position": "top",
-    "transparent": false
+    }
   },
-  "idle": {
-    "lock": 300,
-    "screensaver": 150
-  },
-  "plugins": [],
-  "version": 1
+  "plugins": []
 }
