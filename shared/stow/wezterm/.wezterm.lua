@@ -237,56 +237,6 @@ local function route_key_to_herdr(default_action, key, mods)
 	end)
 end
 
-local function resolve_herdr_cli()
-	local candidates = {
-		wezterm.home_dir .. "/.local/bin/herdr",
-		"/opt/homebrew/bin/herdr",
-		"/usr/local/bin/herdr",
-		"/usr/bin/herdr",
-	}
-
-	for _, candidate in ipairs(candidates) do
-		local file = io.open(candidate, "r")
-		if file then
-			file:close()
-			return candidate
-		end
-	end
-
-	-- This still supports installations exposed through the GUI app's PATH.
-	return "herdr"
-end
-
-local herdr_cli = resolve_herdr_cli()
-
-local function focus_herdr_index(default_action, kind, index)
-	return wezterm.action_callback(function(window, pane)
-		if not is_herdr(pane) then
-			window:perform_action(default_action, pane)
-			return
-		end
-
-		local ok, stdout, stderr = wezterm.run_child_process({ herdr_cli, kind, "list" })
-		if not ok then
-			wezterm.log_error("Failed to list Herdr " .. kind .. "s: " .. stderr)
-			return
-		end
-
-		local result = wezterm.json_parse(stdout).result
-		local items = kind == "workspace" and result.workspaces or result.agents
-		local item = items[index]
-		if not item then
-			return
-		end
-
-		local target = kind == "workspace" and item.workspace_id or item.terminal_id
-		local focused, _, focus_stderr = wezterm.run_child_process({ herdr_cli, kind, "focus", target })
-		if not focused then
-			wezterm.log_error("Failed to focus Herdr " .. kind .. ": " .. focus_stderr)
-		end
-	end)
-end
-
 -- WezTerm's file-watcher reload doesn't repaint panes outside the active
 -- workspace; performing ReloadConfiguration after the switch refreshes them.
 local function switch_with_reload(name, spawn)
@@ -486,28 +436,28 @@ config.keys = { -- Create new tab
 
 	{ key = "Enter", mods = "ALT", action = act.ToggleFullScreen },
 
-	{ key = "phys:1", mods = "ALT", action = focus_herdr_index(act.ActivateTab(0), "agent", 1) },
-	{ key = "phys:2", mods = "ALT", action = focus_herdr_index(act.ActivateTab(1), "agent", 2) },
-	{ key = "phys:3", mods = "ALT", action = focus_herdr_index(act.ActivateTab(2), "agent", 3) },
-	{ key = "phys:4", mods = "ALT", action = focus_herdr_index(act.ActivateTab(3), "agent", 4) },
-	{ key = "phys:5", mods = "ALT", action = focus_herdr_index(act.ActivateTab(4), "agent", 5) },
-	{ key = "phys:6", mods = "ALT", action = focus_herdr_index(act.ActivateTab(5), "agent", 6) },
-	{ key = "phys:7", mods = "ALT", action = focus_herdr_index(act.ActivateTab(6), "agent", 7) },
-	{ key = "phys:8", mods = "ALT", action = focus_herdr_index(act.ActivateTab(7), "agent", 8) },
-	{ key = "phys:9", mods = "ALT", action = focus_herdr_index(act.ActivateTab(8), "agent", 9) },
+	{ key = "phys:1", mods = "ALT", action = route_key_to_herdr(act.ActivateTab(0), "1", "ALT") },
+	{ key = "phys:2", mods = "ALT", action = route_key_to_herdr(act.ActivateTab(1), "2", "ALT") },
+	{ key = "phys:3", mods = "ALT", action = route_key_to_herdr(act.ActivateTab(2), "3", "ALT") },
+	{ key = "phys:4", mods = "ALT", action = route_key_to_herdr(act.ActivateTab(3), "4", "ALT") },
+	{ key = "phys:5", mods = "ALT", action = route_key_to_herdr(act.ActivateTab(4), "5", "ALT") },
+	{ key = "phys:6", mods = "ALT", action = route_key_to_herdr(act.ActivateTab(5), "6", "ALT") },
+	{ key = "phys:7", mods = "ALT", action = route_key_to_herdr(act.ActivateTab(6), "7", "ALT") },
+	{ key = "phys:8", mods = "ALT", action = route_key_to_herdr(act.ActivateTab(7), "8", "ALT") },
+	{ key = "phys:9", mods = "ALT", action = route_key_to_herdr(act.ActivateTab(8), "9", "ALT") },
 	{ key = "0", mods = "ALT", action = act.ActivateTab(9) },
 
 	-- Option+number focuses Herdr agents. Primary+Option+number switches
 	-- workspaces in panel order (Command on macOS, Control on Linux).
-	{ key = "phys:1", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "1", mods = primary_alt_mods }), "workspace", 1) },
-	{ key = "phys:2", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "2", mods = primary_alt_mods }), "workspace", 2) },
-	{ key = "phys:3", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "3", mods = primary_alt_mods }), "workspace", 3) },
-	{ key = "phys:4", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "4", mods = primary_alt_mods }), "workspace", 4) },
-	{ key = "phys:5", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "5", mods = primary_alt_mods }), "workspace", 5) },
-	{ key = "phys:6", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "6", mods = primary_alt_mods }), "workspace", 6) },
-	{ key = "phys:7", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "7", mods = primary_alt_mods }), "workspace", 7) },
-	{ key = "phys:8", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "8", mods = primary_alt_mods }), "workspace", 8) },
-	{ key = "phys:9", mods = primary_alt_mods, action = focus_herdr_index(act.SendKey({ key = "9", mods = primary_alt_mods }), "workspace", 9) },
+	{ key = "phys:1", mods = primary_alt_mods, action = route_key_to_herdr(act.SendKey({ key = "1", mods = primary_alt_mods }), "1", primary_alt_mods) },
+	{ key = "phys:2", mods = primary_alt_mods, action = route_key_to_herdr(act.SendKey({ key = "2", mods = primary_alt_mods }), "2", primary_alt_mods) },
+	{ key = "phys:3", mods = primary_alt_mods, action = route_key_to_herdr(act.SendKey({ key = "3", mods = primary_alt_mods }), "3", primary_alt_mods) },
+	{ key = "phys:4", mods = primary_alt_mods, action = route_key_to_herdr(act.SendKey({ key = "4", mods = primary_alt_mods }), "4", primary_alt_mods) },
+	{ key = "phys:5", mods = primary_alt_mods, action = route_key_to_herdr(act.SendKey({ key = "5", mods = primary_alt_mods }), "5", primary_alt_mods) },
+	{ key = "phys:6", mods = primary_alt_mods, action = route_key_to_herdr(act.SendKey({ key = "6", mods = primary_alt_mods }), "6", primary_alt_mods) },
+	{ key = "phys:7", mods = primary_alt_mods, action = route_key_to_herdr(act.SendKey({ key = "7", mods = primary_alt_mods }), "7", primary_alt_mods) },
+	{ key = "phys:8", mods = primary_alt_mods, action = route_key_to_herdr(act.SendKey({ key = "8", mods = primary_alt_mods }), "8", primary_alt_mods) },
+	{ key = "phys:9", mods = primary_alt_mods, action = route_key_to_herdr(act.SendKey({ key = "9", mods = primary_alt_mods }), "9", primary_alt_mods) },
 
 	{
 		key = "LeftArrow",
