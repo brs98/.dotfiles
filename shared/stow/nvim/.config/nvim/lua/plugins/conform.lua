@@ -32,6 +32,7 @@ return { -- Autoformat
 			return { timeout_ms = 1000, lsp_format = "fallback" }
 		end,
 		formatters_by_ft = {
+			ruby = { "rubocop" },
 			lua = { "stylua" },
 			-- Conform can also run multiple formatters sequentially
 			-- python = { "isort", "black" },

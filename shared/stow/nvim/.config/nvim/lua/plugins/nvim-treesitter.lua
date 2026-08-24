@@ -24,6 +24,8 @@ return { -- Highlight, edit, and navigate code
 				"nix",
 				"prisma",
 				"python",
+				"ruby",
+				"embedded_template",
 				"rust",
 				"sql",
 				"svelte",

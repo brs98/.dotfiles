@@ -6,10 +6,12 @@ return {
 		"antoinemadec/FixCursorHold.nvim",
 		"nvim-treesitter/nvim-treesitter",
 		"marilari88/neotest-vitest",
+		"zidhuss/neotest-minitest",
 	},
 	config = function()
 		require("neotest").setup({
 			adapters = {
+				require("neotest-minitest"),
 				require("neotest-vitest")({
 					filter_dir = function(name, rel_path, root)
 						print("Checking directory:", rel_path) -- Debug logging
@@ -36,11 +38,7 @@ return {
 			})
 		end, { desc = "[T]est [F]ile" })
 		vim.keymap.set("n", "<leader>tr", function()
-			require("neotest").run.run({
-				vim.fn.expand("%"),
-				vitestCommand = "dotenv -e .env.development -e .env -- node_modules/.bin/vitest --watch",
-				suite = false,
-			})
+			require("neotest").run.run()
 		end, { desc = "[T]est [R]un Nearest" })
 		vim.keymap.set("n", "<leader>tl", function()
 			require("neotest").run.run_last()

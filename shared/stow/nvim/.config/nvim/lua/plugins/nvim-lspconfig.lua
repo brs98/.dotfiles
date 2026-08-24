@@ -146,6 +146,11 @@ return { -- LSP Configuration & Plugins
 		--  - settings (table): Override the default settings passed when initializing the server.
 		--        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
 		local servers = {
+			ruby_lsp = {
+				cmd = { "ruby-lsp" },
+				filetypes = { "ruby", "eruby" },
+			},
+
 			-- clangd = {},
 			-- gopls = {},
 			-- pyright = {},
@@ -195,7 +200,7 @@ return { -- LSP Configuration & Plugins
 
 			tailwindcss = {
 				cmd = { "tailwindcss-language-server", "--stdio" },
-				filetypes = { "html", "css", "scss", "javascript", "javascriptreact", "typescript", "typescriptreact" },
+				filetypes = { "html", "css", "scss", "javascript", "javascriptreact", "typescript", "typescriptreact", "eruby", "slim" },
 			},
 		}
 
