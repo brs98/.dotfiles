@@ -44,3 +44,8 @@ shared/stow/cliamp/.config/cliamp/history.toml
 shared/stow/cliamp/.config/cliamp/cliamp.log
 shared/stow/cliamp/.config/cliamp/cliamp.sock
 shared/stow/cliamp/.config/cliamp/cliamp.sock.pid
+
+# Local editor logs and generated Python bytecode
+/.nvimlog
+__pycache__/
+*.py[cod]
