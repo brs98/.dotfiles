@@ -1,81 +1,72 @@
+local ensure_installed = {
+	"bash",
+	"c",
+	"html",
+	"lua",
+	"markdown",
+	"vim",
+	"vimdoc",
+	"css",
+	"csv",
+	"dockerfile",
+	"hoon",
+	"javascript",
+	"json",
+	"kdl",
+	"nix",
+	"prisma",
+	"python",
+	"ruby",
+	"embedded_template",
+	"rust",
+	"scss",
+	"slim",
+	"sql",
+	"svelte",
+	"tsx",
+	"typescript",
+	"yaml",
+}
+
 return { -- Highlight, edit, and navigate code
 	"nvim-treesitter/nvim-treesitter",
-	branch = "master",
+	branch = "main",
+	lazy = false,
 	build = ":TSUpdate",
 	config = function()
-		-- [[ Configure Treesitter ]] See `:help nvim-treesitter`
+		local treesitter = require("nvim-treesitter")
+		treesitter.setup()
 
-		---@diagnostic disable-next-line: missing-fields
-		require("nvim-treesitter.configs").setup({
-			ensure_installed = {
-				"bash",
-				"c",
-				"html",
-				"lua",
-				"markdown",
-				"vim",
-				"vimdoc",
-				"css",
-				"csv",
-				"dockerfile",
-				"hoon",
-				"javascript",
-				"json",
-				"kdl",
-				"nix",
-				"prisma",
-				"python",
-				"ruby",
-				"embedded_template",
-				"rust",
-				"sql",
-				"svelte",
-				"typescript",
-				"yaml",
-			},
-			-- Autoinstall languages that are not installed
-			auto_install = true,
-			highlight = { enable = true },
-			-- Tree-sitter's indent module overrides TypeScript's reliable built-in
-			-- indent expression and leaves new block lines at column 1.
-			indent = { enable = false },
-			incremental_selection = {
-				enable = true,
-				keymaps = {
-					init_selection = "<C-space>",
-					node_incremental = "<C-space>",
-					scope_incremental = false,
-					node_decremental = "<bs>",
-				},
-			},
-			textobjects = {
-				move = {
-					enable = true,
-					goto_next_start = {
-						["]f"] = "@function.outer",
-						["]c"] = "@class.outer",
-						["]a"] = "@parameter.inner",
-					},
-					goto_next_end = { ["]F"] = "@function.outer", ["]C"] = "@class.outer", ["]A"] = "@parameter.inner" },
-					goto_previous_start = {
-						["[f"] = "@function.outer",
-						["[c"] = "@class.outer",
-						["[a"] = "@parameter.inner",
-					},
-					goto_previous_end = {
-						["[F"] = "@function.outer",
-						["[C"] = "@class.outer",
-						["[A"] = "@parameter.inner",
-					},
-				},
-			},
+		local installed = {}
+		for _, parser in ipairs(treesitter.get_installed("parsers")) do
+			installed[parser] = true
+		end
+
+		local missing = vim.tbl_filter(function(parser)
+			return not installed[parser]
+		end, ensure_installed)
+
+		if #missing > 0 then
+			treesitter.install(missing, { summary = true })
+		end
+
+		vim.api.nvim_create_autocmd("FileType", {
+			group = vim.api.nvim_create_augroup("nvim_treesitter", { clear = true }),
+			callback = function(event)
+				local lang = vim.treesitter.language.get_lang(vim.bo[event.buf].filetype)
+				if not lang or not vim.treesitter.language.add(lang) then
+					return
+				end
+				vim.treesitter.start(event.buf, lang)
+
+				vim.keymap.set({ "n", "x" }, "<C-Space>", function()
+					vim.treesitter.select("parent")
+				end, { buffer = event.buf, silent = true, desc = "Select parent syntax node" })
+
+				vim.keymap.set("x", "<BS>", function()
+					vim.treesitter.select("child")
+				end, { buffer = event.buf, silent = true, desc = "Select child syntax node" })
+			end,
 		})
-
-		-- There are additional nvim-treesitter modules that you can use to interact
-		-- with nvim-treesitter. You should go explore a few and see what interests you:
-		--
-		--    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
-		--    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
-		--    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
 	end,
 }
