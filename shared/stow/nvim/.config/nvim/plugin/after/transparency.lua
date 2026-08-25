@@ -1,65 +1,78 @@
+local function clear_background(group)
+  vim.api.nvim_set_hl(0, group, { bg = "none", update = true })
+end
+
 local function set_transparency()
   -- transparent background
-  vim.api.nvim_set_hl(0, "Normal", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NormalFloat", { bg = "none" })
-  vim.api.nvim_set_hl(0, "FloatBorder", { bg = "none" })
-  vim.api.nvim_set_hl(0, "Pmenu", { bg = "none" })
-  vim.api.nvim_set_hl(0, "Terminal", { bg = "none" })
-  vim.api.nvim_set_hl(0, "EndOfBuffer", { bg = "none" })
-  vim.api.nvim_set_hl(0, "FoldColumn", { bg = "none" })
-  vim.api.nvim_set_hl(0, "Folded", { bg = "none" })
-  vim.api.nvim_set_hl(0, "SignColumn", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NormalNC", { bg = "none" })
-  vim.api.nvim_set_hl(0, "WhichKeyFloat", { bg = "none" })
+  for _, group in ipairs({
+    "Normal",
+    "NormalFloat",
+    "FloatBorder",
+    "Pmenu",
+    "Terminal",
+    "EndOfBuffer",
+    "FoldColumn",
+    "Folded",
+    "SignColumn",
+    "NormalNC",
+    "WhichKeyFloat",
+  }) do
+    clear_background(group)
+  end
 
   -- transparent tabline (bufferline highlights are configured in the plugin itself)
-  vim.api.nvim_set_hl(0, "TabLine", { bg = "none" })
-  vim.api.nvim_set_hl(0, "TabLineFill", { bg = "none" })
+  clear_background("TabLine")
+  clear_background("TabLineFill")
 
   -- transparent statusline / lualine
-  vim.api.nvim_set_hl(0, "StatusLine", { bg = "none" })
-  vim.api.nvim_set_hl(0, "StatusLineNC", { bg = "none" })
+  clear_background("StatusLine")
+  clear_background("StatusLineNC")
 
   -- transparent background for fzf-lua
-  vim.api.nvim_set_hl(0, "FzfLuaBorder", { bg = "none" })
-  vim.api.nvim_set_hl(0, "FzfLuaNormal", { bg = "none" })
-  vim.api.nvim_set_hl(0, "FzfLuaPreviewBorder", { bg = "none" })
-  vim.api.nvim_set_hl(0, "FzfLuaPreviewNormal", { bg = "none" })
-  vim.api.nvim_set_hl(0, "FzfLuaTitle", { bg = "none" })
+  clear_background("FzfLuaBorder")
+  clear_background("FzfLuaNormal")
+  clear_background("FzfLuaPreviewBorder")
+  clear_background("FzfLuaPreviewNormal")
+  clear_background("FzfLuaTitle")
 
   -- transparent background for neotree
-  vim.api.nvim_set_hl(0, "NeoTreeNormal", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NeoTreeNormalNC", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NeoTreeVertSplit", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NeoTreeWinSeparator", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NeoTreeEndOfBuffer", { bg = "none" })
+  clear_background("NeoTreeNormal")
+  clear_background("NeoTreeNormalNC")
+  clear_background("NeoTreeVertSplit")
+  clear_background("NeoTreeWinSeparator")
+  clear_background("NeoTreeEndOfBuffer")
 
   -- transparent background for nvim-tree
-  vim.api.nvim_set_hl(0, "NvimTreeNormal", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NvimTreeNormalNC", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NvimTreeVertSplit", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NvimTreeEndOfBuffer", { bg = "none" })
+  clear_background("NvimTreeNormal")
+  clear_background("NvimTreeNormalNC")
+  clear_background("NvimTreeVertSplit")
+  clear_background("NvimTreeEndOfBuffer")
 
   -- transparent notify background
-  vim.api.nvim_set_hl(0, "NotifyINFOBody", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyERRORBody", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyWARNBody", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyTRACEBody", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyDEBUGBody", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyINFOTitle", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyERRORTitle", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyWARNTitle", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyTRACETitle", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyDEBUGTitle", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyINFOBorder", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyERRORBorder", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyWARNBorder", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyTRACEBorder", { bg = "none" })
-  vim.api.nvim_set_hl(0, "NotifyDEBUGBorder", { bg = "none" })
+  for _, group in ipairs({
+    "NotifyINFOBody",
+    "NotifyERRORBody",
+    "NotifyWARNBody",
+    "NotifyTRACEBody",
+    "NotifyDEBUGBody",
+    "NotifyINFOTitle",
+    "NotifyERRORTitle",
+    "NotifyWARNTitle",
+    "NotifyTRACETitle",
+    "NotifyDEBUGTitle",
+    "NotifyINFOBorder",
+    "NotifyERRORBorder",
+    "NotifyWARNBorder",
+    "NotifyTRACEBorder",
+    "NotifyDEBUGBorder",
+  }) do
+    clear_background(group)
+  end
 end
 
 -- Apply transparency after any colorscheme change
 vim.api.nvim_create_autocmd("ColorScheme", {
+  group = vim.api.nvim_create_augroup("transparent-background", { clear = true }),
   callback = set_transparency,
 })
 

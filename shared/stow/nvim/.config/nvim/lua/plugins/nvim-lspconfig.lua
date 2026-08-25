@@ -135,6 +135,8 @@ return { -- LSP Configuration & Plugins
 		--  So, we create new capabilities with nvim cmp, and then broadcast that to the servers.
 		local capabilities = vim.lsp.protocol.make_client_capabilities()
 		capabilities = vim.tbl_deep_extend("force", capabilities, require("cmp_nvim_lsp").default_capabilities())
+		local default_tailwind_root_dir = vim.lsp.config.tailwindcss.root_dir
+		local home_dir = vim.fs.normalize(vim.uv.os_homedir())
 
 		-- Enable the following language servers
 		--  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
@@ -146,6 +148,10 @@ return { -- LSP Configuration & Plugins
 		--  - settings (table): Override the default settings passed when initializing the server.
 		--        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
 		local servers = {
+			eslint = {},
+			rust_analyzer = {},
+			sqls = {},
+
 			ruby_lsp = {
 				cmd = { "ruby-lsp" },
 				filetypes = { "ruby", "eruby" },
@@ -154,7 +160,6 @@ return { -- LSP Configuration & Plugins
 			-- clangd = {},
 			-- gopls = {},
 			-- pyright = {},
-			-- rust_analyzer = {},
 			-- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
 			--
 			-- Some languages (like typescript) have entire language plugins that can be useful:
@@ -162,9 +167,7 @@ return { -- LSP Configuration & Plugins
 			--
 			-- But for many setups, the LSP (`tsserver`) will work just fine
 			-- previously used 'tsserver'
-			ts_ls = {
-				root_dir = require("lspconfig/util").root_pattern(".git"),
-			},
+			ts_ls = {},
 
 			prismals = {
 				cmd = { "prisma-language-server", "--stdio" },
@@ -201,8 +204,25 @@ return { -- LSP Configuration & Plugins
 			tailwindcss = {
 				cmd = { "tailwindcss-language-server", "--stdio" },
 				filetypes = { "html", "css", "scss", "javascript", "javascriptreact", "typescript", "typescriptreact", "eruby", "slim" },
+				root_dir = function(bufnr, on_dir)
+					default_tailwind_root_dir(bufnr, function(root_dir)
+						-- This home directory is itself a Git repository. Do not treat
+						-- unrelated files below it (such as browser extensions) as a
+						-- Tailwind workspace just because the fallback finds ~/.git.
+						if root_dir and vim.fs.normalize(root_dir) ~= home_dir then
+							on_dir(root_dir)
+						end
+					end)
+				end,
 			},
 		}
+
+		local server_names = vim.tbl_keys(servers)
+		table.sort(server_names)
+		vim.lsp.config("*", { capabilities = capabilities })
+		for _, server_name in ipairs(server_names) do
+			vim.lsp.config(server_name, servers[server_name])
+		end
 
 		-- Ensure the servers and tools above are installed
 		--  To check the current status of installed tools and/or manually install
@@ -212,36 +232,23 @@ return { -- LSP Configuration & Plugins
 		--  You can press `g?` for help in this menu
 		require("mason").setup()
 
-		-- You can add other tools here that you want Mason to install
-		-- for you, so that they are available from within Neovim.
-		local ensure_installed = vim.tbl_keys(servers or {})
-		vim.list_extend(ensure_installed, {
-			"prettier",
-			"prettierd",
-			"stylua",
-			"shfmt",
-			"markdownlint",
-			"tailwindcss-language-server",
-			"sqls",
-			"rust-analyzer",
-			"eslint-lsp",
+		-- Add non-LSP tools here so they are available within Neovim.
+		require("mason-tool-installer").setup({
+			ensure_installed = {
+				"prettier",
+				"prettierd",
+				"stylua",
+				"shfmt",
+				"markdownlint",
+			},
 		})
-		require("mason-tool-installer").setup({ ensure_installed = ensure_installed })
 
 		require("mason-lspconfig").setup({
-			ensure_installed = vim.tbl_keys(servers or {}),
-			automatic_installation = true,
-			handlers = {
-				function(server_name)
-					local server = servers[server_name] or {}
-					-- This handles overriding only values explicitly passed
-					-- by the server configuration above. Useful when disabling
-					-- certain features of an LSP (for example, turning off formatting for tsserver)
-					server.capabilities = vim.tbl_deep_extend("force", {}, capabilities, server.capabilities or {})
-					server.root_dir = require("lspconfig/util").root_pattern(".git")
-					require("lspconfig")[server_name].setup(server)
-				end,
-			},
+			ensure_installed = server_names,
+			-- mason-lspconfig v2 enables every installed server by default. Limit it
+			-- to the servers configured above so formatter packages such as StyLua
+			-- are not unexpectedly started as language servers.
+			automatic_enable = server_names,
 		})
 	end,
 }
