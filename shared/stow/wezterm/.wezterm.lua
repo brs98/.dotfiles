@@ -574,10 +574,26 @@ if is_linux then
 	table.insert(config.keys, { key = "Insert", mods = "CTRL", action = act.CopyTo("Clipboard") })
 
 	-- foot's `primary-paste=none` also unbinds middle-click. Drop this block to
-	-- keep WezTerm's stock middle-click-pastes-PRIMARY behaviour.
+	-- keep WezTerm's stock middle-click-pastes-PRIMARY behaviour. Wheel events
+	-- are limited to one line so high-delta mice do not race through scrollback.
 	config.mouse_bindings = {
 		{ event = { Down = { streak = 1, button = "Middle" } }, mods = "NONE", action = act.Nop },
+		{
+			event = { Down = { streak = 1, button = { WheelUp = 1 } } },
+			mods = "NONE",
+			alt_screen = false,
+			action = act.ScrollByLine(-1),
+		},
+		{
+			event = { Down = { streak = 1, button = { WheelDown = 1 } } },
+			mods = "NONE",
+			alt_screen = false,
+			action = act.ScrollByLine(1),
+		},
 	}
+
+	-- Full-screen programs without mouse tracking receive one arrow key per tick.
+	config.alternate_buffer_wheel_scroll_speed = 1
 end
 
 -- and finally, return the configuration to wezterm
