@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Restore the current theme color after hardware lighting resets at boot.
+theme_hook="$HOME/.config/omarchy/hooks/theme-set.d/openrgb"
+[[ -f $theme_hook ]] && bash "$theme_hook"
