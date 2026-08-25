@@ -36,4 +36,4 @@ exec 9>"$lock_file"
 flock 9
 
 # Direct mode is volatile: it applies immediately without writing device flash.
-timeout 15 "$OPENRGB_BIN" --mode direct --color "$color"
+timeout 15 "$OPENRGB_BIN" --noautoconnect --mode direct --color "$color"
