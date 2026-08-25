@@ -7,4 +7,8 @@ if not vim.loop.fs_stat(lazypath) then
 end ---@diagnostic disable-next-line: undefined-field
 vim.opt.rtp:prepend(lazypath)
 
+-- Omarchy theme specs configure LazyVim without importing the full LazyVim
+-- distribution. This custom setup intentionally owns the plugin imports.
+vim.g.lazyvim_check_order = false
+
 require("lazy").setup("plugins", { import = "custom.plugins" }, { import = "custom.ui" })
