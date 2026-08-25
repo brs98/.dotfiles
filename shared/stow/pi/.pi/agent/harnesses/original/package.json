@@ -1,8 +1,0 @@
-{
-  "name": "@dotfiles/pi-harness-original",
-  "version": "0.0.0",
-  "private": true,
-  "scripts": {
-    "validate": "node ../../packages/harness-runner/src/cli.ts validate original"
-  }
-}

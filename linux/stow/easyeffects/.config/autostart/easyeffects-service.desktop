@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=EasyEffects Service
-Comment=Apply the Framework 13 speaker EQ to all output audio at login
-Exec=easyeffects --service-mode
-Icon=com.github.wwmm.easyeffects
-Terminal=false
-X-GNOME-Autostart-enabled=true

@@ -19,26 +19,6 @@
 - Never leak API keys, tokens, secrets, credentials, or private data.
 - If sensitive data is encountered accidentally, do not repeat it; summarize only that sensitive data was present.
 
-## HTML Review Docs
-
-- Whenever creating a standalone HTML document for user-review (reports, plans, prototypes, visual specs, audits, or other one-off artifacts), theme it with RiceKit by default.
-- Prefer self-contained files: inline the stylesheet from `/Users/brandon/.agents/assets/ricekit-doc.css` in a `<style>` tag.
-- The shared stylesheet imports RiceKit variables from `./rk-vars.css` when present and from `file:///Users/brandon/.config/ricekit/active/userstyles/rk-vars.css` by default, so review docs pick up the active RiceKit palette after reload when RiceKit changes themes.
-- Do not override the styling of an existing production app, website, or design system unless explicitly asked; this applies only to agent-generated review artifacts.
-
-Reference: `/Users/brandon/.agents/guidelines/html-review-docs.md`
-
-## Self-Improvement
-
-- When a reusable workflow or task is not obvious the first time, suggest creating a skill or reusable guide for it.
-- Use the appropriate skill-authoring workflow when the user wants to capture a workflow as a reusable agent skill.
-
-## Pi CLI
-
-- In interactive shells, `pi` is a zsh harness wrapper (default harness: `minimal`, which disables ambient extension discovery and loads only the extensions in its manifest). Non-interactive shells, agents, scripts, and pipes fall through to the bare binary.
-- Use `command pi` or `pi upstream` for the raw binary with full ambient discovery of `~/.pi/agent/extensions`; use `pi original` for the discovery-mode harness.
-- If a pi extension or tool seems missing, check which harness is active before debugging discovery — the wrapper prints `pi: harness=<name>` to stderr when it composes a harness run.
-
 ## Misc Tips
 
 - When working with TypeScript projects, load/use the available TypeScript best-practices or doctor skill if the harness provides one.

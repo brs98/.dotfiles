@@ -4,6 +4,13 @@
 
 o.bind("SUPER + SHIFT + R", "RetroArch", "omarchy-launch-or-focus retroarch")
 
+-- Instant Replay plugin controls. These use shell IPC so they survive plugin
+-- updates without depending on the plugin's on-disk path.
+o.bind("SUPER + ALT + R", "Arm/disarm instant replay", "omarchy-shell brs98.instant-replay toggleReplay")
+o.bind("SUPER + ALT + C", "Save replay clip", "omarchy-shell brs98.instant-replay save")
+o.bind("SUPER + ALT + O", "Browse replay clips", "omarchy-shell brs98.instant-replay browse")
+o.bind("SUPER + ALT + V", "Open replay clips folder", "omarchy-shell brs98.instant-replay clips")
+
 -- Tag WezTerm as a terminal. Omarchy's default/hypr/apps/terminals.lua matches
 -- the literal "wezterm", but WezTerm's actual app-id is "org.wezfurlong.wezterm"
 -- and the class is matched in full, so the tag never applied.
