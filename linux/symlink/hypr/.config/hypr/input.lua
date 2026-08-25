@@ -6,6 +6,6 @@ hl.config({
     kb_options = "ctrl:nocaps",
 
     -- Reduce pointer travel from the default sensitivity of 0.
-    sensitivity = -0.3,
+    sensitivity = -0.9,
   },
 })
