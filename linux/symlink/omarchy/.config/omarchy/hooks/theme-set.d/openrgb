@@ -1,39 +1,5 @@
 #!/bin/bash
 
-# Keep supported RGB devices in sync with the current Omarchy theme accent.
-
-OPENRGB_BIN="${OPENRGB_BIN:-}"
-if [[ -z $OPENRGB_BIN ]]; then
-  OPENRGB_BIN=$(command -v openrgb 2>/dev/null || true)
-fi
-
-# Theme changes should continue normally on machines without OpenRGB.
-[[ -n $OPENRGB_BIN && -x $OPENRGB_BIN ]] || exit 0
-
-OMARCHY_CURRENT="${OMARCHY_CURRENT:-}"
-if [[ -z $OMARCHY_CURRENT ]]; then
-  for candidate in "$HOME/.local/state/omarchy/current" "$HOME/.config/omarchy/current"; do
-    if [[ -d $candidate ]]; then
-      OMARCHY_CURRENT=$candidate
-      break
-    fi
-  done
-fi
-
-RGB_FILE="$OMARCHY_CURRENT/theme/keyboard.rgb"
-[[ -f $RGB_FILE ]] || exit 0
-
-color=$(tr -d '#[:space:]' <"$RGB_FILE")
-if [[ ! $color =~ ^[0-9A-Fa-f]{6}$ ]]; then
-  echo "Invalid Omarchy keyboard color: $RGB_FILE" >&2
-  exit 1
-fi
-
-# Rapid theme changes can overlap after Omarchy releases its own theme lock.
-# Serialize RGB scans so the newest theme color is always applied last.
-lock_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-openrgb-theme.lock"
-exec 9>"$lock_file"
-flock 9
-
-# Direct mode is volatile: it applies immediately without writing device flash.
-timeout 15 "$OPENRGB_BIN" --noautoconnect --mode direct --color "$color"
+# Restart the persistent server so it reads and holds the new theme color.
+command -v openrgb >/dev/null 2>&1 || exit 0
+systemctl --user restart omarchy-openrgb-theme.service

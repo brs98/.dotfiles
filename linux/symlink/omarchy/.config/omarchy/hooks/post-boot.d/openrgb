@@ -1,5 +1,5 @@
 #!/bin/bash
 
-# Restore the current theme color after hardware lighting resets at boot.
+# Retry after desktop startup so USB and I2C lighting controllers are ready.
 theme_hook="$HOME/.config/omarchy/hooks/theme-set.d/openrgb"
 [[ -f $theme_hook ]] && bash "$theme_hook"

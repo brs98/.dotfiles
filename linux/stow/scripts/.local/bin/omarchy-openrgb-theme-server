@@ -1,0 +1,68 @@
+#!/bin/bash
+
+set -euo pipefail
+
+OPENRGB_BIN="${OPENRGB_BIN:-$(command -v openrgb 2>/dev/null || true)}"
+[[ -n $OPENRGB_BIN ]] || exit 0
+
+OMARCHY_CURRENT=""
+for candidate in "$HOME/.local/state/omarchy/current" "$HOME/.config/omarchy/current"; do
+  if [[ -d $candidate ]]; then
+    OMARCHY_CURRENT=$candidate
+    break
+  fi
+done
+
+RGB_FILE="$OMARCHY_CURRENT/theme/keyboard.rgb"
+[[ -f $RGB_FILE ]] || exit 0
+
+source_color=$(tr -d '#[:space:]' <"$RGB_FILE")
+if [[ ! $source_color =~ ^[0-9A-Fa-f]{6}$ ]]; then
+  echo "Invalid Omarchy keyboard color: $RGB_FILE" >&2
+  exit 1
+fi
+
+config_file="$HOME/.config/omarchy/openrgb.conf"
+config_value() {
+  local key=$1
+  local fallback=$2
+  local value=""
+
+  if [[ -f $config_file ]]; then
+    value=$(sed -n -E "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*([^#[:space:]]+).*/\\1/p" "$config_file" | tail -n 1)
+  fi
+
+  printf '%s' "${value:-$fallback}"
+}
+
+min_saturation=$(config_value MIN_SATURATION 0.70)
+max_value=$(config_value MAX_VALUE 0.70)
+color=$(python3 - "$source_color" "$min_saturation" "$max_value" <<'PY'
+import colorsys
+import sys
+
+source, min_saturation, max_value = sys.argv[1:]
+minimum = float(min_saturation)
+maximum = float(max_value)
+if not 0 <= minimum <= 1 or not 0 <= maximum <= 1:
+    raise ValueError("OpenRGB saturation and value must be between 0 and 1")
+
+r, g, b = (int(source[index:index + 2], 16) / 255 for index in (0, 2, 4))
+h, s, v = colorsys.rgb_to_hsv(r, g, b)
+r, g, b = colorsys.hsv_to_rgb(h, max(s, minimum), min(v, maximum))
+print(f"{round(r * 255):02x}{round(g * 255):02x}{round(b * 255):02x}")
+PY
+)
+
+openrgb_args=(
+  --noautoconnect
+  --server
+  --server-host 127.0.0.1
+  --server-port 6742
+  --mode direct
+  --color "$color"
+  --loglevel warning
+)
+
+echo "Applying Omarchy RGB color #$source_color as #$color"
+exec "$OPENRGB_BIN" "${openrgb_args[@]}"

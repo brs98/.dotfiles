@@ -306,6 +306,7 @@ else
     else
         echo "    ⚠ Warning: retroarch-saves.path not found, skipping..."
     fi
+
 fi
 
 # Create symlinks for shared configs
@@ -355,6 +356,18 @@ else
     if [ -x "linux/scripts/omarchy-shell-config-sync" ]; then
         echo "  → Seeding Omarchy shell.json (if missing)..."
         DOTFILES="$PWD" linux/scripts/omarchy-shell-config-sync seed
+    fi
+
+    if [ -f "$HOME/.config/systemd/user/omarchy-openrgb-theme.service" ]; then
+        if command -v openrgb >/dev/null 2>&1; then
+            systemctl --user daemon-reload
+            systemctl --user enable --now omarchy-openrgb-theme.service
+            echo "    ✓ Omarchy OpenRGB theme sync enabled"
+        else
+            echo "    ⚠ OpenRGB is not installed; run: omarchy pkg add openrgb"
+        fi
+    else
+        echo "    ⚠ Warning: Omarchy OpenRGB theme service not found, skipping..."
     fi
 fi
 
