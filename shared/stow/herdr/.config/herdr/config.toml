@@ -8,7 +8,7 @@ onboarding = false
 focus_agent = "alt+1..9"
 focus_pane_left = ""
 focus_pane_right = ""
-switch_workspace = ["super+alt+1..9", "ctrl+alt+1..9"]
+switch_workspace = "super+alt+1..9"
 
 [[keys.command]]
 key = "prefix+h"

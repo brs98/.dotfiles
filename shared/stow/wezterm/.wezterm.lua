@@ -6,7 +6,7 @@ local config = wezterm.config_builder()
 local is_macos = wezterm.target_triple:find("darwin") ~= nil
 local is_linux = wezterm.target_triple:find("linux") ~= nil
 local primary_mods = is_linux and "CTRL|SHIFT" or "SUPER"
-local primary_alt_mods = is_linux and "CTRL|ALT" or "SUPER|ALT"
+local primary_alt_mods = "SUPER|ALT"
 local move_tab_mods = is_linux and "CTRL|SHIFT" or "SUPER|CTRL"
 local move_tab_previous_key = is_linux and "PageUp" or "LeftArrow"
 local move_tab_next_key = is_linux and "PageDown" or "RightArrow"
