@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fork_binary="$HOME/.local/lib/herdr-fork/herdr"
+fork_installer="$HOME/.local/bin/herdr-fork-install"
+
+if [ "${1:-}" = "update" ]; then
+    shift
+
+    if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+        echo "usage: herdr update [--handoff]"
+        echo
+        echo "Install the Herdr fork pinned by the dotfiles repository."
+        exit 0
+    fi
+
+    if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != "--handoff" ]; }; then
+        echo "usage: herdr update [--handoff]" >&2
+        exit 2
+    fi
+
+    exec "$fork_installer" --handoff
+fi
+
+if [ ! -x "$fork_binary" ]; then
+    echo "Herdr fork is not installed; run ~/.dotfiles/install.sh" >&2
+    exit 127
+fi
+
+exec "$fork_binary" "$@"
