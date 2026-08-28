@@ -1,11 +1,12 @@
 onboarding = false
 
 [keys]
-# WezTerm forwards indexed agent/workspace shortcuts into the focused Herdr client.
+# WezTerm forwards indexed tree/workspace shortcuts into the focused Herdr client.
 # It also routes Option+Left/Right to the smart navigator below, which moves
 # pane-first and wraps tabs from the opposite pane edge. The helper inherits
 # HERDR_SOCKET_PATH, so it remains scoped to the default or named Herdr session.
-focus_agent = "alt+1..9"
+jump_sidebar_item = ["alt+1..9", "alt+0"]
+jump_sidebar_item_prompt = "alt+j"
 focus_pane_left = ""
 focus_pane_right = ""
 switch_workspace = ["super+alt+1..9", "ctrl+alt+1..9"]
