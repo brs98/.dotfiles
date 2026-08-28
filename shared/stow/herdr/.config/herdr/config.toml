@@ -37,6 +37,7 @@ name = "terminal"
 
 [ui]
 agent_panel_sort = "spaces"
+status_indicators = "symbols"
 show_agent_labels_on_pane_borders = true
 
 [ui.toast]
