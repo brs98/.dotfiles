@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+fork_tag="fork-v0.8.0-1"
+fork_url="https://github.com/brs98/herdr/releases/download/$fork_tag/herdr"
+fork_sha256="6c9665185a8022826c39459659bbecc46d97b6163abbd17aa31dbfc4bd39ec05"
+install_dir="${HERDR_FORK_INSTALL_DIR:-$HOME/.local/lib/herdr-fork}"
+install_path="$install_dir/herdr"
+handoff=false
+
+usage() {
+    echo "usage: herdr-fork-install [--handoff]"
+}
+
+case "${1:-}" in
+    "") ;;
+    --handoff) handoff=true ;;
+    --help|-h)
+        usage
+        exit 0
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac
+
+if [ "$#" -gt 1 ]; then
+    usage >&2
+    exit 2
+fi
+
+if [ "$(uname -s)" != "Linux" ] || [ "$(uname -m)" != "x86_64" ]; then
+    echo "The pinned Herdr fork build supports Linux x86_64 only." >&2
+    exit 1
+fi
+
+if [ -x "$install_path" ]; then
+    installed_sha256="$(sha256sum "$install_path" | awk '{print $1}')"
+else
+    installed_sha256=""
+fi
+
+if [ "$installed_sha256" = "$fork_sha256" ]; then
+    echo "    ✓ Herdr fork $fork_tag is already installed"
+else
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "curl is required to install the Herdr fork." >&2
+        exit 1
+    fi
+
+    download_dir="$(mktemp -d "${TMPDIR:-/tmp}/herdr-fork.XXXXXX")"
+    trap 'rm -rf "$download_dir"' EXIT
+    download_path="$download_dir/herdr"
+
+    echo "  → Installing Herdr fork $fork_tag..."
+    curl --fail --location --retry 3 --silent --show-error \
+        --output "$download_path" "$fork_url"
+
+    actual_sha256="$(sha256sum "$download_path" | awk '{print $1}')"
+    if [ "$actual_sha256" != "$fork_sha256" ]; then
+        echo "Herdr fork checksum mismatch." >&2
+        echo "Expected: $fork_sha256" >&2
+        echo "Actual:   $actual_sha256" >&2
+        exit 1
+    fi
+
+    mkdir -p "$install_dir"
+    install -m 0755 "$download_path" "$install_dir/.herdr.new"
+    mv -f "$install_dir/.herdr.new" "$install_path"
+    echo "    ✓ Installed $install_path"
+fi
+
+if [ "$handoff" = true ]; then
+    server_status="$($install_path status server 2>/dev/null || true)"
+    if printf '%s\n' "$server_status" | awk '$1 == "status:" && $2 == "running" { found = 1 } END { exit !found }'; then
+        protocol="$(printf '%s\n' "$server_status" | awk '/^protocol:/ { print $2 }')"
+        version="$($install_path --version | awk '{ print $2 }')"
+
+        if [ -z "$protocol" ] || [ -z "$version" ]; then
+            echo "Could not determine the running Herdr protocol or fork version." >&2
+            exit 1
+        fi
+
+        echo "  → Handing the live session to the fork..."
+        "$install_path" server live-handoff \
+            --import-exe "$install_path" \
+            --expected-protocol "$protocol" \
+            --expected-version "$version"
+        echo "    ✓ Live Herdr session now runs the fork"
+    fi
+fi

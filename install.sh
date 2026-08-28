@@ -124,9 +124,43 @@ prepare_herdr_config() {
     fi
 }
 
+# Install the pinned fork before Stow replaces ~/.local/bin/herdr with the
+# tracked wrapper. The wrapper also redirects future `herdr update` calls to
+# this installer so the official updater cannot replace the fork.
+install_herdr_fork() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        return
+    fi
+
+    local installer="linux/stow/scripts/.local/bin/herdr-fork-install"
+    if [ ! -x "$installer" ]; then
+        echo "Herdr fork installer is missing or not executable: $installer" >&2
+        return 1
+    fi
+
+    "$installer" --handoff
+}
+
+# Preserve a standalone Herdr binary before Stow links the dotfiles wrapper.
+# This normally runs once when migrating from the official installer.
+prepare_herdr_command() {
+    local target="$HOME/.local/bin/herdr"
+
+    if [ -f "$target" ] && [ ! -L "$target" ]; then
+        local backup_dir="$HOME/.local/lib/herdr-fork/backups"
+        local version
+        version="$("$target" --version 2>/dev/null | tr ' /' '--' || echo unknown)"
+        mkdir -p "$backup_dir"
+        mv "$target" "$backup_dir/herdr-$version-$(date +%s)"
+        echo "    ✓ Preserved previous Herdr binary in $backup_dir"
+    fi
+}
+
 # Make scripts executable before stowing
 make_scripts_executable
 prepare_herdr_config
+install_herdr_fork
+prepare_herdr_command
 
 # Starship's palette is rewritten by ricekit/omarchy theme hooks, so the repo
 # gitignores its contents (see .gitignore). On a fresh clone the package dir
@@ -173,6 +207,10 @@ if [ -d "shared/stow" ]; then
             # ~/.config/cliamp does not exist, so tree-folding would symlink the
             # whole directory into the package and cliamp would write its runtime
             # state — including spotify_credentials.json — inside the repo.
+            stow_pkg "$pkg" -d shared/stow --no-folding
+        elif [ "$pkg" = "scripts" ]; then
+            # Linux adds platform-specific commands to the same target directory.
+            # Per-file links let both Stow packages coexist on a fresh machine.
             stow_pkg "$pkg" -d shared/stow --no-folding
         else
             stow_pkg "$pkg" -d shared/stow
@@ -275,6 +313,9 @@ else
                 # Only the tracked preset belongs in the repo. Tree-folding would
                 # symlink ~/.local/share/easyeffects into the package, so presets
                 # saved from the GUI would be written back into the repo.
+                stow_pkg "$pkg" -d linux/stow --no-folding
+            elif [ "$pkg" = "scripts" ]; then
+                # Merge Linux-only commands with the shared scripts package.
                 stow_pkg "$pkg" -d linux/stow --no-folding
             else
                 stow_pkg "$pkg" -d linux/stow

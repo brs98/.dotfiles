@@ -1,5 +1,10 @@
 onboarding = false
 
+[update]
+# This setup is pinned to brs98/herdr. The dotfiles-managed `herdr update`
+# command installs that fork instead of replacing it with an official build.
+version_check = false
+
 [keys]
 # WezTerm forwards indexed tree/workspace shortcuts into the focused Herdr client.
 # It also routes Option+Left/Right to the smart navigator below, which moves
