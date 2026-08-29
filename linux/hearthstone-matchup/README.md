@@ -21,9 +21,9 @@ systemctl --user restart hearthstone-matchup.service
 The first combat after installation may take a few seconds while Firestone's public card
 reference data is downloaded. Later combats reuse it in memory.
 
-When attaching to a large `Player.log`, the service searches only the latest 128 MB for the
-current game's `CREATE_GAME` marker instead of replaying the file's entire history. If that
-marker is older, it waits for the next game. Normal boot-before-game startup is fully tracked.
+When attaching to a large `Player.log`, the service scans backward in small chunks to find the
+current game's latest `CREATE_GAME` marker instead of loading or replaying the file's entire
+history. Normal boot-before-game startup is fully tracked.
 
 Some hero counters, quest state, and enchantment-only mechanics are not completely exposed
 by the basic board snapshot yet. The overlay labels those combats `PARTIAL STATE` when it can

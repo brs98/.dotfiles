@@ -137,6 +137,44 @@ test("detects rapid copy-truncate regrowth without an inode change", async (cont
   assert.equal(attachments, 2);
 });
 
+test("labels initial catch-up lines as replayed and appended lines as live", async (context) => {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "hearthstone-log-live-boundary-"));
+  const logRoot = join(fixtureRoot, "Logs");
+  const playerLog = join(fixtureRoot, "Player.log");
+  await mkdir(logRoot);
+  await writeFile(playerLog, `${CREATE_GAME}\ncatch-up-line\n`);
+
+  const lines: Array<{ readonly line: string; readonly replayed: boolean }> = [];
+  let replayCompletions = 0;
+  const tailer = new PowerLogTailer(
+    logRoot,
+    playerLog,
+    (line, replayed) => lines.push({ line, replayed }),
+    () => undefined,
+    {
+      pollIntervalMs: 5,
+      staleAfterMs: 25,
+      onReplayComplete: () => {
+        replayCompletions += 1;
+      },
+    },
+  );
+  const running = tailer.run();
+  context.after(async () => {
+    tailer.stop();
+    await running;
+    await rm(fixtureRoot, { recursive: true, force: true });
+  });
+
+  await waitFor(() => lines.some(({ line }) => line === "catch-up-line"));
+  await appendFile(playerLog, "live-line\n");
+  await waitFor(() => lines.some(({ line }) => line === "live-line"));
+
+  assert.equal(lines.find(({ line }) => line === "catch-up-line")?.replayed, true);
+  assert.equal(lines.find(({ line }) => line === "live-line")?.replayed, false);
+  assert.equal(replayCompletions, 1);
+});
+
 test("replays Player.log from the latest game instead of its entire history", async (context) => {
   const fixtureRoot = await mkdtemp(join(tmpdir(), "hearthstone-log-replay-"));
   context.after(async () => rm(fixtureRoot, { recursive: true, force: true }));
@@ -175,14 +213,14 @@ test("does not replay Player.log when no recent CREATE_GAME marker exists", asyn
   assert.equal(await replayStartPosition(playerLog, "player"), (await stat(playerLog)).size);
 });
 
-test("includes a CREATE_GAME marker at the 128 MiB replay boundary", async (context) => {
+test("finds the latest CREATE_GAME marker beyond 128 MiB in either log source", async (context) => {
   const fixtureRoot = await mkdtemp(join(tmpdir(), "hearthstone-log-window-"));
   context.after(async () => rm(fixtureRoot, { recursive: true, force: true }));
 
   const playerLog = join(fixtureRoot, "Player.log");
   const markerPosition = 1024;
   await writeFile(playerLog, "");
-  await truncate(playerLog, MAX_REPLAY_BYTES + markerPosition);
+  await truncate(playerLog, MAX_REPLAY_BYTES + 2 * READ_CHUNK_BYTES);
   const handle = await open(playerLog, "r+");
   try {
     await handle.write(CREATE_GAME, markerPosition, "utf8");
@@ -191,6 +229,7 @@ test("includes a CREATE_GAME marker at the 128 MiB replay boundary", async (cont
   }
 
   assert.equal(await replayStartPosition(playerLog, "player"), markerPosition);
+  assert.equal(await replayStartPosition(playerLog, "power"), markerPosition);
 });
 
 async function waitFor(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {

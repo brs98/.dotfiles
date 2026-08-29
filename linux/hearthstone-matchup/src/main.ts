@@ -35,7 +35,7 @@ const parser = new PowerParser((event) => {
 const tailer = new PowerLogTailer(
   logRoot,
   playerLogPath,
-  (line) => parser.feed(line),
+  (line, replayed) => parser.feed(line, replayed),
   (replayed) => {
     parser.reset();
     combatToken += 1;
@@ -46,6 +46,7 @@ const tailer = new PowerLogTailer(
       message: replayed ? "Waiting for Battlegrounds combat" : "Restarted mid-game; waiting for the next game",
     });
   },
+  { onReplayComplete: () => parser.finishReplay() },
 );
 
 async function handleEvent(event: PowerEvent): Promise<void> {

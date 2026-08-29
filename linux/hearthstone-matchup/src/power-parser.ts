@@ -296,6 +296,8 @@ export class PowerParser {
   private readonly state = new GameState();
   private pendingEntity: Entity | undefined;
   private inCombat = false;
+  private replaying = false;
+  private replayedCombat: CombatSnapshot | undefined;
   private readonly listener: EventListener;
 
   constructor(listener: EventListener = () => undefined) {
@@ -306,17 +308,39 @@ export class PowerParser {
     this.state.reset();
     this.pendingEntity = undefined;
     this.inCombat = false;
+    this.replayedCombat = undefined;
   }
 
-  feed(line: string): void {
+  feed(line: string, replayed = false): void {
+    this.replaying = replayed;
+    try {
+      this.feedLine(line);
+    } finally {
+      this.replaying = false;
+    }
+  }
+
+  finishReplay(): void {
+    const snapshot = this.replayedCombat;
+    this.replayedCombat = undefined;
+    if (snapshot) this.listener({ type: "combat-started", snapshot });
+  }
+
+  private feedLine(line: string): void {
     const payloadMarker = ") - ";
     const payloadStart = line.indexOf(payloadMarker);
     if (payloadStart === -1) return;
 
     const source = line.slice(0, payloadStart);
-    if (!source.endsWith("GameState.DebugPrintPower(")) return;
+    const isGameState = source.endsWith("GameState.DebugPrintPower(");
+    const isPowerTaskList = source.endsWith("PowerTaskList.DebugPrintPower(");
+    if (!isGameState && !isPowerTaskList) return;
 
     const payload = line.slice(payloadStart + payloadMarker.length).trimStart();
+    if (isPowerTaskList) {
+      this.handleVisualLifecycle(payload);
+      return;
+    }
     if (payload.startsWith("tag=")) {
       this.applyPendingTag(payload);
       return;
@@ -339,7 +363,7 @@ export class PowerParser {
       this.handlePlayer(payload);
     } else if (payload.startsWith("CREATE_GAME")) {
       this.reset();
-      this.listener({ type: "game-created" });
+      this.emit({ type: "game-created" });
     }
   }
 
@@ -410,22 +434,37 @@ export class PowerParser {
     const descriptor = parseDescriptor(line);
     const attackerEntityId = descriptor?.id ?? integerValue("Entity=", line);
     const snapshot = this.state.combatSnapshot(attackerEntityId);
-    if (snapshot) this.listener({ type: "combat-started", snapshot });
+    if (snapshot) this.emit({ type: "combat-started", snapshot });
   }
 
   private handleGameEntityTag(tag: string, value: string): void {
     if (tag === "TURN") {
       const turn = Number.parseInt(value, 10);
       if (Number.isFinite(turn)) this.state.turn = turn;
+    }
+  }
+
+  private handleVisualLifecycle(payload: string): void {
+    const marker = "TAG_CHANGE Entity=GameEntity tag=STEP value=";
+    if (!payload.startsWith(marker)) return;
+    const step = payload.slice(marker.length).trim();
+    if (step === "MAIN_END" && this.inCombat) {
+      this.inCombat = false;
+      this.emit({ type: "combat-ended" });
+    }
+    if (step === "FINAL_GAMEOVER") this.emit({ type: "game-over" });
+  }
+
+  private emit(event: PowerEvent): void {
+    if (!this.replaying) {
+      this.listener(event);
       return;
     }
-    if (tag !== "STEP") return;
-
-    if (value !== "MAIN_ACTION" && this.inCombat) {
-      this.inCombat = false;
-      this.listener({ type: "combat-ended" });
+    if (event.type === "combat-started") {
+      this.replayedCombat = event.snapshot;
+    } else {
+      this.replayedCombat = undefined;
     }
-    if (value === "FINAL_GAMEOVER") this.listener({ type: "game-over" });
   }
 
   private applyPendingTag(line: string): void {

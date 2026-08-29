@@ -209,3 +209,55 @@ test("ignores the delayed PowerTaskList stream", () => {
 
   assert.equal(snapshot?.opponent.minions.length, 0);
 });
+
+test("ends combat on the visual PowerTaskList lifecycle instead of engine-ahead GameState", () => {
+  const events: PowerEvent[] = [];
+  const parser = setup((event) => events.push(event));
+  entity(parser, 561, "BG28_300", 9, 1);
+  entity(parser, 562, "BG31_330", 1, 1);
+  parser.feed(
+    gameStateLine(
+      "BLOCK_START BlockType=ATTACK Entity=[entityName=A id=562 zone=PLAY zonePos=1 cardId=BG31_330 player=1] EffectIndex=0",
+    ),
+  );
+
+  parser.feed(gameStateLine("TAG_CHANGE Entity=GameEntity tag=STEP value=MAIN_END"));
+  assert.equal(events.filter((event) => event.type === "combat-ended").length, 0);
+
+  parser.feed(
+    "D 14:58:10.0000000 PowerTaskList.DebugPrintPower() -     " +
+      "TAG_CHANGE Entity=GameEntity tag=STEP value=MAIN_END ",
+  );
+  assert.equal(events.filter((event) => event.type === "combat-ended").length, 1);
+});
+
+test("emits a replayed combat at catch-up completion only while it is visually active", () => {
+  const events: PowerEvent[] = [];
+  const parser = setup((event) => events.push(event));
+  entity(parser, 561, "BG28_300", 9, 1);
+  entity(parser, 562, "BG31_330", 1, 1);
+  events.length = 0;
+  const attack = gameStateLine(
+    "BLOCK_START BlockType=ATTACK Entity=[entityName=A id=562 zone=PLAY zonePos=1 cardId=BG31_330 player=1] EffectIndex=0",
+  );
+
+  parser.feed(attack, true);
+  parser.feed(gameStateLine("TAG_CHANGE Entity=GameEntity tag=STEP value=MAIN_END"), true);
+  assert.equal(events.length, 0);
+  parser.finishReplay();
+  assert.equal(events.filter((event) => event.type === "combat-started").length, 1);
+
+  parser.feed(
+    "D 14:58:10.0000000 PowerTaskList.DebugPrintPower() -     " +
+      "TAG_CHANGE Entity=GameEntity tag=STEP value=MAIN_END ",
+  );
+  events.length = 0;
+  parser.feed(attack, true);
+  parser.feed(
+    "D 14:58:20.0000000 PowerTaskList.DebugPrintPower() -     " +
+      "TAG_CHANGE Entity=GameEntity tag=STEP value=MAIN_END ",
+    true,
+  );
+  parser.finishReplay();
+  assert.equal(events.length, 0);
+});

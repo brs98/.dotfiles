@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { StringDecoder } from "node:string_decoder";
 
-type LineListener = (line: string) => void;
+type LineListener = (line: string, replayed: boolean) => void;
 type AttachListener = (replayed: boolean) => void;
 type LogSourceKind = "player" | "power";
 
@@ -24,11 +24,12 @@ interface PowerStreams {
 interface TailerOptions {
   readonly pollIntervalMs?: number;
   readonly staleAfterMs?: number;
+  readonly onReplayComplete?: () => void;
 }
 
 const POLL_INTERVAL_MS = 350;
 const READ_CHUNK_BYTES = 1024 * 1024;
-const MAX_REPLAY_BYTES = 128 * 1024 * 1024;
+const MAX_FULL_POWER_REPLAY_BYTES = 128 * 1024 * 1024;
 const POWER_STALE_AFTER_MS = 3_000;
 const ANCHOR_BYTES = 128;
 const CREATE_GAME_MARKER = Buffer.from("GameState.DebugPrintPower() - CREATE_GAME");
@@ -40,6 +41,7 @@ export class PowerLogTailer {
   private readonly onAttach: AttachListener;
   private readonly pollIntervalMs: number;
   private readonly staleAfterMs: number;
+  private readonly onReplayComplete: () => void;
   private currentSource: PowerStream | undefined;
   private fallbackPowerPath: string | undefined;
   private lastPowerSize: number | undefined;
@@ -51,6 +53,7 @@ export class PowerLogTailer {
   private anchorPosition = 0;
   private remainder = "";
   private decoder = new StringDecoder("utf8");
+  private replaying = false;
   private stopped = false;
 
   constructor(
@@ -66,6 +69,7 @@ export class PowerLogTailer {
     this.onAttach = onAttach;
     this.pollIntervalMs = options.pollIntervalMs ?? POLL_INTERVAL_MS;
     this.staleAfterMs = options.staleAfterMs ?? POWER_STALE_AFTER_MS;
+    this.onReplayComplete = options.onReplayComplete ?? (() => undefined);
   }
 
   stop(): void {
@@ -101,11 +105,15 @@ export class PowerLogTailer {
       this.currentSource = selected;
     }
 
-    if (selected.size === this.position) return;
+    if (selected.size === this.position) {
+      this.finishReplay();
+      return;
+    }
     const handle = await open(selected.path, "r");
     try {
       await this.readAvailable(handle, selected.size);
       await this.rememberAnchor(handle);
+      this.finishReplay();
     } finally {
       await handle.close();
     }
@@ -170,12 +178,10 @@ export class PowerLogTailer {
     const refreshed = await streamAtPath(source.path, source.kind);
     if (!refreshed) throw new Error(`Log disappeared while attaching: ${source.path}`);
     const position = await replayStartPosition(refreshed.path, refreshed.kind);
-    const replayed =
-      refreshed.kind === "power"
-        ? refreshed.size <= MAX_REPLAY_BYTES
-        : position < refreshed.size;
+    const replayed = refreshed.size === 0 || position < refreshed.size;
     this.currentSource = refreshed;
     this.position = position;
+    this.replaying = replayed;
     this.remainder = "";
     this.decoder = new StringDecoder("utf8");
     await this.rememberAnchorFromPath(refreshed.path);
@@ -227,7 +233,13 @@ export class PowerLogTailer {
   private consume(chunk: string): void {
     const lines = `${this.remainder}${chunk}`.split(/\r?\n/);
     this.remainder = lines.pop() ?? "";
-    for (const line of lines) this.onLine(line);
+    for (const line of lines) this.onLine(line, this.replaying);
+  }
+
+  private finishReplay(): void {
+    if (!this.replaying) return;
+    this.replaying = false;
+    this.onReplayComplete();
   }
 }
 
@@ -236,11 +248,9 @@ export async function replayStartPosition(
   kind: LogSourceKind,
 ): Promise<number> {
   const fileStats = await stat(path);
-  if (kind === "power") return fileStats.size <= MAX_REPLAY_BYTES ? 0 : fileStats.size;
-
   const handle = await open(path, "r");
   try {
-    const earliest = Math.max(0, fileStats.size - MAX_REPLAY_BYTES);
+    const earliest = 0;
     let cursor = fileStats.size;
     let suffix = Buffer.alloc(0);
     while (cursor > earliest) {
@@ -254,7 +264,9 @@ export async function replayStartPosition(
       suffix = buffer.subarray(0, Math.min(CREATE_GAME_MARKER.length - 1, bytesRead));
       cursor = start + bytesRead < cursor ? start + bytesRead : start;
     }
-    return fileStats.size;
+    return kind === "power" && fileStats.size <= MAX_FULL_POWER_REPLAY_BYTES
+      ? 0
+      : fileStats.size;
   } finally {
     await handle.close();
   }
