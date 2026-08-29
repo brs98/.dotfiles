@@ -1,1 +1,1 @@
-../ricekit/active/sketchybar/colors.sh
+../../../../../../.config/ricekit/active/sketchybar/colors.sh
