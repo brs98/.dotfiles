@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "brs98.hearthstone-matchup",
+  "name": "Hearthstone Matchup Odds",
+  "version": "1.0.0",
+  "author": "brs98",
+  "description": "Click-through Battlegrounds win, tie, and loss odds from Power.log.",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "Overlay.qml"
+  }
+}

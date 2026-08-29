@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+script_dir="$(dirname "$script_path")"
+app_dir="$(readlink -f "$script_dir/../../../../hearthstone-matchup")"
+
+if [ ! -f "$app_dir/dist/main.js" ]; then
+    echo "hearthstone-matchup is not built; run ./install.sh from the dotfiles repository" >&2
+    exit 1
+fi
+
+exec node "$app_dir/dist/main.js" "$@"

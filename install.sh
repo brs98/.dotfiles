@@ -267,6 +267,65 @@ install_dotfile_skills() {
         echo "    ⚠ $runner skills add failed; resolve collisions manually with: $runner skills add $PWD --skill '*' -g"
 }
 
+install_hearthstone_matchup() {
+    local app_dir="$PWD/linux/hearthstone-matchup"
+    local plugin_source="$PWD/linux/omarchy/plugins/brs98.hearthstone-matchup"
+    local plugin_target="$HOME/.config/omarchy/plugins/brs98.hearthstone-matchup"
+
+    if [ ! -d "$app_dir" ] || [ ! -d "$plugin_source" ]; then
+        return
+    fi
+
+    echo "  → Installing Hearthstone Battlegrounds matchup overlay..."
+    if ! command -v npm >/dev/null 2>&1; then
+        echo "    ⚠ npm is unavailable; the matchup service was not built"
+        return
+    fi
+
+    if [ -f "$app_dir/package-lock.json" ]; then
+        (cd "$app_dir" && npm ci --silent && npm run build)
+    else
+        (cd "$app_dir" && npm install --silent && npm run build)
+    fi
+
+    if command -v omarchy >/dev/null 2>&1; then
+        omarchy plugin validate "$plugin_source"
+    fi
+
+    mkdir -p "$(dirname "$plugin_target")"
+    if [ -L "$plugin_target" ]; then
+        if [ "$(readlink -f "$plugin_target")" != "$(readlink -f "$plugin_source")" ]; then
+            echo "    ⚠ $plugin_target points elsewhere; leaving it unchanged"
+            return
+        fi
+    elif [ -e "$plugin_target" ]; then
+        echo "    ⚠ $plugin_target is a real file or directory; leaving it unchanged"
+        return
+    else
+        ln -s "$plugin_source" "$plugin_target"
+    fi
+
+    if [ -f "$HOME/.config/systemd/user/hearthstone-matchup.service" ]; then
+        systemctl --user daemon-reload
+        systemctl --user enable hearthstone-matchup.service
+        systemctl --user restart hearthstone-matchup.service
+    else
+        echo "    ⚠ Hearthstone matchup systemd unit was not stowed"
+        return
+    fi
+
+    if command -v omarchy-shell >/dev/null 2>&1; then
+        omarchy-shell -q shell rescanPlugins >/dev/null 2>&1 || true
+    fi
+    if command -v omarchy >/dev/null 2>&1; then
+        omarchy plugin enable brs98.hearthstone-matchup >/dev/null 2>&1 || \
+            echo "    ⚠ Omarchy shell is unavailable; enable brs98.hearthstone-matchup after login"
+        omarchy restart shell >/dev/null 2>&1 || \
+            echo "    ⚠ Omarchy shell will load the overlay at the next login"
+    fi
+    echo "    ✓ Hearthstone matchup overlay enabled"
+}
+
 # Install the pre-commit hook (claims the unused pre-commit slot; peb keeps
 # post-commit/post-merge) and reconcile the pool so every cloned/authored skill
 # is tracked in the repo and linked into ~/.agents/skills.
@@ -413,6 +472,8 @@ else
     else
         echo "    ⚠ Warning: Omarchy OpenRGB theme service not found, skipping..."
     fi
+
+    install_hearthstone_matchup
 fi
 
 echo "✓ Dotfiles installed successfully!"
