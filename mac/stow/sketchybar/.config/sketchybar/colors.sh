@@ -1,1 +1,1 @@
-/Users/brandon/.config/ricekit/active/sketchybar/colors.sh
+../ricekit/active/sketchybar/colors.sh

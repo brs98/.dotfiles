@@ -26,7 +26,10 @@ stow_pkg() {
     shift
     local err
     err="$(mktemp)"
-    if stow "$@" -t ~ "$pkg" 2>"$err"; then
+    # Never tree-fold a package directory into $HOME. Applications write
+    # runtime state beside many tracked configs; a folded directory would put
+    # that state (including caches and credentials) inside the dotfiles repo.
+    if stow --no-folding "$@" -t ~ "$pkg" 2>"$err"; then
         rm -f "$err"
         return 0
     fi
