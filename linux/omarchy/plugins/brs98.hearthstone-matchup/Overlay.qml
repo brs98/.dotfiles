@@ -46,6 +46,16 @@ Item {
     return (Math.round(number * 10) / 10).toFixed(number % 1 === 0 ? 0 : 1) + "%"
   }
 
+  function formatRuns(value) {
+    var number = Number(value)
+    if (!isFinite(number) || number <= 0) return ""
+    if (number >= 1000) {
+      var thousands = number / 1000
+      return thousands.toFixed(number % 1000 === 0 ? 0 : 1) + "K"
+    }
+    return String(Math.round(number))
+  }
+
   FileView {
     id: stateFile
     path: root.statePath
@@ -84,20 +94,20 @@ Item {
 
     BorderSurface {
       id: card
-      width: Style.space(390)
-      height: Style.space(112)
+      width: Style.space(280)
+      height: Style.space(64)
       anchors.top: parent.top
       anchors.right: parent.right
-      anchors.topMargin: Style.space(26)
-      anchors.rightMargin: Style.space(26)
+      anchors.topMargin: Style.space(14)
+      anchors.rightMargin: Style.space(14)
       color: Util.alpha(Color.background, 0.94)
       borderSpec: Border.surfaceSpec("popups", "border", Color.accent, Math.max(1, Style.space(2)))
       radius: Style.cornerRadius
 
       Column {
         anchors.fill: parent
-        anchors.margins: Style.space(14)
-        spacing: Style.space(6)
+        anchors.margins: Style.space(8)
+        spacing: Style.space(4)
 
         Row {
           width: parent.width
@@ -105,7 +115,7 @@ Item {
 
           Text {
             id: headingText
-            text: "BATTLEGROUNDS ODDS"
+            text: "BG ODDS"
             color: Color.popups.text
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
@@ -119,7 +129,7 @@ Item {
             id: statusText
             text: root.record && root.record.status === "ready"
               ? (root.record.partial ? "PARTIAL • " : "ESTIMATE • ")
-                  + Number(root.record.simulations).toLocaleString() + " RUNS"
+                  + root.formatRuns(root.record.simulations)
               : "LIVE"
             color: root.record && root.record.partial ? "#f1c75b" : Color.accent
             font.family: Style.font.family
@@ -130,86 +140,59 @@ Item {
 
         Item {
           width: parent.width
-          height: Style.space(58)
+          height: Style.space(28)
 
           Text {
             visible: !root.record || root.record.status !== "ready"
             anchors.centerIn: parent
             text: root.record && root.record.status === "error"
               ? String(root.record.message || "This combat could not be simulated")
-              : "Calculating matchup…"
+              : "CALCULATING…"
             color: root.record && root.record.status === "error" ? "#ef6f6c" : Color.popups.text
             font.family: Style.font.family
-            font.pixelSize: Style.font.body
+            font.pixelSize: Style.font.caption
             font.bold: true
+            elide: Text.ElideRight
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
           }
 
           Row {
             visible: root.record && root.record.status === "ready"
             anchors.fill: parent
-            spacing: Style.space(8)
+            spacing: Style.space(4)
 
-            Column {
+            Text {
               width: (parent.width - parent.spacing * 2) / 3
-              spacing: Style.space(2)
-              Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: root.formatPercent(root.record ? root.record.win : 0)
-                color: "#82d173"
-                font.family: Style.font.family
-                font.pixelSize: Style.font.title
-                font.bold: true
-              }
-              Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "WIN"
-                color: Color.popups.text
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                opacity: 0.7
-              }
+              anchors.verticalCenter: parent.verticalCenter
+              text: "W  " + root.formatPercent(root.record ? root.record.win : 0)
+              color: "#82d173"
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+              font.bold: true
+              horizontalAlignment: Text.AlignHCenter
             }
 
-            Column {
+            Text {
               width: (parent.width - parent.spacing * 2) / 3
-              spacing: Style.space(2)
-              Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: root.formatPercent(root.record ? root.record.tie : 0)
-                color: "#f1c75b"
-                font.family: Style.font.family
-                font.pixelSize: Style.font.title
-                font.bold: true
-              }
-              Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "TIE"
-                color: Color.popups.text
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                opacity: 0.7
-              }
+              anchors.verticalCenter: parent.verticalCenter
+              text: "T  " + root.formatPercent(root.record ? root.record.tie : 0)
+              color: "#f1c75b"
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+              font.bold: true
+              horizontalAlignment: Text.AlignHCenter
             }
 
-            Column {
+            Text {
               width: (parent.width - parent.spacing * 2) / 3
-              spacing: Style.space(2)
-              Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: root.formatPercent(root.record ? root.record.loss : 0)
-                color: "#ef6f6c"
-                font.family: Style.font.family
-                font.pixelSize: Style.font.title
-                font.bold: true
-              }
-              Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "LOSS"
-                color: Color.popups.text
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption
-                opacity: 0.7
-              }
+              anchors.verticalCenter: parent.verticalCenter
+              text: "L  " + root.formatPercent(root.record ? root.record.loss : 0)
+              color: "#ef6f6c"
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+              font.bold: true
+              horizontalAlignment: Text.AlignHCenter
             }
           }
         }
