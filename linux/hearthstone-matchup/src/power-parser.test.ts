@@ -90,6 +90,7 @@ test("snapshots both boards once at the first attack", () => {
   assert.equal(snapshot.player.heroCardId, "TB_BaconShop_HERO_08");
   assert.equal(snapshot.opponent.heroCardId, "TB_BaconShop_HERO_11");
   assert.equal(snapshot.firstAttacker, 0);
+  assert.equal(snapshot.firstAttackerEntityId, 562);
 });
 
 test("stale TAG_CHANGE descriptors do not resurrect removed minions", () => {
@@ -174,6 +175,7 @@ test("selects only the current projected opponent hero power", () => {
     parser.feed(gameStateLine("    tag=CARDTYPE value=HERO_POWER"));
     parser.feed(gameStateLine("    tag=ZONE value=PLAY"));
     parser.feed(gameStateLine("    tag=CONTROLLER value=9"));
+    if (id === 950) parser.feed(gameStateLine("    tag=TAG_SCRIPT_DATA_NUM_1 value=3"));
   }
   parser.feed(
     gameStateLine(
@@ -184,6 +186,7 @@ test("selects only the current projected opponent hero power", () => {
   assert.deepEqual(snapshot?.opponent.heroPowers.map((power) => power.cardId), [
     "TB_BaconShop_HP_075",
   ]);
+  assert.equal(snapshot?.opponent.heroPowers[0]?.info, 3);
 });
 
 test("ignores the delayed PowerTaskList stream", () => {

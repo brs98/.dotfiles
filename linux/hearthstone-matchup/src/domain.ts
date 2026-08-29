@@ -77,6 +77,7 @@ export interface CombatSnapshot {
   readonly player: PlayerBoard;
   readonly opponent: PlayerBoard;
   readonly firstAttacker: 0 | 1;
+  readonly firstAttackerEntityId: number;
   readonly partial: boolean;
 }
 

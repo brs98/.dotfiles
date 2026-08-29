@@ -29,8 +29,14 @@ const simulateBgsBattle = loadSimulator();
 
 export async function simulate(snapshot: CombatSnapshot): Promise<SimulationOdds> {
   const input = {
-    playerBoard: boardInput(snapshot.player),
-    opponentBoard: boardInput(snapshot.opponent),
+    playerBoard: boardInput(
+      snapshot.player,
+      snapshot.firstAttacker === 0 ? snapshot.firstAttackerEntityId : undefined,
+    ),
+    opponentBoard: boardInput(
+      snapshot.opponent,
+      snapshot.firstAttacker === 1 ? snapshot.firstAttackerEntityId : undefined,
+    ),
     options: {
       numberOfSimulations: SIMULATIONS,
       maxAcceptableDuration: MAX_DURATION_MS,
@@ -67,7 +73,10 @@ export async function simulate(snapshot: CombatSnapshot): Promise<SimulationOdds
   };
 }
 
-function boardInput(board: PlayerBoard): object {
+function boardInput(board: PlayerBoard, firstAttackerEntityId: number | undefined): object {
+  const firstAttackerIndex = board.minions.findIndex(
+    (minion) => minion.entityId === firstAttackerEntityId,
+  );
   return {
     player: {
       entityId: board.heroEntityId || undefined,
@@ -86,15 +95,17 @@ function boardInput(board: PlayerBoard): object {
       })),
       secrets: board.secrets,
       globalInfo: {},
-      hand: board.hand.map(minionInput),
+      hand: board.hand.map((minion) => minionInput(minion)),
       startOfCombatDone: true,
     },
     secrets: board.secrets,
-    board: board.minions.map(minionInput),
+    board: board.minions.map((minion, index) =>
+      minionInput(minion, firstAttackerIndex > 0 && index < firstAttackerIndex),
+    ),
   };
 }
 
-function minionInput(minion: BoardMinion): object {
+function minionInput(minion: BoardMinion, hasAttacked = false): object {
   return {
     entityId: minion.entityId,
     cardId: minion.cardId,
@@ -119,6 +130,7 @@ function minionInput(minion: BoardMinion): object {
     tavernTier: minion.tavernTier,
     enchantments: minion.enchantments,
     tags: minion.rawTags,
+    ...(hasAttacked ? { hasAttacked: 1 } : {}),
   };
 }
 

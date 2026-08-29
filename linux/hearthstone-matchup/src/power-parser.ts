@@ -35,6 +35,14 @@ class Entity {
     return this.tags.get(tag) ?? 0;
   }
 
+  scriptData(index: number): number {
+    return (
+      this.tags.get(`TAG_SCRIPT_DATA_NUM_${index}`) ??
+      this.tags.get(`SCRIPT_DATA_NUM_${index}`) ??
+      0
+    );
+  }
+
   string(tag: string): string {
     return this.stringTags.get(tag) ?? "";
   }
@@ -139,12 +147,12 @@ class GameState {
       reborn: entity.numeric("REBORN") === 1,
       windfury: entity.numeric("WINDFURY") === 1 || entity.numeric("MEGA_WINDFURY") === 1,
       stealth: entity.numeric("STEALTH") === 1,
-      scriptDataNum1: entity.numeric("SCRIPT_DATA_NUM_1"),
-      scriptDataNum2: entity.numeric("SCRIPT_DATA_NUM_2"),
-      scriptDataNum3: entity.numeric("SCRIPT_DATA_NUM_3"),
-      scriptDataNum4: entity.numeric("SCRIPT_DATA_NUM_4"),
-      scriptDataNum5: entity.numeric("SCRIPT_DATA_NUM_5"),
-      scriptDataNum6: entity.numeric("SCRIPT_DATA_NUM_6"),
+      scriptDataNum1: entity.scriptData(1),
+      scriptDataNum2: entity.scriptData(2),
+      scriptDataNum3: entity.scriptData(3),
+      scriptDataNum4: entity.scriptData(4),
+      scriptDataNum5: entity.scriptData(5),
+      scriptDataNum6: entity.scriptData(6),
       tavernTier: entity.numeric("TECH_LEVEL"),
       enchantments: this.enchantments(entity.id),
       rawTags: Object.fromEntries(entity.rawTags),
@@ -163,8 +171,8 @@ class GameState {
       .map((entity) => ({
         cardId: entity.cardId,
         originEntityId: entity.numeric("CREATOR"),
-        tagScriptDataNum1: entity.numeric("SCRIPT_DATA_NUM_1"),
-        tagScriptDataNum2: entity.numeric("SCRIPT_DATA_NUM_2"),
+        tagScriptDataNum1: entity.scriptData(1),
+        tagScriptDataNum2: entity.scriptData(2),
         timing: entity.id,
       }));
   }
@@ -190,12 +198,12 @@ class GameState {
         entityId: entity.id,
         cardId: entity.cardId,
         used: entity.numeric("EXHAUSTED") === 1,
-        info: entity.numeric("SCRIPT_DATA_NUM_1"),
-        info2: entity.numeric("SCRIPT_DATA_NUM_2"),
-        info3: entity.numeric("SCRIPT_DATA_NUM_3"),
-        info4: entity.numeric("SCRIPT_DATA_NUM_4"),
-        info5: entity.numeric("SCRIPT_DATA_NUM_5"),
-        info6: entity.numeric("SCRIPT_DATA_NUM_6"),
+        info: entity.scriptData(1),
+        info2: entity.scriptData(2),
+        info3: entity.scriptData(3),
+        info4: entity.scriptData(4),
+        info5: entity.scriptData(5),
+        info6: entity.scriptData(6),
       }));
   }
 
@@ -210,9 +218,9 @@ class GameState {
       .map((entity) => ({
         entityId: entity.id,
         cardId: entity.cardId,
-        scriptDataNum1: entity.numeric("SCRIPT_DATA_NUM_1"),
-        scriptDataNum2: entity.numeric("SCRIPT_DATA_NUM_2"),
-        scriptDataNum6: entity.numeric("SCRIPT_DATA_NUM_6"),
+        scriptDataNum1: entity.scriptData(1),
+        scriptDataNum2: entity.scriptData(2),
+        scriptDataNum6: entity.scriptData(6),
         rawTags: Object.fromEntries(entity.rawTags),
       }));
   }
@@ -224,8 +232,8 @@ class GameState {
       .map((entity) => ({
         entityId: entity.id,
         cardId: entity.cardId,
-        scriptDataNum1: entity.numeric("SCRIPT_DATA_NUM_1"),
-        scriptDataNum2: entity.numeric("SCRIPT_DATA_NUM_2"),
+        scriptDataNum1: entity.scriptData(1),
+        scriptDataNum2: entity.scriptData(2),
       }));
   }
 
@@ -273,7 +281,14 @@ class GameState {
     // Power.log exposes the combat boards but not every persistent counter,
     // quest field, anomaly pool, or hidden opposing hand entity required by
     // the simulator. The result is useful, but must always be labelled partial.
-    return { turn: this.turn, player, opponent, firstAttacker, partial: true };
+    return {
+      turn: this.turn,
+      player,
+      opponent,
+      firstAttacker,
+      firstAttackerEntityId: attackerEntityId ?? 0,
+      partial: true,
+    };
   }
 }
 
