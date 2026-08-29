@@ -9,3 +9,10 @@ hl.config({
     sensitivity = -0.9,
   },
 })
+
+-- Keep the laptop trackpad at Hyprland's default sensitivity while external
+-- mice continue to use the global sensitivity above.
+hl.device({
+  name = "pixa3854:00-093a:0274-touchpad",
+  sensitivity = 0,
+})
