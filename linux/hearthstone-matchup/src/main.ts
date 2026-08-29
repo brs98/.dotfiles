@@ -13,6 +13,12 @@ const logRoot =
     userHome,
     "Games/battlenet/pfx/drive_c/Program Files (x86)/Hearthstone/Logs",
   );
+const playerLogPath =
+  process.env.HEARTHSTONE_PLAYER_LOG ??
+  join(
+    userHome,
+    "Games/battlenet/pfx/drive_c/users/steamuser/AppData/LocalLow/Blizzard Entertainment/Hearthstone/Player.log",
+  );
 const statePath =
   process.env.HEARTHSTONE_MATCHUP_STATE ??
   join(userHome, ".local/state/hearthstone-matchup/state.json");
@@ -28,6 +34,7 @@ const parser = new PowerParser((event) => {
 
 const tailer = new PowerLogTailer(
   logRoot,
+  playerLogPath,
   (line) => parser.feed(line),
   (replayed) => {
     parser.reset();
