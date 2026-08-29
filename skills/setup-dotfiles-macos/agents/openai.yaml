@@ -1,0 +1,4 @@
+interface:
+  display_name: "Setup macOS Dotfiles"
+  short_description: "Install and verify brs98 macOS dotfiles"
+  default_prompt: "Use $setup-dotfiles-macos to install and verify my macOS dotfiles."
