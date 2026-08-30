@@ -98,7 +98,7 @@ Item {
       height: Style.space(64)
       anchors.top: parent.top
       anchors.right: parent.right
-      anchors.topMargin: Style.space(14)
+      anchors.topMargin: Style.bar.sizeHorizontal + Style.space(14)
       anchors.rightMargin: Style.space(14)
       color: Util.alpha(Color.background, 0.94)
       borderSpec: Border.surfaceSpec("popups", "border", Color.accent, Math.max(1, Style.space(2)))
