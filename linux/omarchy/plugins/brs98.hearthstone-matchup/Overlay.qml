@@ -112,6 +112,7 @@ Item {
         Row {
           width: parent.width
           height: Style.font.body
+          spacing: Style.space(8)
 
           Text {
             id: headingText
@@ -123,7 +124,10 @@ Item {
             opacity: 0.75
           }
 
-          Item { width: Math.max(0, parent.width - headingText.implicitWidth - statusText.implicitWidth) }
+          Item {
+            width: Math.max(0, parent.width - headingText.implicitWidth
+              - statusText.implicitWidth - parent.spacing * 2)
+          }
 
           Text {
             id: statusText
