@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-usage: herdr-remote <omarchy|omarchy-pc|mac> [herdr remote options]
+usage: herdr-remote <omarchy|omarchy-pc|mac> [--session <name>]
        herdr-remote doctor
 
 Attach to a machine's default Herdr session over SSH and Tailscale.
@@ -21,22 +21,11 @@ ssh_alias() {
     esac
 }
 
-# Each destination keeps its existing Herdr server version. Choosing a matching
-# local thin client avoids remote bootstrap replacing a managed binary or
-# asking to restart an active server solely for a version change.
-herdr_client_for_target() {
-    local target_alias="$1" wanted candidate versioned client_status
+fork_client() {
+    local candidate client_status
 
-    case "$target_alias" in
-        herdr-omarchy-pc) wanted=0.8.0 ;;
-        *) wanted=0.8.2 ;;
-    esac
-
-    versioned="$HOME/.local/share/mise/installs/herdr/$wanted/bin/herdr"
     for candidate in \
-        "$versioned" \
-        /opt/homebrew/bin/herdr \
-        /usr/bin/herdr \
+        "$HOME/.local/lib/herdr-fork/herdr" \
         "$HOME/.local/bin/herdr" \
         "$(command -v herdr 2>/dev/null || true)"
     do
@@ -44,18 +33,18 @@ herdr_client_for_target() {
             continue
         fi
         client_status="$("$candidate" status client 2>/dev/null || true)"
-        if [ "$(printf '%s\n' "$client_status" | awk '$1 == "version:" {print $2}')" = "$wanted" ] &&
+        if [ "$(printf '%s\n' "$client_status" | awk '$1 == "version:" {print $2}')" = 0.8.0 ] &&
             [ "$(printf '%s\n' "$client_status" | awk '$1 == "protocol:" {print $2}')" = 20 ]; then
             printf '%s\n' "$candidate"
             return
         fi
     done
 
-    echo "Herdr $wanted is required to attach to $target_alias, but no matching client was found." >&2
+    echo "The Herdr 0.8.0 protocol-20 fork is required for Linux thin-client attach." >&2
     return 1
 }
 
-attach_mac_to_pc_over_ssh() {
+attach_over_ssh() {
     local target_alias="$1"
     shift
 
@@ -66,7 +55,7 @@ attach_mac_to_pc_over_ssh() {
         exec ssh -t "$target_alias" "exec \"\$HOME/.local/bin/herdr\" --session $2"
     fi
 
-    echo "Mac to omarchy-pc supports the default session or --session <name>." >&2
+    echo "SSH-hosted attach supports the default session or --session <name>." >&2
     return 2
 }
 
@@ -130,9 +119,9 @@ if ! target_alias="$(ssh_alias "$target")"; then
     exit 2
 fi
 
-if [ "$target_alias" = herdr-omarchy-pc ] && [ "$(uname -s)" = Darwin ]; then
-    attach_mac_to_pc_over_ssh "$target_alias" "$@"
+if [ "$target_alias" = herdr-mac ] || [ "$(uname -s)" = Darwin ]; then
+    attach_over_ssh "$target_alias" "$@"
 fi
 
-client="$(herdr_client_for_target "$target_alias")"
+client="$(fork_client)"
 exec env -u HERDR_ENV "$client" --remote "$target_alias" "$@"

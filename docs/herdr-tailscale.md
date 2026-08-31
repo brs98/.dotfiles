@@ -13,18 +13,15 @@ herdr-remote mac
 The aliases resolve through Tailscale MagicDNS and call Herdr's native
 `herdr --remote <ssh-target>` mode.
 
-The wrapper selects a client matching each destination's managed server:
-Herdr 0.8.0 for `omarchy-pc`, and 0.8.2 for `omarchy` and the Mac. Versioned
-clients live under mise's standard install tree, which Herdr also recognizes
-for remote helper discovery. This prevents a remote attach from overwriting the
-Linux fork wrapper or asking to restart a healthy server just to change versions.
+The two Linux computers run the same custom Herdr 0.8.0 protocol-20 fork, so
+Linux-to-Linux connections use Herdr's thin-client `--remote` mode. The Mac runs
+the native 0.8.2 build. Every route involving the Mac uses Herdr's supported
+SSH-hosted attach mode and runs the destination's own client. This prevents an
+attach from replacing a managed binary or asking to restart an active server.
 
-The custom `omarchy-pc` fork reports protocol 20, while the official macOS
-Herdr 0.8.0 build reports protocol 19. Because there is no Apple Silicon build
-of the fork, `herdr-remote omarchy-pc` on the Mac uses the supported SSH-hosted
-attach mode and runs the fork's client on `omarchy-pc`. The default session and
-`--session <name>` are supported. This one edge does not provide the thin
-client's local desktop image-clipboard bridge; terminal text paste still works.
+The default session and `--session <name>` work in both modes. SSH-hosted Mac
+routes do not provide the thin client's local desktop image-clipboard bridge;
+terminal text paste still works.
 
 ## One-time setup on all three computers
 
