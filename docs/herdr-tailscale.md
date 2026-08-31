@@ -19,6 +19,13 @@ clients live under mise's standard install tree, which Herdr also recognizes
 for remote helper discovery. This prevents a remote attach from overwriting the
 Linux fork wrapper or asking to restart a healthy server just to change versions.
 
+The custom `omarchy-pc` fork reports protocol 20, while the official macOS
+Herdr 0.8.0 build reports protocol 19. Because there is no Apple Silicon build
+of the fork, `herdr-remote omarchy-pc` on the Mac uses the supported SSH-hosted
+attach mode and runs the fork's client on `omarchy-pc`. The default session and
+`--session <name>` are supported. This one edge does not provide the thin
+client's local desktop image-clipboard bridge; terminal text paste still works.
+
 ## One-time setup on all three computers
 
 1. Pull these dotfiles and run `./install.sh` on `omarchy`, `omarchy-pc`, and
