@@ -45,14 +45,19 @@ fork_client() {
 }
 
 attach_over_ssh() {
-    local target_alias="$1"
+    local target_alias="$1" remote_command
     shift
 
+    case "$target_alias" in
+        herdr-mac) remote_command='exec /opt/homebrew/bin/herdr' ;;
+        *) remote_command='exec "$HOME/.local/bin/herdr"' ;;
+    esac
+
     if [ "$#" -eq 0 ]; then
-        exec ssh -t "$target_alias" 'exec "$HOME/.local/bin/herdr"'
+        exec ssh -t "$target_alias" "$remote_command"
     fi
     if [ "$#" -eq 2 ] && [ "$1" = --session ] && [[ "$2" =~ ^[A-Za-z0-9._-]+$ ]]; then
-        exec ssh -t "$target_alias" "exec \"\$HOME/.local/bin/herdr\" --session $2"
+        exec ssh -t "$target_alias" "$remote_command --session $2"
     fi
 
     echo "SSH-hosted attach supports the default session or --session <name>." >&2
