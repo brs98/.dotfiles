@@ -41,13 +41,7 @@ doctor() {
         fi
 
         if result="$(ssh -T -o BatchMode=yes "$alias" '
-            for candidate in
-                "$(command -v herdr 2>/dev/null)"
-                "$HOME/.local/bin/herdr"
-                /opt/homebrew/bin/herdr
-                /usr/local/bin/herdr
-                "$HOME/.local/share/mise/shims/herdr"
-            do
+            for candidate in "$(command -v herdr 2>/dev/null)" "$HOME/.local/bin/herdr" /opt/homebrew/bin/herdr /usr/local/bin/herdr "$HOME/.local/share/mise/shims/herdr"; do
                 if [ -n "$candidate" ] && [ -x "$candidate" ]; then
                     exec "$candidate" --version
                 fi
