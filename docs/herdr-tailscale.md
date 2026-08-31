@@ -13,6 +13,12 @@ herdr-remote mac
 The aliases resolve through Tailscale MagicDNS and call Herdr's native
 `herdr --remote <ssh-target>` mode.
 
+The wrapper selects a client matching each destination's managed server:
+Herdr 0.8.0 for `omarchy-pc`, and 0.8.2 for `omarchy` and the Mac. Versioned
+clients live under mise's standard install tree, which Herdr also recognizes
+for remote helper discovery. This prevents a remote attach from overwriting the
+Linux fork wrapper or asking to restart a healthy server just to change versions.
+
 ## One-time setup on all three computers
 
 1. Pull these dotfiles and run `./install.sh` on `omarchy`, `omarchy-pc`, and

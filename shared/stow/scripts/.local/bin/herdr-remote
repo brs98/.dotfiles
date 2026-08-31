@@ -21,6 +21,35 @@ ssh_alias() {
     esac
 }
 
+# Each destination keeps its existing Herdr server version. Choosing a matching
+# local thin client avoids remote bootstrap replacing a managed binary or
+# asking to restart an active server solely for a version change.
+herdr_client_for_target() {
+    local target_alias="$1" wanted candidate versioned
+
+    case "$target_alias" in
+        herdr-omarchy-pc) wanted=0.8.0 ;;
+        *) wanted=0.8.2 ;;
+    esac
+
+    versioned="$HOME/.local/share/mise/installs/herdr/$wanted/bin/herdr"
+    for candidate in \
+        "$versioned" \
+        /opt/homebrew/bin/herdr \
+        /usr/bin/herdr \
+        "$HOME/.local/bin/herdr" \
+        "$(command -v herdr 2>/dev/null || true)"
+    do
+        if [ -n "$candidate" ] && [ -x "$candidate" ] && [ "$("$candidate" --version 2>/dev/null)" = "herdr $wanted" ]; then
+            printf '%s\n' "$candidate"
+            return
+        fi
+    done
+
+    echo "Herdr $wanted is required to attach to $target_alias, but no matching client was found." >&2
+    return 1
+}
+
 doctor() {
     local current_host alias result status=0
     current_host="$(hostname -s | tr '[:upper:]' '[:lower:]')"
@@ -81,4 +110,5 @@ if ! target_alias="$(ssh_alias "$target")"; then
     exit 2
 fi
 
-exec herdr --remote "$target_alias" "$@"
+client="$(herdr_client_for_target "$target_alias")"
+exec env -u HERDR_ENV "$client" --remote "$target_alias" "$@"
