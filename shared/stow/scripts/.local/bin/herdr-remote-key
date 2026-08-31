@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+key_path="${HERDR_REMOTE_KEY_PATH:-$HOME/.ssh/id_ed25519_herdr}"
+public_key_path="${key_path}.pub"
+
+usage() {
+    cat <<'EOF'
+usage: herdr-remote-key ensure
+       herdr-remote-key show
+       herdr-remote-key authorize <public-key-file|->
+       herdr-remote-key copy <omarchy|omarchy-pc|mac>
+
+Manage this computer's dedicated Herdr SSH key. Each computer gets its own
+private key; only public keys are copied to the other computers.
+EOF
+}
+
+ssh_alias() {
+    case "$1" in
+        omarchy|herdr-omarchy) printf '%s\n' herdr-omarchy ;;
+        omarchy-pc|herdr-omarchy-pc) printf '%s\n' herdr-omarchy-pc ;;
+        mac|macbook|brandons-macbook-pro|herdr-mac) printf '%s\n' herdr-mac ;;
+        *) return 1 ;;
+    esac
+}
+
+ensure_key() {
+    mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh"
+
+    if [ ! -f "$key_path" ]; then
+        echo "Creating $key_path (ssh-keygen will ask whether to use a passphrase)."
+        ssh-keygen -t ed25519 -f "$key_path" -C "$(id -un)@$(hostname -s)-herdr" >&2
+    fi
+
+    chmod 600 "$key_path"
+    if [ ! -f "$public_key_path" ]; then
+        ssh-keygen -y -f "$key_path" > "$public_key_path"
+    fi
+    chmod 644 "$public_key_path"
+}
+
+authorize_key() {
+    local source="$1" key temp_key
+    temp_key="$(mktemp "${TMPDIR:-/tmp}/herdr-public-key.XXXXXX")"
+
+    if [ "$source" = - ]; then
+        IFS= read -r key
+    else
+        IFS= read -r key < "$source"
+    fi
+    printf '%s\n' "$key" > "$temp_key"
+    if ! ssh-keygen -l -f "$temp_key" >/dev/null; then
+        rm -f "$temp_key"
+        echo "not a valid SSH public key: $source" >&2
+        return 1
+    fi
+    rm -f "$temp_key"
+
+    mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh"
+    touch "$HOME/.ssh/authorized_keys"
+    chmod 600 "$HOME/.ssh/authorized_keys"
+    if grep -qxF -- "$key" "$HOME/.ssh/authorized_keys"; then
+        echo "Public key is already authorized."
+    else
+        printf '%s\n' "$key" >> "$HOME/.ssh/authorized_keys"
+        echo "Public key authorized."
+    fi
+}
+
+copy_key() {
+    local target target_alias
+    target="$1"
+    if ! target_alias="$(ssh_alias "$target")"; then
+        echo "unknown Herdr host: $target" >&2
+        exit 2
+    fi
+
+    ensure_key
+    echo "Installing the public key on $target. SSH may ask for the remote account password."
+    ssh "$target_alias" 'umask 077; mkdir -p "$HOME/.ssh"; touch "$HOME/.ssh/authorized_keys"; IFS= read -r key; grep -qxF -- "$key" "$HOME/.ssh/authorized_keys" || printf "%s\n" "$key" >> "$HOME/.ssh/authorized_keys"' < "$public_key_path"
+    echo "Public key installed on $target."
+}
+
+case "${1:-}" in
+    ensure)
+        [ "$#" -eq 1 ] || { usage >&2; exit 2; }
+        ensure_key
+        echo "$public_key_path"
+        ;;
+    show)
+        [ "$#" -eq 1 ] || { usage >&2; exit 2; }
+        ensure_key
+        cat "$public_key_path"
+        ;;
+    authorize)
+        [ "$#" -eq 2 ] || { usage >&2; exit 2; }
+        authorize_key "$2"
+        ;;
+    copy)
+        [ "$#" -eq 2 ] || { usage >&2; exit 2; }
+        copy_key "$2"
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac

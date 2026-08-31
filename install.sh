@@ -127,6 +127,44 @@ prepare_herdr_config() {
     fi
 }
 
+# Keep host-specific SSH state out of the dotfiles package while allowing
+# shared fragments (including the Herdr-over-Tailscale aliases) to be stowed.
+prepare_ssh_config() {
+    local ssh_dir="$HOME/.ssh"
+    local config="$ssh_dir/config"
+    local include_line='Include ~/.ssh/config.d/*.conf'
+    local temp_config
+
+    mkdir -p "$ssh_dir" "$ssh_dir/config.d"
+    chmod 700 "$ssh_dir" "$ssh_dir/config.d"
+
+    if [ ! -e "$config" ]; then
+        printf '%s\n' "$include_line" > "$config"
+        chmod 600 "$config"
+        echo "    ✓ Created SSH config with config.d includes"
+        return
+    fi
+
+    if grep -Fqx "$include_line" "$config"; then
+        return
+    fi
+
+    if [ -L "$config" ]; then
+        echo "    ⚠ SSH config is a symlink; add this line before its first Host block:"
+        echo "        $include_line"
+        return
+    fi
+
+    temp_config="$(mktemp "$ssh_dir/config.herdr.XXXXXX")"
+    {
+        printf '%s\n\n' "$include_line"
+        cat "$config"
+    } > "$temp_config"
+    chmod 600 "$temp_config"
+    mv "$temp_config" "$config"
+    echo "    ✓ Enabled SSH config.d includes"
+}
+
 # Install the pinned fork before Stow replaces ~/.local/bin/herdr with the
 # tracked wrapper. The wrapper also redirects future `herdr update` calls to
 # this installer so the official updater cannot replace the fork.
@@ -147,6 +185,10 @@ install_herdr_fork() {
 # Preserve a standalone Herdr binary before Stow links the dotfiles wrapper.
 # This normally runs once when migrating from the official installer.
 prepare_herdr_command() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        return
+    fi
+
     local target="$HOME/.local/bin/herdr"
 
     if [ -f "$target" ] && [ ! -L "$target" ]; then
@@ -162,6 +204,7 @@ prepare_herdr_command() {
 # Make scripts executable before stowing
 make_scripts_executable
 prepare_herdr_config
+prepare_ssh_config
 install_herdr_fork
 prepare_herdr_command
 
@@ -211,9 +254,10 @@ if [ -d "shared/stow" ]; then
             # whole directory into the package and cliamp would write its runtime
             # state — including spotify_credentials.json — inside the repo.
             stow_pkg "$pkg" -d shared/stow --no-folding
-        elif [ "$pkg" = "scripts" ]; then
+        elif [ "$pkg" = "scripts" ] || [ "$pkg" = "ssh" ]; then
             # Linux adds platform-specific commands to the same target directory.
-            # Per-file links let both Stow packages coexist on a fresh machine.
+            # SSH also contains runtime and private files that must stay outside
+            # the repository. Per-file links avoid folding either directory.
             stow_pkg "$pkg" -d shared/stow --no-folding
         else
             stow_pkg "$pkg" -d shared/stow

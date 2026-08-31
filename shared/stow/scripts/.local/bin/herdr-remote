@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+usage: herdr-remote <omarchy|omarchy-pc|mac> [herdr remote options]
+       herdr-remote doctor
+
+Attach to a machine's default Herdr session over SSH and Tailscale.
+Pass --session <name> after the target to attach to a named session.
+EOF
+}
+
+ssh_alias() {
+    case "$1" in
+        omarchy|herdr-omarchy) printf '%s\n' herdr-omarchy ;;
+        omarchy-pc|herdr-omarchy-pc) printf '%s\n' herdr-omarchy-pc ;;
+        mac|macbook|brandons-macbook-pro|herdr-mac) printf '%s\n' herdr-mac ;;
+        *) return 1 ;;
+    esac
+}
+
+doctor() {
+    local current_host alias result status=0
+    current_host="$(hostname -s | tr '[:upper:]' '[:lower:]')"
+
+    if command -v tailscale >/dev/null 2>&1; then
+        if ! tailscale status >/dev/null 2>&1; then
+            echo "WARN the Tailscale CLI does not report a connected node"
+        fi
+    else
+        echo "WARN Tailscale CLI unavailable; checking SSH/MagicDNS directly"
+    fi
+
+    for target in omarchy omarchy-pc mac; do
+        alias="$(ssh_alias "$target")"
+        if { [ "$target" = "$current_host" ] || { [ "$target" = mac ] && [[ "$current_host" == brandons-macbook-pro* ]]; }; }; then
+            printf 'SKIP %-10s this machine\n' "$target"
+            continue
+        fi
+
+        if result="$(ssh -T -o BatchMode=yes "$alias" '
+            for candidate in
+                "$(command -v herdr 2>/dev/null)"
+                "$HOME/.local/bin/herdr"
+                /opt/homebrew/bin/herdr
+                /usr/local/bin/herdr
+                "$HOME/.local/share/mise/shims/herdr"
+            do
+                if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+                    exec "$candidate" --version
+                fi
+            done
+            exit 127
+        ' 2>&1)"; then
+            printf 'OK   %-10s %s\n' "$target" "$result"
+        else
+            printf 'FAIL %-10s %s\n' "$target" "$(printf '%s\n' "$result" | tail -n 1)"
+            status=1
+        fi
+    done
+
+    return "$status"
+}
+
+if [ "$#" -eq 0 ]; then
+    usage
+    exit 2
+fi
+
+if [ "$1" = doctor ]; then
+    shift
+    if [ "$#" -ne 0 ]; then
+        usage >&2
+        exit 2
+    fi
+    doctor
+    exit
+fi
+
+target="$1"
+shift
+if ! target_alias="$(ssh_alias "$target")"; then
+    echo "unknown Herdr host: $target" >&2
+    usage >&2
+    exit 2
+fi
+
+exec herdr --remote "$target_alias" "$@"
