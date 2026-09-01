@@ -20,6 +20,7 @@ Item {
   readonly property bool hasCombatState: record && (
     record.status === "simulating" || record.status === "ready" || record.status === "error"
   )
+  readonly property bool duosMode: record && record.mode === "duos"
   readonly property bool opened: hearthstoneFocused && hasCombatState
   readonly property var focusedScreen: {
     var focusedMonitor = Hyprland.focusedMonitor
@@ -116,12 +117,12 @@ Item {
 
           Text {
             id: headingText
-            text: "BG ODDS"
-            color: Color.popups.text
+            text: root.duosMode ? "BG DUOS ODDS" : "BG ODDS"
+            color: root.duosMode ? Color.accent : Color.popups.text
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
             font.bold: true
-            opacity: 0.75
+            opacity: root.duosMode ? 1 : 0.75
           }
 
           Item {

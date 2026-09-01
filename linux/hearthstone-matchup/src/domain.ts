@@ -73,8 +73,10 @@ export interface PlayerBoard {
   readonly secrets: readonly Secret[];
 }
 
+export type BattlegroundsMode = "solo" | "duos";
+
 export interface CombatSnapshot {
-  readonly kind: "solo" | "duos";
+  readonly kind: BattlegroundsMode;
   readonly turn: number;
   readonly player: PlayerBoard;
   readonly opponent: PlayerBoard;
@@ -91,15 +93,26 @@ export type PowerEvent =
 
 export type OverlayState =
   | { readonly version: 1; readonly status: "waiting"; readonly message: string }
-  | { readonly version: 1; readonly status: "simulating"; readonly turn: number }
+  | {
+      readonly version: 1;
+      readonly status: "simulating";
+      readonly turn: number;
+      readonly mode: BattlegroundsMode;
+    }
   | {
       readonly version: 1;
       readonly status: "ready";
       readonly turn: number;
+      readonly mode: BattlegroundsMode;
       readonly win: number;
       readonly tie: number;
       readonly loss: number;
       readonly simulations: number;
       readonly partial: boolean;
     }
-  | { readonly version: 1; readonly status: "error"; readonly message: string };
+  | {
+      readonly version: 1;
+      readonly status: "error";
+      readonly mode: BattlegroundsMode;
+      readonly message: string;
+    };

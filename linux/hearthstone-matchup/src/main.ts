@@ -73,7 +73,12 @@ async function handleEvent(event: PowerEvent): Promise<void> {
     case "combat-started": {
       const token = ++combatToken;
       combatActive = true;
-      await stateWriter.write({ version: 1, status: "simulating", turn: event.snapshot.turn });
+      await stateWriter.write({
+        version: 1,
+        status: "simulating",
+        turn: event.snapshot.turn,
+        mode: event.snapshot.kind,
+      });
       if (!combatActive || token !== combatToken) return;
       try {
         const odds = await simulator.simulate(event.snapshot);
@@ -82,6 +87,7 @@ async function handleEvent(event: PowerEvent): Promise<void> {
           version: 1,
           status: "ready",
           turn: event.snapshot.turn,
+          mode: event.snapshot.kind,
           win: odds.win,
           tie: odds.tie,
           loss: odds.loss,
@@ -99,6 +105,7 @@ async function handleEvent(event: PowerEvent): Promise<void> {
         await stateWriter.write({
           version: 1,
           status: "error",
+          mode: event.snapshot.kind,
           message: "This combat could not be simulated",
         });
       }
