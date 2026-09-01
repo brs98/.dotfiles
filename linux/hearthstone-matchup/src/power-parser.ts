@@ -64,12 +64,14 @@ class GameState {
   readonly entities = new Map<number, Entity>();
   localPlayerId: number | undefined;
   isBattlegrounds = false;
+  isBattlegroundsDuos = false;
   turn = 0;
 
   reset(): void {
     this.entities.clear();
     this.localPlayerId = undefined;
     this.isBattlegrounds = false;
+    this.isBattlegroundsDuos = false;
     this.turn = 0;
   }
 
@@ -89,6 +91,19 @@ class GameState {
 
   noteCardId(cardId: string): void {
     if (cardId === "TB_BaconShop_8P_PlayerE") this.isBattlegrounds = true;
+  }
+
+  noteGameType(gameType: string): void {
+    if (gameType === "GT_BATTLEGROUNDS" || gameType === "GT_BATTLEGROUNDS_DUO") {
+      this.isBattlegrounds = true;
+    }
+    if (gameType === "GT_BATTLEGROUNDS_DUO") this.isBattlegroundsDuos = true;
+  }
+
+  noteTag(tag: string, value: number): void {
+    if (tag === "BACON_DUO_TEAMMATE_PLAYER_ID" && value > 0) {
+      this.isBattlegroundsDuos = true;
+    }
   }
 
   notePlayer(playerId: number, hasRealAccount: boolean): void {
@@ -244,6 +259,7 @@ class GameState {
       : 1;
     return {
       playerId,
+      participantId: hero?.numeric("PLAYER_ID") || hero?.id || playerId,
       heroEntityId: hero?.id ?? 0,
       heroCardId: hero?.cardId ?? "TB_BaconShop_HERO_KelThuzad",
       heroHealth,
@@ -282,6 +298,7 @@ class GameState {
     // quest field, anomaly pool, or hidden opposing hand entity required by
     // the simulator. The result is useful, but must always be labelled partial.
     return {
+      kind: "solo",
       turn: this.turn,
       player,
       opponent,
@@ -298,6 +315,8 @@ export class PowerParser {
   private inCombat = false;
   private replaying = false;
   private replayedCombat: CombatSnapshot | undefined;
+  private duosPlayerParticipantId: number | undefined;
+  private duosOpponentParticipantId: number | undefined;
   private readonly listener: EventListener;
 
   constructor(listener: EventListener = () => undefined) {
@@ -309,6 +328,7 @@ export class PowerParser {
     this.pendingEntity = undefined;
     this.inCombat = false;
     this.replayedCombat = undefined;
+    this.resetDuosCombat();
   }
 
   feed(line: string, replayed = false): void {
@@ -334,9 +354,14 @@ export class PowerParser {
     const source = line.slice(0, payloadStart);
     const isGameState = source.endsWith("GameState.DebugPrintPower(");
     const isPowerTaskList = source.endsWith("PowerTaskList.DebugPrintPower(");
-    if (!isGameState && !isPowerTaskList) return;
+    const isGameMetadata = source.endsWith("GameState.DebugPrintGame(");
+    if (!isGameState && !isPowerTaskList && !isGameMetadata) return;
 
     const payload = line.slice(payloadStart + payloadMarker.length).trimStart();
+    if (isGameMetadata) {
+      this.handleGameMetadata(payload);
+      return;
+    }
     if (isPowerTaskList) {
       this.handleVisualLifecycle(payload);
       return;
@@ -368,11 +393,24 @@ export class PowerParser {
   }
 
   private handlePlayer(line: string): void {
+    const entityId = integerValue("EntityID=", line);
     const playerId = integerValue("PlayerID=", line);
     if (playerId === undefined) return;
     const high = integerValue("hi=", line) ?? 0;
     const low = integerValue("lo=", line) ?? 0;
     this.state.notePlayer(playerId, high !== 0 || low !== 0);
+    if (entityId === undefined) return;
+    const entity = this.state.entity(entityId);
+    entity.tags.set("CONTROLLER", playerId);
+    entity.stringTags.set("CARDTYPE", "PLAYER");
+    entity.stringTags.set("ZONE", "PLAY");
+    this.pendingEntity = entity;
+  }
+
+  private handleGameMetadata(payload: string): void {
+    const marker = "GameType=";
+    if (!payload.startsWith(marker)) return;
+    this.state.noteGameType(payload.slice(marker.length).trim());
   }
 
   private handleFullEntityCreating(line: string): void {
@@ -429,12 +467,39 @@ export class PowerParser {
   }
 
   private handleAttackBlock(line: string): void {
-    if (!this.state.isBattlegrounds || this.inCombat) return;
-    this.inCombat = true;
+    if (!this.state.isBattlegrounds) return;
     const descriptor = parseDescriptor(line);
     const attackerEntityId = descriptor?.id ?? integerValue("Entity=", line);
     const snapshot = this.state.combatSnapshot(attackerEntityId);
-    if (snapshot) this.emit({ type: "combat-started", snapshot });
+    if (!snapshot) return;
+
+    if (!this.state.isBattlegroundsDuos) {
+      if (this.inCombat) return;
+      this.inCombat = true;
+      this.emit({ type: "combat-started", snapshot });
+      return;
+    }
+
+    if (!this.inCombat) {
+      this.inCombat = true;
+      this.resetDuosCombat();
+    }
+
+    const playerChanged = this.duosPlayerParticipantId !== snapshot.player.participantId;
+    const opponentChanged = this.duosOpponentParticipantId !== snapshot.opponent.participantId;
+    if (!playerChanged && !opponentChanged) return;
+    // During a portal hand-off the new hero can become visible one power event
+    // before the opposing side is populated. Wait for an actual faceoff rather
+    // than briefly publishing a deterministic 0/100 transition state.
+    if (snapshot.player.minions.length === 0 || snapshot.opponent.minions.length === 0) return;
+    this.duosPlayerParticipantId = snapshot.player.participantId;
+    this.duosOpponentParticipantId = snapshot.opponent.participantId;
+    this.emit({ type: "combat-started", snapshot: { ...snapshot, kind: "duos" } });
+  }
+
+  private resetDuosCombat(): void {
+    this.duosPlayerParticipantId = undefined;
+    this.duosOpponentParticipantId = undefined;
   }
 
   private handleGameEntityTag(tag: string, value: string): void {
@@ -451,8 +516,13 @@ export class PowerParser {
     if (step === "MAIN_END" && this.inCombat) {
       this.inCombat = false;
       this.emit({ type: "combat-ended" });
+      this.resetDuosCombat();
     }
-    if (step === "FINAL_GAMEOVER") this.emit({ type: "game-over" });
+    if (step === "FINAL_GAMEOVER") {
+      this.inCombat = false;
+      this.emit({ type: "game-over" });
+      this.resetDuosCombat();
+    }
   }
 
   private emit(event: PowerEvent): void {
@@ -479,13 +549,15 @@ export class PowerParser {
   }
 
   private setTag(entity: Entity, tag: string, value: string): void {
+    const numericValue = Number.parseInt(value, 10) || 0;
+    this.state.noteTag(tag, numericValue);
     const numericTag = Number.parseInt(tag, 10);
     if (/^\d+$/.test(tag) && Number.isFinite(numericTag)) {
-      entity.rawTags.set(numericTag, Number.parseInt(value, 10) || 0);
+      entity.rawTags.set(numericTag, numericValue);
       return;
     }
     entity.stringTags.set(tag, value);
-    entity.tags.set(tag, Number.parseInt(value, 10) || 0);
+    entity.tags.set(tag, numericValue);
   }
 
   private applyDescriptor(descriptor: EntityDescriptor, includePositional: boolean): void {

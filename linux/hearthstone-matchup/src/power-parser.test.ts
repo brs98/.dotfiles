@@ -7,6 +7,10 @@ function gameStateLine(payload: string): string {
   return `D 14:57:49.9029830 GameState.DebugPrintPower() - ${payload}`;
 }
 
+function gameMetadataLine(payload: string): string {
+  return `D 14:57:49.9029830 GameState.DebugPrintGame() - ${payload}`;
+}
+
 function setup(listener: (event: PowerEvent) => void = () => undefined): PowerParser {
   const parser = new PowerParser(listener);
   parser.feed(gameStateLine("CREATE_GAME"));
@@ -83,6 +87,7 @@ test("snapshots both boards once at the first attack", () => {
   const firstCombat = combatEvents[0];
   assert.ok(firstCombat);
   const snapshot: CombatSnapshot = firstCombat.snapshot;
+  assert.equal(snapshot.kind, "solo");
   assert.equal(snapshot.player.minions[0]?.health, 2);
   assert.equal(snapshot.player.minions[0]?.maxHealth, 3);
   assert.equal(snapshot.player.minions[0]?.taunt, true);
@@ -91,6 +96,77 @@ test("snapshots both boards once at the first attack", () => {
   assert.equal(snapshot.opponent.heroCardId, "TB_BaconShop_HERO_11");
   assert.equal(snapshot.firstAttacker, 0);
   assert.equal(snapshot.firstAttackerEntityId, 562);
+});
+
+test("updates Duos odds for the current faceoff as each reserve board enters", () => {
+  const combats: CombatSnapshot[] = [];
+  const parser = setup((event) => {
+    if (event.type === "combat-started") combats.push(event.snapshot);
+  });
+  parser.feed(gameMetadataLine("GameType=GT_BATTLEGROUNDS_DUO"));
+  entity(parser, 561, "BG28_300", 9, 1);
+  entity(parser, 562, "BG31_330", 1, 1);
+
+  parser.feed(
+    gameStateLine(
+      "BLOCK_START BlockType=ATTACK Entity=[entityName=A id=562 zone=PLAY zonePos=1 cardId=BG31_330 player=1] EffectIndex=0",
+    ),
+  );
+
+  parser.feed(gameStateLine("TAG_CHANGE Entity=101 tag=ZONE value=SETASIDE"));
+  parser.feed(gameStateLine("TAG_CHANGE Entity=562 tag=ZONE value=SETASIDE"));
+  hero(parser, 102, "TB_BaconShop_HERO_64", 1);
+  entity(parser, 563, "BG32_330", 1, 1);
+  parser.feed(
+    gameStateLine(
+      "BLOCK_START BlockType=ATTACK Entity=[entityName=A id=561 zone=PLAY zonePos=1 cardId=BG28_300 player=9] EffectIndex=0",
+    ),
+  );
+
+  parser.feed(gameStateLine("TAG_CHANGE Entity=109 tag=ZONE value=SETASIDE"));
+  parser.feed(gameStateLine("TAG_CHANGE Entity=561 tag=ZONE value=SETASIDE"));
+  hero(parser, 110, "TB_BaconShop_HERO_92", 9);
+  entity(parser, 564, "BG33_140", 9, 1);
+  parser.feed(
+    gameStateLine(
+      "BLOCK_START BlockType=ATTACK Entity=[entityName=A id=563 zone=PLAY zonePos=1 cardId=BG32_330 player=1] EffectIndex=0",
+    ),
+  );
+
+  assert.equal(combats.length, 3);
+  const initial = combats[0];
+  const friendlyReserve = combats[1];
+  const opposingReserve = combats[2];
+  assert.equal(initial?.kind, "duos");
+  assert.equal(friendlyReserve?.kind, "duos");
+  assert.equal(opposingReserve?.kind, "duos");
+  assert.equal(initial.player.heroCardId, "TB_BaconShop_HERO_08");
+  assert.equal(initial.opponent.heroCardId, "TB_BaconShop_HERO_11");
+  assert.equal(friendlyReserve?.player.heroCardId, "TB_BaconShop_HERO_64");
+  assert.equal(friendlyReserve?.opponent.heroCardId, "TB_BaconShop_HERO_11");
+  assert.equal(opposingReserve?.player.heroCardId, "TB_BaconShop_HERO_64");
+  assert.equal(opposingReserve?.opponent.heroCardId, "TB_BaconShop_HERO_92");
+  assert.equal(opposingReserve?.firstAttackerEntityId, 563);
+});
+
+test("detects Duos from the local Player teammate tag", () => {
+  let snapshot: CombatSnapshot | undefined;
+  const parser = setup((event) => {
+    if (event.type === "combat-started") snapshot = event.snapshot;
+  });
+  parser.feed(
+    gameStateLine("Player EntityID=2 PlayerID=1 GameAccountId=[hi=1441151 lo=5069]"),
+  );
+  parser.feed(gameStateLine("tag=BACON_DUO_TEAMMATE_PLAYER_ID value=5"));
+  entity(parser, 561, "BG28_300", 9, 1);
+  entity(parser, 562, "BG31_330", 1, 1);
+  parser.feed(
+    gameStateLine(
+      "BLOCK_START BlockType=ATTACK Entity=[entityName=A id=562 zone=PLAY zonePos=1 cardId=BG31_330 player=1] EffectIndex=0",
+    ),
+  );
+
+  assert.equal(snapshot?.kind, "duos");
 });
 
 test("stale TAG_CHANGE descriptors do not resurrect removed minions", () => {

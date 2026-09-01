@@ -8,7 +8,10 @@ anonymous derived odds are written to disk.
 
 The overlay intentionally appears at the first attack rather than during the recruit phase:
 that is the first point at which Hearthstone's log reveals the opponent's current board.
-Solo Battlegrounds is supported; Duos is not.
+Solo and Duos Battlegrounds are supported. In Duos, the percentages describe the currently
+visible faceoff rather than the hidden full-team round. The service detects each portal swap
+and recalculates when either teammate enters combat. Results remain labeled `PARTIAL` because
+the other two boards and some persistent counters are not exposed at the same time.
 
 ## Commands
 

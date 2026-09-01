@@ -61,6 +61,7 @@ export interface Secret {
 
 export interface PlayerBoard {
   readonly playerId: number;
+  readonly participantId: number;
   readonly heroEntityId: number;
   readonly heroCardId: string;
   readonly heroHealth: number;
@@ -73,6 +74,7 @@ export interface PlayerBoard {
 }
 
 export interface CombatSnapshot {
+  readonly kind: "solo" | "duos";
   readonly turn: number;
   readonly player: PlayerBoard;
   readonly opponent: PlayerBoard;

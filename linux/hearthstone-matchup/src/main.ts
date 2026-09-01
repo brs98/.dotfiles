@@ -89,7 +89,7 @@ async function handleEvent(event: PowerEvent): Promise<void> {
           partial: event.snapshot.partial,
         });
         console.log(
-          `hearthstone-matchup: turn ${event.snapshot.turn}: ` +
+          `hearthstone-matchup: ${event.snapshot.kind} turn ${event.snapshot.turn}: ` +
             `${odds.win}% win, ${odds.tie}% tie, ${odds.loss}% loss ` +
             `(${odds.simulations} simulations)`,
         );

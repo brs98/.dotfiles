@@ -22,13 +22,55 @@ interface RawSimulationResult {
   readonly lostPercent?: number;
 }
 
+export interface SimulationInput {
+  readonly playerBoard: ReturnType<typeof boardInput>;
+  readonly opponentBoard: ReturnType<typeof boardInput>;
+  readonly options: {
+    readonly numberOfSimulations: number;
+    readonly maxAcceptableDuration: number;
+    readonly includeOutcomeSamples: boolean;
+    readonly skipInfoLogs: boolean;
+  };
+  readonly gameState: {
+    readonly currentTurn: number;
+    readonly anomalies: readonly string[];
+  };
+  readonly debugState: {
+    readonly forcedCurrentAttacker: 0 | 1;
+    readonly forcedFaceOffBase: readonly [];
+  };
+}
+
 const SIMULATIONS = 4_000;
 const MAX_DURATION_MS = 4_000;
 const require = createRequire(import.meta.url);
 const simulateBgsBattle = loadSimulator();
 
 export async function simulate(snapshot: CombatSnapshot): Promise<SimulationOdds> {
-  const input = {
+  const input = buildSimulationInput(snapshot);
+
+  const response: unknown = await simulateBgsBattle({ body: JSON.stringify(input) });
+  if (!isLambdaResponse(response) || response.statusCode !== 200 || response.body === null) {
+    throw new Error("The Battlegrounds simulator rejected this board state.");
+  }
+
+  const result: unknown = JSON.parse(response.body);
+  if (!isSimulationResult(result)) {
+    throw new Error("The Battlegrounds simulator returned an invalid result.");
+  }
+  const simulations = (result.won ?? 0) + (result.tied ?? 0) + (result.lost ?? 0);
+  if (simulations === 0) throw new Error("No valid combat simulations completed.");
+
+  return {
+    win: result.wonPercent,
+    tie: result.tiedPercent,
+    loss: result.lostPercent,
+    simulations,
+  };
+}
+
+export function buildSimulationInput(snapshot: CombatSnapshot): SimulationInput {
+  return {
     playerBoard: boardInput(
       snapshot.player,
       snapshot.firstAttacker === 0 ? snapshot.firstAttackerEntityId : undefined,
@@ -52,28 +94,9 @@ export async function simulate(snapshot: CombatSnapshot): Promise<SimulationOdds
       forcedFaceOffBase: [],
     },
   };
-
-  const response: unknown = await simulateBgsBattle({ body: JSON.stringify(input) });
-  if (!isLambdaResponse(response) || response.statusCode !== 200 || response.body === null) {
-    throw new Error("The Battlegrounds simulator rejected this board state.");
-  }
-
-  const result: unknown = JSON.parse(response.body);
-  if (!isSimulationResult(result)) {
-    throw new Error("The Battlegrounds simulator returned an invalid result.");
-  }
-  const simulations = (result.won ?? 0) + (result.tied ?? 0) + (result.lost ?? 0);
-  if (simulations === 0) throw new Error("No valid combat simulations completed.");
-
-  return {
-    win: result.wonPercent,
-    tie: result.tiedPercent,
-    loss: result.lostPercent,
-    simulations,
-  };
 }
 
-function boardInput(board: PlayerBoard, firstAttackerEntityId: number | undefined): object {
+function boardInput(board: PlayerBoard, firstAttackerEntityId: number | undefined) {
   const firstAttackerIndex = board.minions.findIndex(
     (minion) => minion.entityId === firstAttackerEntityId,
   );
