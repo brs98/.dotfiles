@@ -2,6 +2,10 @@
 
 Implementation status: the recommendations in this historical audit have been applied to [the skill](../skills/typescript-best-practices/SKILL.md). The 108 original entries are corrected or canonical cross-references, with five additional references covering missing topics. Compiler examples and local links now have repeatable validation scripts.
 
+Independent follow-up review found no substantive false teaching claim in the updated reference, but identified nine counterexamples across eight TypeScript Doctor advisory detectors. Targeted guidance now explains derivation cycles, declared callable signatures, effective readonly modifiers, and the `keyof` difference between string index signatures and `Record`. This status describes the reviewed examples and documented conditions; it does not certify arbitrary transformations or the separate detector implementation. The original observations below are retained as historical findings.
+
+Follow-up validation: 112 TypeScript blocks in 102 example projects compiled with TypeScript 5.9.3; all 113 reference entries and local links passed validation, as did the skill metadata check.
+
 Reviewed 2026-09-04 against dotfiles commit `3ab561c`.
 
 The skill contains useful examples, but it is not yet reliable as a set of mandatory coding rules. The most significant defects are incorrect inferred-type comments, unsafe helper contracts, valid alternatives labeled Bad, and course examples generalized beyond their intended context.

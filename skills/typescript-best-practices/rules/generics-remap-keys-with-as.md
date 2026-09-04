@@ -19,4 +19,6 @@ type Details = WithoutId<{ id: string; name: string }>;
 
 The `as` clause remaps keys; producing `never` removes a key. `string & K` keeps only string keys, dropping numeric and symbol keys. Decide whether that loss is intended. Preserve property types and optional/readonly modifiers when replacing a manually declared shape; matching names alone does not establish equivalence.
 
+Check effective modifiers, including those inherited through `Readonly` or other mapped types. A declaration need not contain a visible `readonly` keyword for its properties to be readonly. Deriving a mutable target from such a source can prohibit existing writes unless the mapping deliberately removes readonly.
+
 **Sources and version:** [TypeScript documentation](https://www.typescriptlang.org/docs/handbook/2/mapped-types.html#key-remapping-via-as); [Pro Essentials course source](https://github.com/total-typescript/pro-essentials-workshop/blob/7491e6c5ed45dfcb3593289397e3a68244898128/src/083-designing-your-types/213-as-in-mapped-types.solution.ts). TypeScript 5.5+, strict mode; examples target ES2022.

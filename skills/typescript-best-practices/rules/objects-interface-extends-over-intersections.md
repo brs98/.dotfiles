@@ -17,4 +17,6 @@ Consider `interface extends` for object composition: it checks incompatible inhe
 
 An interface can extend a suitable object type alias. Keep intersections for intentional compatible refinements and other compositions that interfaces cannot represent, such as unions or conditional generic shapes. Conflicts can produce a `never` property or reduce the whole intersection to `never`, depending on the types.
 
+Overlapping properties must also agree in optionality and readonly modifiers. For example, intersecting `{ readonly x: string }` with `{ x: string }` is legal, but an interface cannot simultaneously extend those two bases. Compile the proposed interface rather than inferring compatibility from property value types alone.
+
 **Sources and version:** [TypeScript documentation](https://github.com/microsoft/TypeScript/wiki/Performance#preferring-interfaces-over-intersections). TypeScript 5.5+, strict mode; examples target ES2022.

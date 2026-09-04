@@ -14,6 +14,8 @@ Derivation is useful when both declarations represent the same concern. An expli
 
 For overloaded functions, `ReturnType` uses the last overload signature. Generic return types may become `unknown`, so it does not reproduce every invocation's inference. Avoid deriving an annotation from the function that already uses that annotation; this creates a circular dependency.
 
+For an annotated function variable, `ReturnType<typeof fn>` follows the variable's declared callable type, which can differ from the arrow or function expression assigned to it. Compare that exposed return contract, including readonly properties, rather than only the initializer's inferred result.
+
 See [deriving versus decoupling](https://www.totaltypescript.com/books/total-typescript-essentials/deriving-types#deriving-vs-decoupling).
 
 **Sources and version:** [TypeScript documentation](https://www.typescriptlang.org/docs/handbook/utility-types.html#returntypetype). TypeScript 5.5+, strict mode; examples target ES2022.
