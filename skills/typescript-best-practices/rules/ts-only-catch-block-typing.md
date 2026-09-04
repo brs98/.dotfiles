@@ -1,30 +1,28 @@
-# catch-block-typing
+# Narrow the actual caught value before using it
 
-**When:** Trying to type the error parameter in a catch block.
+**When:** Reading properties from a catch variable. JavaScript permits throwing any value.
 
-## Bad
+With `strict` or `useUnknownInCatchVariables` enabled:
+
 ```typescript
+const input = "not JSON";
 try {
   JSON.parse(input);
-} catch (e: SyntaxError) { // Error: must be any or unknown
-  console.error(e.message);
-}
-```
-
-## Good
-```typescript
-try {
-  JSON.parse(input);
-} catch (e) {
-  if (e instanceof SyntaxError) {
-    console.error(e.message); // Narrowed to SyntaxError
-  } else if (e instanceof Error) {
-    console.error(e.message); // Narrowed to Error
+} catch (error) {
+  if (error instanceof SyntaxError) {
+    console.error(error.message);
+  } else if (error instanceof Error) {
+    console.error(error.message);
   } else {
-    console.error("Unknown error", e);
+    console.error("Non-Error thrown value", error);
   }
 }
 ```
 
-## Why
-TypeScript doesn't support annotating thrown errors on functions - anything can be thrown. The catch parameter is always `unknown` (or `any`). Use `instanceof` to narrow the error type within the catch block.
+Implicit catch variables are `unknown` with that option and can default to `any` without it. An explicit catch annotation can be `unknown` or `any`, not a particular error subclass.
+
+Use control-flow evidence at each access. A check somewhere else in the catch block does not protect an access outside its narrowed branch. Appropriate type predicates/assertion functions, `typeof` and property checks can also validate non-Error thrown values; `instanceof Error` is not the only valid guard.
+
+**Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
+
+**Source:** [TypeScript useUnknownInCatchVariables](https://www.typescriptlang.org/tsconfig/useUnknownInCatchVariables.html)

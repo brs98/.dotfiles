@@ -1,25 +1,31 @@
-# empty-object-type
+# Distinguish non-nullish values from an empty shape
 
-**When:** Using `{}` as a type annotation expecting it to mean "empty object".
+**When:** `{}` is being used under the mistaken assumption that it means an object with no keys. Requires strict null checking.
 
-## Bad
 ```typescript
-const acceptEmpty = (input: {}) => {};
-acceptEmpty("hello"); // OK - not what you expect!
-acceptEmpty(42);      // OK - not what you expect!
-acceptEmpty(null);    // Error - only null/undefined rejected
+const acceptNonNullish = (input: {}) => input;
+acceptNonNullish("hello"); // Valid: primitives can be non-nullish.
+acceptNonNullish(42);
+// @ts-expect-error Null is not a non-nullish value.
+acceptNonNullish(null);
 ```
 
-## Good
-```typescript
-// For truly empty objects:
-const acceptOnlyEmptyObject = (input: Record<string, never>) => {};
-acceptOnlyEmptyObject({});       // OK
-acceptOnlyEmptyObject({ a: 1 }); // Error
+For a static constraint that permits no string, number or symbol properties:
 
-// For "any non-nullish value":
-const acceptNonNullish = (input: NonNullable<unknown>) => {};
+```typescript
+const acceptEmpty = (input: Record<PropertyKey, never>) => input;
+acceptEmpty({});
+// @ts-expect-error This property is not permitted.
+acceptEmpty({ a: 1 });
+const token = Symbol("token");
+// @ts-expect-error Symbol properties are not permitted either.
+acceptEmpty({ [token]: 1 });
 ```
 
-## Why
-The empty object type `{}` means "any value with zero or more properties" - essentially anything except `null` and `undefined`. Use `Record<string, never>` for truly empty objects.
+`Record<string, never>` does not express the same restriction on symbol keys. This is static shape checking, not proof that an arbitrary runtime object has no keys; structural typing and assertions can hide runtime properties.
+
+Keep `{}` when non-nullish values are the actual intent, including `T extends {}` constraints and `T & {}` intersections. Use `object` for non-primitive values or `unknown` when nullish values should also be allowed; these types have different contracts.
+
+**Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
+
+**Source:** [Workshop empty-object solution](https://github.com/total-typescript/pro-essentials-workshop/blob/7491e6c5ed45dfcb3593289397e3a68244898128/src/050-the-weird-parts/151-truly-empty-object.solution.1.ts), [TypeScript 4.8 non-nullish intersections](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-8.html)

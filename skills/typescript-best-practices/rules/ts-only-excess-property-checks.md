@@ -1,25 +1,31 @@
-# excess-property-checks
+# Use fresh-literal checking without assuming exact types
 
-**When:** Expecting TypeScript to catch extra properties on objects.
+**When:** Catching misspelled or unintended fields when constructing an object with a known contract.
 
-## Bad
+Structural assignment through a variable permits additional properties:
+
 ```typescript
 type Options = { url: string };
-
-const options = { url: "/", extra: "oops" };
-fetch(options); // No error - extra silently allowed!
+function request(options: Options) { return options.url; }
+const options = { url: "/", extra: "allowed by structural typing" };
+request(options); // Valid: Options requires url, not an exact shape.
 ```
 
-## Good
+A fresh literal can be checked where it is constructed:
+
 ```typescript
 type Options = { url: string };
-
-// Option 1: Inline object literal - error caught
-fetch({ url: "/", extra: "oops" }); // Error: 'extra' does not exist
-
-// Option 2: Annotate the variable
-const options: Options = { url: "/", extra: "oops" }; // Error caught
+function request(options: Options) { return options.url; }
+// @ts-expect-error Fresh literal has an unexpected property.
+request({ url: "/", extra: "oops" });
+// @ts-expect-error Annotation checks the fresh literal.
+const annotated: Options = { url: "/", extra: "oops" };
+// @ts-expect-error satisfies also checks the fresh literal.
+const checked = { url: "/", extra: "oops" } satisfies Options;
 ```
 
-## Why
-TypeScript only performs excess property checking on direct object literals, not on variables. Use inline objects or add explicit type annotations to catch unwanted properties.
+These checks do not create exact/sealed object types, strip extra runtime fields, or reject every key introduced through object spread. Index signatures and generic/contextual contracts also affect excess-property checking. Validate external data separately when runtime shape matters.
+
+**Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
+
+**Source:** [TypeScript excess property checks](https://www.typescriptlang.org/docs/handbook/2/objects.html#excess-property-checks)

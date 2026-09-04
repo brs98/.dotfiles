@@ -1,26 +1,32 @@
-# dts-module-vs-script
+# Choose declaration-file scope deliberately
 
-**When:** Declaration file types are unexpectedly global or not found.
+**When:** Declaration types are unexpectedly global or unavailable to consumers.
 
-## Bad
+An intentionally global script declaration:
+
 ```typescript
-// globals.d.ts (no imports/exports)
-interface User { name: string } // Global! Pollutes all files
+// file: globals.d.ts
+interface GlobalUser { name: string; }
 ```
 
-## Good
+A separate declaration module:
+
 ```typescript
-// globals.d.ts - intentionally global
-interface User { name: string }
-// No import/export = script mode = global scope
-
-// types.d.ts - module scope
-export interface User { name: string }
-// Has export = module mode = must be imported
-
-// Or force module mode without exports:
-export {}; // Makes file a module, nothing is global
+// file: model.d.ts
+export interface User { name: string; }
 ```
 
-## Why
-Files without `import`/`export` are "scripts" with global scope. Add `export {}` to make a file a module even if you don't export anything, preventing accidental globals.
+```typescript
+// file: consumer.ts
+import type { User } from "./model.js";
+const local: User = { name: "Ada" };
+const globalModel: GlobalUser = local;
+```
+
+A top-level import/export makes a declaration file a module. `export {}` does this without exporting a value; its ordinary top-level declarations then stop being global. Use `declare global` inside a module for globals that should remain visible.
+
+`moduleDetection: "force"` applies to implementation files, not `.d.ts` declarations. Do not generalize “no import/export means script” to every `.ts` configuration. Keep intentional ambient scripts regardless of filename; adding `export {}` can break their consumers.
+
+**Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
+
+**Source:** [Workshop declaration scope](https://www.totaltypescript.com/workshops/typescript-pro-essentials/modules-scripts-and-declaration-files/declaration-files-can-be-modules-or-scripts), [TypeScript moduleDetection](https://www.typescriptlang.org/tsconfig/moduleDetection.html)

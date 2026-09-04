@@ -1,33 +1,27 @@
-# declare-module-wildcard-for-assets
+# Match asset declarations to the loader's runtime values
 
-**When:** Importing non-code files (images, CSS, JSON, etc.).
+**When:** The actual loader supports an asset import but the TypeScript project lacks its declarations. Prefer framework-provided types when available.
 
-## Bad
+For a loader that returns a URL for PNG imports:
+
 ```typescript
-import logo from './logo.png';
-// Error: Cannot find module './logo.png'
+// file: assets.d.ts
+declare module "*.png" {
+  const url: string;
+  export default url;
+}
 ```
 
-## Good
 ```typescript
-// assets.d.ts
-declare module '*.png' {
-  const src: string;
-  export default src;
-}
-
-declare module '*.css' {
-  const classes: { [key: string]: string };
-  export default classes;
-}
-
-// Now imports work
-import logo from './logo.png'; // string (URL)
-import styles from './app.css'; // { [key: string]: string }
+// file: view.ts
+import logo from "./logo.png";
+console.log(logo); // string URL, as promised by this loader.
 ```
 
-## Why
-Wildcard module declarations (`*.ext`) type all imports matching the pattern. The actual values come from your bundler (webpack, vite, etc.) - TypeScript just needs to know the shape.
+A wildcard declaration supplies types, not an asset loader or proof that a file exists. Match its exports to runtime behavior. CSS Modules commonly expose a class map from `*.module.css`; ordinary CSS in Vite is imported for side effects (`import "./app.css"`) and should not be declared as a default class map. Use `resolveJsonModule` for supported JSON imports so their actual shape is inferred rather than replacing every JSON type with a wildcard.
 
-## Note
-If your project includes `"types": ["vite/client"]` in tsconfig, Vite already provides `declare module` declarations for common asset types (`.css`, `.svg`, `.png`, `.jpg`, `.webp`, etc.). No manual declarations are needed for these extensions.
+Vite's included `vite/client` types already describe its standard assets; they can be loaded through compiler `types` or a triple-slash reference. Respect custom SVG/component loaders and framework overrides rather than duplicating incompatible declarations.
+
+**Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
+
+**Source:** [Vite CSS Modules and client types](https://vite.dev/guide/features.html#css-modules), [workshop asset declaration](https://www.totaltypescript.com/workshops/typescript-pro-essentials/types-you-don%27t-control/importing-and-typing-non-code-files-in-typescript/solution)

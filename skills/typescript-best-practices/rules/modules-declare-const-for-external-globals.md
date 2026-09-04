@@ -1,23 +1,25 @@
-# declare-const-for-external-globals
+# Describe genuinely injected global values
 
-**When:** Using global variables injected by external tools (bundlers, scripts, etc.).
+**When:** A build tool or host supplies a runtime value that is not declared in source. Check spelling, imports and existing project declarations before assuming a missing identifier is injected.
 
-## Bad
+The build/host must supply these values; this file only describes them:
+
 ```typescript
-// __VERSION__ injected by webpack DefinePlugin
-console.log(__VERSION__); // Error: Cannot find name '__VERSION__'
-```
-
-## Good
-```typescript
-// globals.d.ts
+// file: globals.d.ts
 declare const __VERSION__: string;
 declare const __DEV__: boolean;
-
-// Now usable anywhere
-console.log(__VERSION__); // OK
-if (__DEV__) { ... } // OK
 ```
 
-## Why
-Use `declare const` to tell TypeScript about global variables that exist at runtime but aren't defined in your source code. This is common for build-time injected values.
+Runtime usage belongs in an implementation file:
+
+```typescript
+// file: application.ts
+console.log(__VERSION__);
+if (__DEV__) console.log("Development diagnostics enabled");
+```
+
+Include the declaration file in the consuming TypeScript project. A script-style `.d.ts` declares globals; adding imports or exports changes its scope, so use [declare global](modules-declare-global-for-global-types.md) from a module. `declare const` never initializes a value: execution without the promised injection can still throw ReferenceError.
+
+**Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
+
+**Source:** [Workshop injected globals](https://www.totaltypescript.com/workshops/typescript-pro-essentials/modules-scripts-and-declaration-files/type-variables-declared-elsewhere/solution)

@@ -1,18 +1,9 @@
-# strict-mode
+# Strict checking as a baseline
 
-**When:** Starting any new TypeScript project.
+**When:** Choosing a checking baseline for new TypeScript code or tightening an existing project.
 
-## Bad
-```json
-{
-  "compilerOptions": {
-    "strictNullChecks": true,
-    "strictFunctionTypes": true
-  }
-}
-```
+Prefer the strict family rather than accidentally enabling only some of its checks:
 
-## Good
 ```json
 {
   "compilerOptions": {
@@ -23,5 +14,10 @@
 }
 ```
 
-## Why
-`strict: true` enables all strict type-checking options as a bundle. Adding individual strict flags is error-prone and may miss new options. `noUncheckedIndexedAccess` and `noImplicitOverride` add extra safety not included in strict.
+`strict` enables a family of checks that can grow with TypeScript versions. Individual flags set to `false` still override it; review those exceptions during upgrades. `noUncheckedIndexedAccess` and `noImplicitOverride` are separate choices, not included in strict.
+
+Adopt stricter checking deliberately in an existing codebase. This config improves static checking; it does not validate runtime inputs or eliminate escape hatches such as `any` and assertions.
+
+**Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
+
+**Source:** [TypeScript strict](https://www.typescriptlang.org/tsconfig/strict.html)

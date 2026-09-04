@@ -1,29 +1,35 @@
-# isolated-modules
+# Check compatibility with single-file transpilation
 
-**When:** Using any bundler or transpiler other than tsc (esbuild, swc, Babel).
+**When:** Babel, esbuild, SWC, or another tool transpiles files without TypeScript's full type information.
 
-## Bad
-```typescript
-// tsconfig.json: isolatedModules not set
-declare const enum Numbers {
-  Zero,
-  One,
+```json
+{
+  "compilerOptions": {
+    "isolatedModules": true
+  }
 }
-const example = Numbers.Zero; // Runtime error when compiled by esbuild/swc
 ```
 
-## Good
+This enables diagnostics for constructs whose emit needs cross-file type knowledge; it does not transform unsupported source or guarantee every transpiler supports every remaining feature. `verbatimModuleSyntax` also enables these isolated-module checks in modern TypeScript, so do not require both flags solely for that purpose.
+
+An ambient const enum has no runtime object. Consuming it is rejected with isolated-module checking:
+
 ```typescript
-// tsconfig.json: "isolatedModules": true
-const enum Numbers {
-  Zero,
-  One,
-}
-const example = Numbers.Zero; // Works correctly
+export {};
+declare const enum Numbers { Zero, One }
+// @ts-expect-error Ambient const enum access is disallowed with isolatedModules.
+const example = Numbers.Zero;
 ```
 
-## Why
-`isolatedModules` disables TypeScript features that require whole-program knowledge, making your code compatible with single-file transpilers like esbuild and swc which are faster than tsc.
+Use a runtime object when that fits the API:
 
-## Note
-If `verbatimModuleSyntax: true` is already enabled (TS 5.0+), `isolatedModules` is redundant — `verbatimModuleSyntax` is a strict superset that enforces everything `isolatedModules` does plus requires import/export syntax to match the module output format.
+```typescript
+export const Numbers = { Zero: 0, One: 1 } as const;
+export const example = Numbers.Zero;
+```
+
+Local const enums can be supported by single-file transpilers; removing `declare` changes the runtime/emit contract rather than merely silencing a check. See [const enum boundaries](ts-only-avoid-const-enums.md).
+
+**Validation:** Examples checked with TypeScript 5.9.2, strict and isolatedModules enabled.
+
+**Source:** [TypeScript isolatedModules](https://www.typescriptlang.org/tsconfig/isolatedModules.html)

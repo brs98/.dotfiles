@@ -1,33 +1,16 @@
-# quick-fix-extract
+# Use semantic extraction as a refactoring aid
 
-**When:** Refactoring code into constants, variables, or functions.
+**When:** Extracting a selected expression or statements into a constant or function while preserving the intended evaluation behavior.
 
-## Bad
 ```typescript
-// Manually extracting:
-// 1. Copy the expression
-// 2. Create new const above
-// 3. Paste and name it
-// 4. Replace original with variable name
-// 5. Hope you didn't break anything
+const items = [{ active: true, name: "Ada" }];
+const names = items.filter((item) => item.active).map((item) => item.name);
 ```
 
-## Good
-```typescript
-// 1. Select the code you want to extract
-const result = items.filter(x => x.active).map(x => x.name);
-//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ select this
+Select the expression and use the editor/LSP's **Extract to constant** or **Extract to function** action. VS Code commonly exposes these through the lightbulb/Quick Fix menu; shortcuts vary by platform/keymap.
 
-// 2. Press Cmd+. (Quick Fix menu)
-// 3. Choose:
-//    - "Extract to constant in enclosing scope"
-//    - "Extract to function in module scope"
-//    - etc.
+Review scope, captured variables, evaluation order and public API changes in the proposed diff. Automated extraction is helpful, not a guarantee that every offered scope preserves the behavior you intend. Select an expression for expression extraction and statements for function extraction, then run the relevant checks.
 
-// Result:
-const activeNames = items.filter(x => x.active).map(x => x.name);
-const result = activeNames;
-```
+**Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
 
-## Why
-Quick Fix extractions are automated refactors that preserve semantics. What you select determines the available options - select an expression for constant extraction, select statements for function extraction.
+**Source:** [VS Code TypeScript refactoring](https://code.visualstudio.com/docs/typescript/typescript-refactoring)

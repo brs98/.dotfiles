@@ -1,37 +1,42 @@
-# augment-global-interfaces
+# Augment only the globals the runtime actually provides
 
-**When:** Adding properties to built-in global objects like Window or process.env.
+**When:** Integrating a real global object extension or environment contract. First check whether included declarations already describe it.
 
-## Bad
 ```typescript
-window.myApp = { version: "1.0" };
-// Error: Property 'myApp' does not exist on type 'Window'
-
-process.env.API_KEY;
-// Type is string | undefined, no specific keys
-```
-
-## Good
-```typescript
-// globals.d.ts
+// file: globals.d.ts
+export {};
 declare global {
   interface Window {
-    myApp: { version: string };
+    myApp?: { version: string };
   }
-
   namespace NodeJS {
     interface ProcessEnv {
-      API_KEY: string;
-      NODE_ENV: 'development' | 'production';
+      APP_MODE?: "development" | "test" | "production";
     }
   }
 }
-export {};
-
-// Now typed correctly
-window.myApp.version; // string
-process.env.API_KEY; // string (not undefined)
 ```
 
-## Why
-TypeScript's built-in interfaces can be augmented via declaration merging. Use `declare global` to extend Window, process.env, and other global interfaces.
+```typescript
+// file: browser.ts
+window.myApp = { version: "1.0" }; // Real initialization.
+console.log(window.myApp.version);
+```
+
+Declarations neither create nor validate values. A required property is justified only by an established initialization/injection invariant. Optional declarations preserve absence; even a declared string union is a trusted promise, not runtime validation of an environment variable.
+
+For untrusted environment values, validate them and expose a separate typed config:
+
+```typescript
+function readConfig(env: Record<string, string | undefined>) {
+  const apiUrl = env.API_URL;
+  if (!apiUrl) throw new Error("API_URL is required");
+  return { apiUrl: new URL(apiUrl).href };
+}
+```
+
+Keep browser and Node ambient types in their owning project configs. Local application models need not augment platform globals.
+
+**Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
+
+**Source:** [TypeScript global augmentation](https://www.typescriptlang.org/docs/handbook/declaration-merging.html#global-augmentation), [workshop environment typing](https://www.totaltypescript.com/workshops/typescript-pro-essentials/types-you-don%27t-control/modifying-process.env-typing-in-typescript)

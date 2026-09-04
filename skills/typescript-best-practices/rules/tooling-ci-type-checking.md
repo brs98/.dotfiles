@@ -1,28 +1,30 @@
-# ci-type-checking
+# Require a real project typecheck in CI
 
-**When:** Setting up CI/CD pipelines for TypeScript projects.
+**When:** A pipeline should reject type errors before publishing or deployment.
 
-## Bad
-```yaml
-# .github/workflows/ci.yml
-jobs:
-  build:
-    steps:
-      - run: npm run build
-      # No type checking - type errors slip into production
+Inspect what the repository's existing build/check scripts actually do. A build may already typecheck; a transpile-only bundle may not. Command names alone do not establish coverage.
+
+A package-local script for one application config:
+
+```json
+{
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.app.json --noEmit"
+  }
+}
 ```
 
-## Good
+After checkout, runtime setup and the repository's locked dependency installation, run that script using its package manager. For an npm repository, the relevant steps might include:
+
 ```yaml
-# .github/workflows/ci.yml
-jobs:
-  build:
-    steps:
-      - run: npm ci
-      - run: tsc --noEmit    # Type check - fails pipeline on errors
-      - run: npm run build
-      - run: npm test
+- run: npm ci
+- run: npm run typecheck
+- run: npm run build
+- run: npm test
 ```
 
-## Why
-Always run `tsc` in CI to catch type errors before deployment. Local development may allow running with errors, but CI should enforce type safety as a quality gate.
+These are steps, not a complete workflow. Use the required framework checker when `.vue`/`.svelte` or generated framework types are involved. Check all owned configs or use the supported reference-build command; a root `tsc --noEmit` with `files: []` checks no referenced source. Prefer scripts that resolve the installed compiler to assuming a global `tsc` is on CI PATH. Propagate the compiler's nonzero exit status instead of printing a successful build after it fails.
+
+**Validation:** Tooling guidance source-reviewed 2026-09-04; commands must use the repository’s installed tools and actual project paths.
+
+**Source:** [TypeScript project references](https://www.typescriptlang.org/docs/handbook/project-references.html), [workshop CI typechecking](https://www.totaltypescript.com/workshops/typescript-pro-essentials/typescript-in-the-build-process/typescript-in-a-cicd-system/exercise)
