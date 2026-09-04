@@ -30,6 +30,12 @@
       "branch": "main"
     },
     {
+      "id": "nixfred.blip",
+      "repository": "https://github.com/nixfred/blip.git",
+      "management": "omarchy",
+      "branch": "main"
+    },
+    {
       "id": "omamail",
       "repository": "https://github.com/huacnlee/omamail.git",
       "management": "omarchy",
