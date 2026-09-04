@@ -1,30 +1,20 @@
-# typing-json-parse
+# Validate parsed data
 
-**When:** Using `JSON.parse()` or `response.json()` which return `any`.
+**When:** Reading unchecked JSON or another external data boundary.
 
-## Bad
+`JSON.parse` returns `any`. Contain it as `unknown`, then validate the data needed by the application.
+
 ```typescript
-// JSON.parse doesn't accept type arguments
-const data = JSON.parse<User>('{"name": "Alice"}');
-// Error: Expected 0 type arguments, but got 1
-
-// Result is typed as 'any' - no safety
-const data = JSON.parse('{"name": "Alice"}');
-data.whatever; // No error - any allows anything
+type User = { name: string };
+function parseUser(json: string): User {
+  const data: unknown = JSON.parse(json);
+  if (typeof data !== "object" || data === null || !("name" in data) || typeof data.name !== "string") {
+    throw new Error("Invalid user");
+  }
+  return { name: data.name };
+}
 ```
 
-## Good
-```typescript
-// Use type assertion with 'as'
-const data = JSON.parse('{"name": "Alice"}') as User;
+Use a schema decoder for larger contracts. `JSON.parse(...) satisfies User` still has type `any`, so it does not contain unsafety. `as User` and a `User` variable annotation establish trusted compile-time contracts; neither validates runtime shape. They are appropriate only when an independently established guarantee justifies trusting that boundary. JSON syntax errors may still throw.
 
-// Or assign to a typed variable
-const data: User = JSON.parse('{"name": "Alice"}');
-
-// Same for fetch response.json()
-const response = await fetch("/api/user");
-const user = await response.json() as User;
-```
-
-## Why
-`JSON.parse()` returns `any` because TypeScript cannot know the shape at compile time. Use type assertions or explicit variable typing to tell TypeScript what to expect.
+**Source:** [Validate parsed data](https://www.typescriptlang.org/docs/handbook/2/functions.html#unknown). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

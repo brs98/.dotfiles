@@ -32,3 +32,5 @@ Node ESM normally needs runtime extensions on **relative ESM imports**, such as 
 **Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
 
 **Source:** [TypeScript module reference](https://www.typescriptlang.org/docs/handbook/modules/reference.html), [workshop NodeNext lesson](https://www.totaltypescript.com/workshops/typescript-pro-essentials/configuring-typescript/module-nodenext-with-extensions)
+
+Under NodeNext, each file’s ESM/CommonJS format depends on the nearest package.json `"type"` and its extension: `.mts` is ESM and `.cts` is CommonJS. Align the emitted package layout as well as compiler options. See [Node module format detection](https://www.typescriptlang.org/docs/handbook/modules/reference.html#module-format-detection).

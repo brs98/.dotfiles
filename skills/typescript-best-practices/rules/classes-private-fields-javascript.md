@@ -1,30 +1,19 @@
-# private-fields-javascript
+# Runtime private fields
 
-**When:** You need truly private class members that can't be accessed externally.
+**When:** A field must have JavaScript private-name enforcement.
 
-## Bad
+`#` fields enforce access at runtime; TypeScript `private` primarily restricts checked source access. Use the mechanism matching the required contract and supported target.
+
 ```typescript
-class User {
-  private password: string; // TypeScript-only, accessible at runtime
-  constructor(password: string) {
-    this.password = password;
-  }
+class Vault {
+  #password: string;
+  constructor(password: string) { this.#password = password; }
+  matches(candidate: string) { return candidate === this.#password; }
 }
-const user = new User("secret");
-(user as any).password; // "secret" - accessible!
+const vault = new Vault("example");
+vault.matches("example");
 ```
 
-## Good
-```typescript
-class User {
-  #password: string; // JavaScript private field - truly private
-  constructor(password: string) {
-    this.#password = password;
-  }
-}
-const user = new User("secret");
-(user as any).#password; // SyntaxError - cannot access
-```
+Accessing `vault.#password` outside the class is a syntax/compile error; it is deliberately excluded from runnable code. Private names do not prevent a class from exposing values through public methods. Changing `private` to `#` changes reflection, interoperability, and subclass behavior; it is not a mechanical refactor.
 
-## Why
-TypeScript's `private` keyword is compile-time only and can be bypassed with `any`. JavaScript's `#` private fields provide true runtime privacy that cannot be accessed from outside the class.
+**Source:** [Runtime private fields](https://www.typescriptlang.org/docs/handbook/2/classes.html#caveats). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

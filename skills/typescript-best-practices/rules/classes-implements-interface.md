@@ -1,30 +1,21 @@
-# implements-interface
+# Explicit class contracts
 
-**When:** You want to ensure a class adheres to a specific contract.
+**When:** A class is intended to implement a particular interface.
 
-## Bad
+`implements` checks the class against its intended contract at its declaration.
+
 ```typescript
-interface Logger {
-  log(message: string): void;
+interface Logger { log(message: string): void }
+// @ts-expect-error The intended log method is missing.
+class BrokenLogger implements Logger {
+  logg(message: string) { console.log(message); }
 }
-
-class ConsoleLogger {
-  log(msg: string) { console.log(msg); } // No enforcement
-  logg(msg: string) { } // Typo goes unnoticed
-}
-```
-
-## Good
-```typescript
-interface Logger {
-  log(message: string): void;
-}
-
 class ConsoleLogger implements Logger {
   log(message: string) { console.log(message); }
-  // Missing or misspelled methods cause compile errors
+  flush() {} // Extra members are permitted.
 }
 ```
 
-## Why
-`implements` enforces that a class has all required properties and methods from an interface. Without it, typos and missing methods aren't caught until runtime.
+Without `implements`, structural assignments and calls still check compatibility. Adding `implements` does not infer parameter types for methods, and does not reject an extra `logg` method if the required `log` is also present.
+
+**Source:** [Explicit class contracts](https://www.typescriptlang.org/docs/handbook/2/classes.html#implements-clauses). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

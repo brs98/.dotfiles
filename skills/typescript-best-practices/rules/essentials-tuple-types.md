@@ -1,32 +1,16 @@
-# tuple-types
+# Tuple contracts
 
-**When:** An array must have a fixed number of elements with specific types at each position.
+**When:** Positions and length form part of an API contract.
 
-## Bad
+Use a tuple for heterogeneous or fixed-position data. A short array initializer alone does not imply a tuple contract.
+
 ```typescript
-const setRange = (range: number[]) => {
-  const x = range[0]; // type: number | undefined
-  const y = range[1]; // type: number | undefined
-};
-
-setRange([0]);        // Allowed but wrong - missing y
-setRange([0, 10, 20]); // Allowed but wrong - too many
+function rangeWidth(range: readonly [number, number]) { return range[1] - range[0]; }
+rangeWidth([2, 5]);
+// @ts-expect-error A range requires both endpoints.
+rangeWidth([2]);
 ```
 
-## Good
-```typescript
-const setRange = (range: [number, number]) => {
-  const x = range[0]; // type: number
-  const y = range[1]; // type: number
-};
+With `noUncheckedIndexedAccess`, ordinary array indexing includes `undefined`; known required tuple positions do not. Tuple typing does not freeze a JavaScript array at runtime. A readonly tuple prevents mutation through that reference and accepts mutable tuples as inputs.
 
-setRange([0, 10]);     // Correct
-setRange([0]);         // Error: missing element
-setRange([0, 10, 20]); // Error: too many elements
-
-// Optional tuple members use ?
-type Coords = [number, number, number?]; // z is optional
-```
-
-## Why
-Tuples give you fixed-length arrays with known types at each index. Use `[Type1, Type2]` syntax instead of `Type[]` when position matters.
+**Source:** [Tuple contracts](https://www.typescriptlang.org/docs/handbook/2/objects.html#tuple-types). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

@@ -1,28 +1,18 @@
-# override-keyword
+# Checked overrides
 
-**When:** Overriding a method from a parent class.
+**When:** A class deliberately overrides a base member.
 
-## Bad
+Mark the relationship with `override`; enable `noImplicitOverride` to require that marker on actual overrides.
+
 ```typescript
-class Animal {
-  speak() { console.log("..."); }
-}
+class Animal { speak() { return "sound"; } }
 class Dog extends Animal {
-  speek() { console.log("Woof!"); } // Typo! Creates new method, doesn't override
+  override speak() { return "woof"; }
+  // @ts-expect-error No base member has this name.
+  override speek() { return "typo"; }
 }
 ```
 
-## Good
-```typescript
-// tsconfig.json: "noImplicitOverride": true
-class Animal {
-  speak() { console.log("..."); }
-}
-class Dog extends Animal {
-  override speak() { console.log("Woof!"); } // Explicit override
-  override speek() { } // Error: no method to override
-}
-```
+The flag cannot infer intent: a new unmarked `speek()` method is valid even under `noImplicitOverride`. Static and instance members are separate contracts. Inherited members can originate in another file or further up the hierarchy.
 
-## Why
-Enable `noImplicitOverride` in tsconfig and use `override` keyword when overriding parent methods. This catches typos and ensures you're actually overriding an existing method.
+**Source:** [Checked overrides](https://www.typescriptlang.org/tsconfig/noImplicitOverride.html). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

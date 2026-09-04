@@ -2,6 +2,8 @@
 
 **When:** Consumers need type information for JavaScript distributed by a library.
 
+These settings add to the existing host/module configuration; they do not replace it.
+
 When tsc owns JavaScript and declaration output:
 
 ```json

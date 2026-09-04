@@ -1,83 +1,39 @@
 ---
 name: typescript-doctor
-description: Run after making TypeScript changes to catch issues early. Use when reviewing code, finishing a feature, or fixing bugs in a TypeScript project.
+description: Review a TypeScript project with the local TypeScript Doctor CLI after significant changes, alongside the project compiler and tests. Use for source or configuration reviews; its heuristic score is not proof of correctness.
 ---
 
 # TypeScript Doctor
 
-Diagnose TypeScript codebase health — type safety, configuration, and best practices.
+Run the bundled launcher from the project being reviewed:
 
-## When to Apply
-
-- After making significant TypeScript changes
-- Before committing or opening a PR
-- When reviewing TypeScript configuration
-- When starting a new TypeScript project
-
-## How to Run
-
-```bash
-bun run /Users/brandon/personal/typescript-doctor/src/cli.ts [directory] [options]
+```sh
+bash <skill-directory>/scripts/run.sh . --verbose
 ```
 
-### Options
+The launcher uses `TYPESCRIPT_DOCTOR_REPO` when set, then `$HOME/personal/typescript-doctor`, then an installed `typescript-doctor` command. It does not download or install anything. The source runner requires Bun and installed checkout dependencies; the built CLI requires Node 22+. Resolve `<skill-directory>` to this skill's actual path.
 
-- `--verbose` — Show file-level details with line numbers per rule
-- `--diff [base]` — Only scan files changed vs base branch (default: main)
-- `--score` — Output only numeric score (0-100)
-- `--json` — Machine-readable JSON output
-- `--fail-on <level>` — Exit non-zero on: `error`, `warning`, or `none`
-- `--no-config` — Skip tsconfig.json checks
-- `--no-ast` — Skip AST source file checks
+Use the repository's package manager to run its compiler and relevant tests too. Doctor uses ts-morph's bundled TypeScript; the project's compiler version and configuration remain authoritative.
 
-## What It Checks
+## Review findings
 
-### AST Rules (12)
-- Non-null assertions (`!`)
-- Double assertions (`as unknown as T`)
-- `let` that should be `const`
-- `Object.freeze()` instead of `as const`
-- Empty arrays without type annotation
-- Intersection types instead of `interface extends`
-- Duplicate interfaces (declaration merging)
-- `const enum` usage
-- `namespace` usage
-- Empty object type `{}`
-- `private` keyword instead of `#`
-- Runtime code in `.d.ts` files
+- Default `recommended` checks cover targeted safety and configuration issues. Use `--profile all` only when a broader design review is requested; advisory findings do not affect scores or CI gates.
+- Confirm that a suggested change preserves runtime behavior and the intended public contract. Do not remove runtime freezing, replace validation with an assertion, broaden a restricted union, or change a required argument slot solely to improve a score.
+- Inspect JSON `coverage` and `totalFiles` (scanned source files), separately from `affectedFiles`. No applicable input yields `score: null`; a clean scan does not imply compiler success.
+- Use the checked-out tool's generated `docs/rules.md` for actual IDs and current rule inventory; do not infer capabilities from category names.
 
-### Config Rules (11)
-- `strict: true`
-- `noUncheckedIndexedAccess`
-- Module/moduleResolution pairing
-- `isolatedModules` with bundlers
-- `verbatimModuleSyntax`
-- lib/target version sync
-- `noEmit` with bundlers
-- `skipLibCheck`
-- `declaration` for libraries
-- `references` for monorepos
-- `noImplicitOverride`
+## Useful options
 
-## Scoring
+| Option | Meaning |
+| --- | --- |
+| `--json` | Structured findings, coverage, profile and advisory status |
+| `--verbose` | File paths and line numbers |
+| `--profile all` | Include optional design/style advice |
+| `--diff [base]` | Committed changes from merge base to HEAD, default base `main`; excludes uncommitted changes |
+| `--fail-on error` | Fail for non-advisory errors |
+| `--fail-on warning` | Fail for non-advisory warnings or errors |
+| `--fail-on none` | Disable diagnostic failures; execution errors still fail |
+| `--no-config` / `--no-ast` | Restrict the analysis scope |
+| `--save-baseline path` / `--baseline path` | Save or compare compatible scope/profile snapshots |
 
-Health score 0-100 based on penalties per unique rule violated:
-- **75+** Great
-- **50-74** Needs Work
-- **<50** Critical
-
-## Example Usage
-
-```bash
-# Quick health check
-bun run /Users/brandon/personal/typescript-doctor/src/cli.ts .
-
-# Detailed report
-bun run /Users/brandon/personal/typescript-doctor/src/cli.ts . --verbose
-
-# CI mode — fail on errors
-bun run /Users/brandon/personal/typescript-doctor/src/cli.ts . --fail-on error
-
-# Only check changed files
-bun run /Users/brandon/personal/typescript-doctor/src/cli.ts . --diff main
-```
+Doctor config `include` adds root-project inputs and `exclude` removes reporting inputs. Unknown rule IDs and malformed configuration fail explicitly. Respect project overrides and disabled rules. Report material remaining findings and validation results; do not keep rerunning the tool without a relevant change or unresolved concern.
