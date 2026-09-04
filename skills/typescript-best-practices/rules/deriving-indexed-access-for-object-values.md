@@ -1,20 +1,14 @@
 # indexed-access-for-object-values
 
-**When:** You need the type of a specific property from an object type.
+**When:** A type should track a particular property's type on an existing model.
 
-## Bad
-```typescript
-const config = { apiUrl: "https://api.example.com", timeout: 5000 } as const;
-type ApiUrl = string; // Too wide, loses literal type
-```
-
-## Good
 ```typescript
 const config = { apiUrl: "https://api.example.com", timeout: 5000 } as const;
 type Config = typeof config;
-type ApiUrl = Config["apiUrl"]; // "https://api.example.com" (literal)
-type Timeout = Config["timeout"]; // 5000 (literal)
+type ApiUrl = Config["apiUrl"]; // "https://api.example.com"
+type Timeout = Config["timeout"]; // 5000
 ```
 
-## Why
-Indexed access `Type["key"]` extracts the exact type of a property. With `as const` objects, this preserves literal types rather than widening to `string` or `number`.
+Indexed access extracts the property's type, including its literal values or optional `undefined`. `as const` preserves literal property values here. Use a broader independent type, such as `string` for arbitrary API URLs, when the consumer should not be coupled to this particular configuration.
+
+**Sources and version:** [TypeScript documentation](https://www.typescriptlang.org/docs/handbook/2/indexed-access-types.html); [Pro Essentials course source](https://github.com/total-typescript/pro-essentials-workshop/blob/7491e6c5ed45dfcb3593289397e3a68244898128/src/040-deriving-types-from-values/135-indexed-access-types.solution.ts). TypeScript 5.5+, strict mode; examples target ES2022.

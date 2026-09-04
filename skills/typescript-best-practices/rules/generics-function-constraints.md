@@ -1,25 +1,18 @@
 # function-constraints
 
-**When:** A generic function needs to access specific properties of its type parameter.
+**When:** A function relates an object's keys to its property value types.
 
-## Bad
 ```typescript
-function pluck<T>(items: T[], key: string): unknown[] {
-  return items.map(item => (item as any)[key]); // Unsafe
-}
-```
-
-## Good
-```typescript
-function pluck<T, K extends keyof T>(items: T[], key: K): T[K][] {
+function pluck<T, K extends keyof T>(items: readonly T[], key: K): T[K][] {
   return items.map(item => item[key]);
 }
-
 const users = [{ name: "Alice", age: 30 }];
 const names = pluck(users, "name"); // string[]
 const ages = pluck(users, "age"); // number[]
-pluck(users, "invalid"); // Error: not a key of User
+// @ts-expect-error The input objects have no such key.
+pluck(users, "invalid");
 ```
 
-## Why
-Use `K extends keyof T` to constrain a type parameter to valid keys. This provides autocomplete, type safety, and correctly typed return values.
+`K extends keyof T` preserves the relationship between the key and result. A broad `string` or `PropertyKey` cannot safely index an arbitrary `T`. Read-only input accepts mutable and readonly arrays because this operation does not mutate them.
+
+**Sources and version:** [TypeScript documentation](https://www.typescriptlang.org/docs/handbook/2/generics.html#using-type-parameters-in-generic-constraints). TypeScript 5.5+, strict mode; examples target ES2022.

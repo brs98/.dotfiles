@@ -1,19 +1,18 @@
 # parameters-for-function-args
 
-**When:** You need to type arguments that match an existing function's parameters.
+**When:** A tuple or argument type should deliberately follow an existing function signature.
 
-## Bad
 ```typescript
-function log(message: string, level: "info" | "warn" | "error") { ... }
-type LogArgs = [string, "info" | "warn" | "error"]; // Duplicated
+function log(message: string, level: "info" | "warn" | "error") {
+  return `${level}: ${message}`;
+}
+type LogArgs = Parameters<typeof log>;
+// [message: string, level: "info" | "warn" | "error"]
+type Level = LogArgs[1]; // "info" | "warn" | "error"
+const queued: LogArgs = ["Saved", "info"];
+log(...queued);
 ```
 
-## Good
-```typescript
-function log(message: string, level: "info" | "warn" | "error") { ... }
-type LogArgs = Parameters<typeof log>; // [string, "info" | "warn" | "error"]
-type Level = Parameters<typeof log>[1]; // "info" | "warn" | "error"
-```
+`Parameters` retains parameter optionality and rest structure. It extracts the last overload signature, not every call signature; generic parameter types may become `unknown`. Check these details before replacing a handwritten tuple. Keep independent domain contracts separate, and do not make a function's own parameter annotation circular by deriving it from that function.
 
-## Why
-`Parameters<typeof fn>` extracts the parameter types as a tuple. Use indexed access `[0]`, `[1]`, etc. to get individual parameter types.
+**Sources and version:** [TypeScript documentation](https://www.typescriptlang.org/docs/handbook/utility-types.html#parameterstype). TypeScript 5.5+, strict mode; examples target ES2022.

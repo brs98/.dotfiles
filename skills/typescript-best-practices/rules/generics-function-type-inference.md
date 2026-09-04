@@ -1,23 +1,16 @@
 # function-type-inference
 
-**When:** Writing generic functions where the type should be inferred from arguments.
+**When:** A generic call can infer the intended type from its arguments.
 
-## Bad
 ```typescript
-function first<T>(arr: T[]): T | undefined {
+function first<T>(arr: readonly T[]): T | undefined {
   return arr[0];
 }
-const item = first<string>(["a", "b"]); // Explicit type argument unnecessary
+const item = first(["a", "b"]); // string | undefined
+const num = first([1, 2, 3]); // number | undefined
+const optional = first<string | undefined>(["a"]);
 ```
 
-## Good
-```typescript
-function first<T>(arr: T[]): T | undefined {
-  return arr[0];
-}
-const item = first(["a", "b"]); // T inferred as string
-const num = first([1, 2, 3]); // T inferred as number
-```
+Omit type arguments when inference gives the intended contract. Explicit arguments can deliberately widen a literal, select a compatible overload, or supply a type absent from the inputs. Verify the resulting type before removing them; an inferred call is not automatically equivalent.
 
-## Why
-Generic function type parameters are inferred from arguments. Only provide explicit type arguments when inference fails or you need a wider/different type than inferred.
+**Sources and version:** [TypeScript documentation](https://www.typescriptlang.org/docs/handbook/2/functions.html#generic-functions). TypeScript 5.5+, strict mode; examples target ES2022.

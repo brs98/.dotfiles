@@ -1,23 +1,19 @@
 # returntype-for-function-returns
 
-**When:** You need the return type of an existing function without duplicating it.
+**When:** A consumer's type should change with the result of a specific function.
 
-## Bad
 ```typescript
-function createUser() {
-  return { id: crypto.randomUUID(), createdAt: new Date() };
+function createUser(id: string) {
+  return { id, createdAt: new Date() };
 }
-type User = { id: string; createdAt: Date }; // Duplicated, can drift
+type CreatedUser = ReturnType<typeof createUser>;
+// { id: string; createdAt: Date }
 ```
 
-## Good
-```typescript
-function createUser() {
-  return { id: crypto.randomUUID(), createdAt: new Date() };
-}
-type User = ReturnType<typeof createUser>;
-// { id: string; createdAt: Date } - derived automatically
-```
+Derivation is useful when both declarations represent the same concern. An explicit public or domain contract can instead govern the implementation, and should not automatically follow every inferred change. Matching structures alone do not justify replacing an independent type with `ReturnType`.
 
-## Why
-`ReturnType<typeof fn>` extracts the return type directly from the function. The type stays in sync when the function changes, eliminating duplicate type definitions.
+For overloaded functions, `ReturnType` uses the last overload signature. Generic return types may become `unknown`, so it does not reproduce every invocation's inference. Avoid deriving an annotation from the function that already uses that annotation; this creates a circular dependency.
+
+See [deriving versus decoupling](https://www.totaltypescript.com/books/total-typescript-essentials/deriving-types#deriving-vs-decoupling).
+
+**Sources and version:** [TypeScript documentation](https://www.typescriptlang.org/docs/handbook/utility-types.html#returntypetype). TypeScript 5.5+, strict mode; examples target ES2022.

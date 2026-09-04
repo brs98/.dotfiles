@@ -1,22 +1,15 @@
 # same-name-type-and-value
 
-**When:** You want a class-like API where the same name works as both a type and a value.
+**When:** An API intentionally exposes a runtime value and its corresponding type under one name.
 
-## Bad
 ```typescript
-function createUser(name: string) { return { name, id: crypto.randomUUID() }; }
-type UserType = ReturnType<typeof createUser>;
-// Two different names - confusing API
+const Logger = {
+  format(message: string) { return `[log] ${message}`; },
+};
+type Logger = typeof Logger;
+const logger: Logger = Logger;
 ```
 
-## Good
-```typescript
-function User(name: string) { return { name, id: crypto.randomUUID() }; }
-type User = ReturnType<typeof User>;
-// Same name for both!
+TypeScript has separate type and value namespaces, so this is an optional naming pattern. It does not give a factory function class, `new`, or `instanceof` semantics. Names such as `createUser` for a factory and `User` for its result are also clear; do not rename them solely to enforce identical names.
 
-const user: User = User("Alice"); // Works as type and constructor
-```
-
-## Why
-TypeScript allows a type and value to share the same name. This creates an API that feels like a class - the name works in type position and value position - without using the `class` keyword.
+**Sources and version:** [TypeScript documentation](https://www.typescriptlang.org/docs/handbook/2/functions.html#construct-signatures); [Pro Essentials course source](https://github.com/total-typescript/pro-essentials-workshop/blob/7491e6c5ed45dfcb3593289397e3a68244898128/src/040-deriving-types-from-values/131-naming-values-and-types-the-same.explainer.1.ts). TypeScript 5.5+, strict mode; examples target ES2022.
