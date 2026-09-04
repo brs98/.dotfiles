@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "id": "brandon.indicators",
+      "repository": "https://github.com/brs98/omarchy-indicators.git",
+      "management": "source-link",
+      "checkout": "omarchy-indicators",
+      "branch": "main"
+    },
+    {
+      "id": "brandon.omarchy-news",
+      "repository": "https://github.com/brs98/omarchy-news.git",
+      "management": "source-link",
+      "checkout": "omarchy-news",
+      "branch": "main"
+    },
+    {
+      "id": "brs98.cliptail",
+      "repository": "https://github.com/brs98/omarchy-cliptail.git",
+      "management": "source-link",
+      "checkout": "omarchy-cliptail",
+      "branch": "main"
+    },
+    {
+      "id": "brs98.instant-replay",
+      "repository": "https://github.com/brs98/omarchy-instant-replay.git",
+      "management": "source-link",
+      "checkout": "omarchy-instant-replay",
+      "branch": "main"
+    },
+    {
+      "id": "omamail",
+      "repository": "https://github.com/huacnlee/omamail.git",
+      "management": "omarchy",
+      "branch": "main"
+    }
+  ]
+}
