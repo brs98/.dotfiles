@@ -6,11 +6,13 @@ const ts = require(process.argv[2] || 'typescript');
 const root = path.resolve(__dirname, '..');
 const prefixes = process.argv.slice(3);
 let checked = 0;
+let blocksChecked = 0;
 const failures = [];
 for (const name of fs.readdirSync(path.join(root, 'rules')).sort()) {
   if (!name.endsWith('.md') || (prefixes.length && !prefixes.some(prefix => name.startsWith(prefix)))) continue;
   const text = fs.readFileSync(path.join(root, 'rules', name), 'utf8');
   const blocks = [...text.matchAll(/```(?:typescript|ts)\n([\s\S]*?)```/g)];
+  blocksChecked += blocks.length;
   // Explicit file markers within one page form a shared example project.
   const marked = blocks.filter(block => /^\/\/ file: /m.test(block[1]));
   const examples = blocks.filter(block => !/^\/\/ file: /m.test(block[1])).map(block => block[1]);
@@ -27,7 +29,7 @@ for (const name of fs.readdirSync(path.join(root, 'rules')).sort()) {
         sources.set(filename, code.slice(marker.index + marker[0].length, markers[i + 1]?.index ?? code.length));
       }
     } else sources.set(base + 'example.ts', code + '\nexport {};\n');
-    const options = { strict: true, noUncheckedIndexedAccess: true, noEmit: true, skipLibCheck: true, target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, types: [], isolatedModules: name === "config-isolated-modules.md", verbatimModuleSyntax: name === "config-verbatim-module-syntax.md" };
+    const options = { strict: true, noUncheckedIndexedAccess: true, noEmit: true, skipLibCheck: false, target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, types: [], isolatedModules: name === "config-isolated-modules.md", verbatimModuleSyntax: name === "config-verbatim-module-syntax.md" };
     const host = ts.createCompilerHost(options);
     const originalRead = host.readFile.bind(host);
     const originalExists = host.fileExists.bind(host);
@@ -46,4 +48,4 @@ for (const name of fs.readdirSync(path.join(root, 'rules')).sort()) {
   }
 }
 if (failures.length) { console.error(failures.join('\n')); process.exitCode = 1; }
-console.log(`${checked} TypeScript examples checked with TypeScript ${ts.version}; ${failures.length} failed`);
+console.log(`${blocksChecked} TypeScript blocks in ${checked} example projects checked with TypeScript ${ts.version}; ${failures.length} failed`);

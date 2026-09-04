@@ -40,3 +40,5 @@ Keep browser and Node ambient types in their owning project configs. Local appli
 **Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
 
 **Source:** [TypeScript global augmentation](https://www.typescriptlang.org/docs/handbook/declaration-merging.html#global-augmentation), [workshop environment typing](https://www.totaltypescript.com/workshops/typescript-pro-essentials/types-you-don%27t-control/modifying-process.env-typing-in-typescript)
+
+For unchecked external values, apply the canonical [unknown boundary and validation guidance](narrowing-unknown-boundaries.md); an ambient declaration only describes an assumed runtime value.

@@ -21,3 +21,5 @@ Adopt stricter checking deliberately in an existing codebase. This config improv
 **Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
 
 **Source:** [TypeScript strict](https://www.typescriptlang.org/tsconfig/strict.html)
+
+Modern options supplement these workshop defaults: choose `exactOptionalPropertyTypes` when absence differs from explicitly stored undefined, and `erasableSyntaxOnly` (TypeScript 5.8+) for a pipeline that only strips types. Neither is included in strict and neither should be enabled without checking the intended contracts and execution host. See [optional-property semantics](essentials-optional-parameters.md) and [transforming parameter properties](ts-only-parameter-properties.md).

@@ -23,3 +23,5 @@ Include the declaration file in the consuming TypeScript project. A script-style
 **Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
 
 **Source:** [Workshop injected globals](https://www.totaltypescript.com/workshops/typescript-pro-essentials/modules-scripts-and-declaration-files/type-variables-declared-elsewhere/solution)
+
+For unchecked external values, apply the canonical [unknown boundary and validation guidance](narrowing-unknown-boundaries.md); an ambient declaration only describes an assumed runtime value.

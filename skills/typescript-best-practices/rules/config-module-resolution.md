@@ -34,3 +34,19 @@ Node ESM normally needs runtime extensions on **relative ESM imports**, such as 
 **Source:** [TypeScript module reference](https://www.typescriptlang.org/docs/handbook/modules/reference.html), [workshop NodeNext lesson](https://www.totaltypescript.com/workshops/typescript-pro-essentials/configuring-typescript/module-nodenext-with-extensions)
 
 Under NodeNext, each file’s ESM/CommonJS format depends on the nearest package.json `"type"` and its extension: `.mts` is ESM and `.cts` is CommonJS. Align the emitted package layout as well as compiler options. See [Node module format detection](https://www.typescriptlang.org/docs/handbook/modules/reference.html#module-format-detection).
+
+## Choose settings by host and output owner
+
+| Environment | Resolution and output decision |
+| --- | --- |
+| Bundled browser application | Follow the framework's bundler resolution and module settings; use noEmit for the checker when the bundler owns JS output. Include DOM libraries only where browser globals exist. |
+| Node application emitting JS | Match Node's per-file module format and runtime extensions. Let tsc emit when it owns the output; include the matching Node host declarations. |
+| Published library | Check the consumer's module environment as well as the build tool. Produce JS and declarations through explicitly owned builds and validate the published entry points. |
+| Native type-stripping execution | Follow the runtime's source-extension and syntax rules; erasableSyntaxOnly can reject unsupported transforming syntax. Type stripping does not run the type checker. |
+| Multiple projects | Use references when projects form an intended build graph; otherwise run the relevant independent configs explicitly. |
+
+`moduleDetection: "force"` makes implementation files modules without adding imports; it does not convert ambient declaration scripts. Use `extends` for shared settings while respecting defining-file-relative paths and child overrides. In an extends array, later bases take precedence; references are not inherited. Inspect the effective config with the project's `tsc --showConfig`.
+
+`resolveJsonModule` provides inferred types for imported JSON when the host supports those imports; runtime import attributes and loader requirements remain separate. `sourceMap` helps debug emitted JS; `declarationMap` supports navigation from published declarations to their sources. Neither belongs in every checking-only config.
+
+Related sources: [moduleDetection](https://www.typescriptlang.org/tsconfig/moduleDetection.html), [extends](https://www.typescriptlang.org/tsconfig/extends.html), [resolveJsonModule](https://www.typescriptlang.org/tsconfig/resolveJsonModule.html), [sourceMap](https://www.typescriptlang.org/tsconfig/sourceMap.html).
