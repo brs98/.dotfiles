@@ -6,6 +6,10 @@ Independent follow-up review found no substantive false teaching claim in the up
 
 Follow-up validation: 112 TypeScript blocks in 102 example projects compiled with TypeScript 5.9.3; all 113 reference entries and local links passed validation, as did the skill metadata check.
 
+A second review identified silent contract changes that compilation alone cannot detect: symbol/template-pattern index signatures can broaden derived key/value unions, and interface conversion can change implicit index assignability and conditional types. The corresponding references now explain these cases and include compiler-checked examples. The detector corrections and compiler-check performance measurements are recorded in TypeScript Doctor's implementation audit.
+
+Second follow-up validation: all 114 TypeScript blocks in 104 example projects passed with TypeScript 5.9.3, along with the 113-entry reference/link check and skill metadata validation.
+
 Reviewed 2026-09-04 against dotfiles commit `3ab561c`.
 
 The skill contains useful examples, but it is not yet reliable as a set of mandatory coding rules. The most significant defects are incorrect inferred-type comments, unsafe helper contracts, valid alternatives labeled Bad, and course examples generalized beyond their intended context.
