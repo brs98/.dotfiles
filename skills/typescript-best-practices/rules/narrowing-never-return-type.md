@@ -1,24 +1,24 @@
-# never-return-type
+# Describe synchronous non-returning helpers with never
 
-**When:** You have a helper function that always throws an error and want it to narrow types when used in expressions.
+**When:** A helper deliberately never returns normally, and callers need its control-flow contract.
 
-## Bad
 ```typescript
-const throwError = (msg: string): undefined => {
-  throw new Error(msg);
-};
+function fail(message: string): never {
+  throw new Error(message);
+}
 
-const id = params.id || throwError("No id"); // id is string | undefined
+function requireId(params: { id?: string }): string {
+  return params.id ?? fail("Missing id");
+}
+
+async function rejectRequest(): Promise<never> {
+  throw new Error("Request rejected");
+}
 ```
 
-## Good
-```typescript
-const throwError = (msg: string): never => {
-  throw new Error(msg);
-};
+An explicit `never` return on a synchronous throwing helper can support narrowing. The example uses `??` because an empty string is not nullish; use `||` only if empty IDs should also be rejected. An async helper returns a promise, so even `Promise<never>` does not terminate the caller synchronously. A generator returns an iterator before its body executes. Preserve intentionally wider base-method, overload, or public contracts rather than mechanically changing every throwing implementation to `never`.
 
-const id = params.id || throwError("No id"); // id is string
-```
+For checking unhandled variants, use the separate [exhaustiveness pattern](narrowing-switch-statements.md).
 
-## Why
-A function returning `never` signals it never returns normally. TypeScript removes `never` from unions, so `string | never` becomes `string`. Use this for error-throwing helpers used in expressions.
+**Checked:** TypeScript 5.9.2 with `strict` and `noUncheckedIndexedAccess` (ES2022 + DOM).
+**Sources:** [Handbook never](https://www.typescriptlang.org/docs/handbook/2/narrowing.html#the-never-type), [Workshop throwing helper](https://github.com/total-typescript/pro-essentials-workshop/blob/main/src/018-unions-and-narrowing/068-returning-never-to-narrow.solution.1.ts).

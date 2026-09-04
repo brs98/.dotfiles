@@ -1,23 +1,28 @@
-# readonly-tuples
+# Make tuple mutability intentional
 
-**When:** Declaring tuple types that shouldn't be mutated.
+**When:** Fixed-position values should be read without changing their indexed slots or length. Mutable tuple APIs remain valid.
 
-## Bad
-```typescript
-type Point = [number, number];
-function distance(p: Point) {
-  p[0] = 0; // Mutation allowed!
-}
-```
-
-## Good
 ```typescript
 type Point = readonly [number, number];
-function distance(p: Point) {
-  p[0] = 0; // Error: Cannot assign to '0'
-  return Math.sqrt(p[0] ** 2 + p[1] ** 2); // Read-only access OK
+function distance(point: Point): number {
+  return Math.sqrt(point[0] ** 2 + point[1] ** 2);
 }
+
+function accidentalWrite(point: Point) {
+  // @ts-expect-error A readonly tuple rejects indexed writes.
+  point[0] = 0;
+  // @ts-expect-error A readonly tuple has no pop method.
+  point.pop();
+}
+
+const pairs: readonly [string, number][] = [["a", 1]];
+const first = pairs[0];
+if (first) first[0] = "b"; // Outer readonly array; tuple elements are mutable.
+
+const fullyReadonly: readonly (readonly [string, number])[] = [["a", 1]];
 ```
 
-## Why
-Add `readonly` to tuple types to prevent index assignment. This catches accidental mutations and documents that the tuple should not be modified.
+Apply readonly at the tuple's own level when its slots should not change. `ReadonlyArray<[A, B]>` and `Readonly<[A, B][]>` also leave their tuple elements mutable. Do not add readonly mechanically to conditional-type tuple patterns, generic constraints, or contracts that intentionally accept mutable tuples.
+
+**Checked:** TypeScript 5.9.2 with `strict` and `noUncheckedIndexedAccess` (ES2022 + DOM).
+**Sources:** [Workshop unsafe tuples](https://www.totaltypescript.com/workshops/typescript-pro-essentials/mutability/fixing-unsafe-tuples/solution), [Handbook tuple types](https://www.typescriptlang.org/docs/handbook/2/objects.html#tuple-types).
