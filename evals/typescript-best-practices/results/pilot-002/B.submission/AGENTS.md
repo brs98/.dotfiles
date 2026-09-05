@@ -1,0 +1,1 @@
+This is a controlled evaluation fixture. Follow TASK.md and the coordinator's reference-access instruction. Work only in this worktree. Do not install packages, use other agents, inspect other worktrees, or access evaluator files.

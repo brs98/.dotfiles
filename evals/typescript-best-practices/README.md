@@ -2,6 +2,8 @@
 
 This is a paired evaluation of **task outcomes**, comparing an agent with the `typescript-best-practices` reference to an agent without it. Both receive the same webhook-client task, starter, compiler, tools, and model/reasoning configuration. The only intended treatment difference is access to the skill and its linked rules.
 
+The [first completed pilot](results/pilot-002/REPORT.md) tied at 22/22 checks for both conditions. It validates the harness, not a claim of skill effectiveness.
+
 The first task combines boundary validation, generic inference, narrowing, nullish values, and preservation of existing runtime/public type contracts. It is deliberately relevant to this skill. It does **not** represent all TypeScript work or test every one of the 113 references.
 
 ## Design
@@ -19,6 +21,8 @@ The access boundary in this interactive pilot is **instructional, not a security
 ## Run a pair
 
 Requires a POSIX host (Linux or macOS), Python 3, Git, Node 22, npm, and an already installed TypeScript package. The tested compiler is recorded per run; no package installation is performed. From this directory:
+
+First verify `node --version` and `npm --version` succeed in the participant's shell. An installed mise/npm shim without a selected Node version is insufficient; it caused avoidable troubleshooting in the pilot. Keep the chosen runtime identical for both participants and record it.
 
 ```sh
 python3 run.py prepare \
@@ -75,3 +79,9 @@ A single pair is a pilot showing that the harness works. A tie can mean the task
 For a stronger study, preregister multiple tasks from different families (feature implementation, unsafe-boundary repair, public API refactoring, and compiler/module configuration), then run at least five fresh pairs per task as an initial variance estimate. Choose the final sample size based on the effect size and uncertainty you need. Randomize execution order, keep model/version and budgets fixed, report all runs and task-level paired differences, and use uncertainty estimates that respect repeated runs within the same task. Add blinded human assessment only with a written rubric established beforehand.
 
 The task, skill snapshot, and compiler version should be versioned together. A future skill revision is a new experiment, not a replacement for an unfavorable old result.
+
+To check orchestration without making model calls:
+
+```sh
+python3 -m unittest discover -s . -p 'test_runner.py' -v
+```

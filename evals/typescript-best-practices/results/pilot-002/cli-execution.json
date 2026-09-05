@@ -1,0 +1,70 @@
+{
+  "model": "gpt-6-astra",
+  "reasoningEffort": "high",
+  "cliVersion": "codex-cli 0.153.0",
+  "timeoutSecondsPerArm": 900,
+  "commonArguments": [
+    "codex",
+    "exec",
+    "--ignore-user-config",
+    "--ephemeral",
+    "--json",
+    "--model",
+    "gpt-6-astra",
+    "--sandbox",
+    "workspace-write",
+    "-c",
+    "approval_policy=\"never\"",
+    "-c",
+    "model_reasoning_effort=\"high\"",
+    "-c",
+    "project_doc_max_bytes=0",
+    "-c",
+    "sandbox_workspace_write.exclude_slash_tmp=true",
+    "-c",
+    "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+    "--enable",
+    "skip_host_skill_discovery",
+    "--disable",
+    "plugins",
+    "--disable",
+    "multi_agent"
+  ],
+  "notes": "Fresh processes, concurrent execution, no user config or automatic host skills. Read isolation remains instructional.",
+  "arms": {
+    "A": {
+      "status": "complete",
+      "exitCode": 0,
+      "timedOut": false,
+      "usage": [
+        {
+          "input_tokens": 210854,
+          "cached_input_tokens": 195968,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 4807,
+          "reasoning_output_tokens": 620
+        }
+      ],
+      "threadIds": [
+        "01a06edd-21ef-7250-8ee0-0618c887fdf4"
+      ]
+    },
+    "B": {
+      "status": "complete",
+      "exitCode": 0,
+      "timedOut": false,
+      "usage": [
+        {
+          "input_tokens": 283316,
+          "cached_input_tokens": 251904,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 7387,
+          "reasoning_output_tokens": 1200
+        }
+      ],
+      "threadIds": [
+        "01a06edd-21da-71d0-9816-ee1f84ea5397"
+      ]
+    }
+  }
+}

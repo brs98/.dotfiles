@@ -1,0 +1,77 @@
+{
+  "task": "webhook-client-v1",
+  "compilerVersion": "5.9.3",
+  "arms": {
+    "A": {
+      "condition": "without-skill",
+      "status": "complete",
+      "elapsedSeconds": 188.99152326583862,
+      "summary": {
+        "status": "pass",
+        "passed": 22,
+        "failed": 0,
+        "total": 22,
+        "manualReview": 0,
+        "infrastructureErrors": 0,
+        "categories": {
+          "runtime": {
+            "passed": 11,
+            "failed": 0,
+            "total": 11
+          },
+          "type-contract": {
+            "passed": 9,
+            "failed": 0,
+            "total": 9
+          },
+          "safety": {
+            "passed": 1,
+            "failed": 0,
+            "total": 1
+          },
+          "integrity": {
+            "passed": 1,
+            "failed": 0,
+            "total": 1
+          }
+        }
+      }
+    },
+    "B": {
+      "condition": "with-skill",
+      "status": "complete",
+      "elapsedSeconds": 256.06192684173584,
+      "summary": {
+        "status": "pass",
+        "passed": 22,
+        "failed": 0,
+        "total": 22,
+        "manualReview": 0,
+        "infrastructureErrors": 0,
+        "categories": {
+          "runtime": {
+            "passed": 11,
+            "failed": 0,
+            "total": 11
+          },
+          "type-contract": {
+            "passed": 9,
+            "failed": 0,
+            "total": 9
+          },
+          "safety": {
+            "passed": 1,
+            "failed": 0,
+            "total": 1
+          },
+          "integrity": {
+            "passed": 1,
+            "failed": 0,
+            "total": 1
+          }
+        }
+      }
+    }
+  },
+  "interpretation": "One paired pilot; no statistical effectiveness or speed claim. Read individual checks and submissions."
+}
