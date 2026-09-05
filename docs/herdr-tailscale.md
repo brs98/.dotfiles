@@ -15,13 +15,26 @@ The aliases resolve through Tailscale MagicDNS and call Herdr's native
 
 The two Linux computers run the same custom Herdr 0.8.0 protocol-20 fork, so
 Linux-to-Linux connections use Herdr's thin-client `--remote` mode. The Mac runs
-the native 0.8.2 build. Every route involving the Mac uses Herdr's supported
+the native 0.8.2 build. The `herdr-remote` helper's Mac routes use Herdr's supported
 SSH-hosted attach mode and runs the destination's own client. This prevents an
 attach from replacing a managed binary or asking to restart an active server.
 
 The default session and `--session <name>` work in both modes. SSH-hosted Mac
 routes do not provide the thin client's local desktop image-clipboard bridge;
 terminal text paste still works.
+
+## Native Linux-to-Mac client
+
+On Linux, `herdr --remote herdr-mac` uses a separate matching 0.8.2 client at
+`~/.local/lib/herdr-remote-0.8.2/herdr`. This client must be installed separately;
+the dotfiles installer does not provision it. The wrapper refuses this route if
+the client is missing rather than falling back to the 0.8.0 fork and risking a
+remote replacement prompt. `--remote=herdr-mac` and `--session <name>` also work.
+
+Ordinary `herdr` commands, other remote targets, and `herdr update` continue to
+use the pinned fork. `herdr-remote mac` retains its SSH-hosted behavior. If the
+Mac's Herdr version changes, install a matching local client and update this
+route; do not approve a remote replacement or restart just to connect.
 
 ## One-time setup on all three computers
 

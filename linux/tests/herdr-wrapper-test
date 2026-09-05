@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
+WRAPPER="${HERDR_WRAPPER_UNDER_TEST:-$REPO_ROOT/linux/stow/scripts/.local/bin/herdr}"
+TEST_ROOT="$(mktemp -d)"
+trap 'rm -rf -- "$TEST_ROOT"' EXIT
+export HOME="$TEST_ROOT/home with spaces"
+
+fork_binary="$HOME/.local/lib/herdr-fork/herdr"
+mac_client="$HOME/.local/lib/herdr-remote-0.8.2/herdr"
+fork_installer="$HOME/.local/bin/herdr-fork-install"
+mkdir -p "$(dirname "$fork_binary")" "$(dirname "$mac_client")" "$(dirname "$fork_installer")"
+cat > "$fork_binary" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$0" "$@"
+exit "${FAKE_EXIT_CODE:-0}"
+EOF
+chmod +x "$fork_binary"
+cp "$fork_binary" "$mac_client"
+cp "$fork_binary" "$fork_installer"
+
+expect_route() {
+    local expected_binary="$1"
+    shift
+    local actual expected
+    actual="$(bash "$WRAPPER" "$@")"
+    expected="$(printf '%s\n' "$expected_binary" "$@")"
+    if [ "$actual" != "$expected" ]; then
+        printf 'Unexpected route for: %s\nExpected: %s\nActual: %s\n' "$*" "$expected" "$actual" >&2
+        exit 1
+    fi
+}
+
+expect_route "$fork_binary"
+expect_route "$fork_binary" --version
+expect_route "$fork_binary" --remote herdr-omarchy
+expect_route "$fork_binary" --remote=herdr-omarchy-pc
+expect_route "$fork_binary" pane run example -- --remote herdr-mac
+expect_route "$fork_binary" --session '--remote=herdr-mac'
+expect_route "$fork_binary" --remote-keybindings '--remote=herdr-mac'
+expect_route "$fork_binary" --remote
+expect_route "$mac_client" --remote herdr-mac
+expect_route "$mac_client" --remote=herdr-mac
+expect_route "$mac_client" --session work --remote herdr-mac
+expect_route "$mac_client" --remote herdr-mac --session work --remote-keybindings server
+expect_route "$mac_client" --remote-keybindings local --remote=herdr-mac --help
+
+test "$(bash "$WRAPPER" update)" = "$(printf '%s\n' "$fork_installer" --handoff)"
+test "$(bash "$WRAPPER" update --handoff)" = "$(printf '%s\n' "$fork_installer" --handoff)"
+bash "$WRAPPER" update --help | grep -q 'usage: herdr update'
+exit_code=0
+FAKE_EXIT_CODE=42 bash "$WRAPPER" --remote herdr-mac >/dev/null || exit_code=$?
+test "$exit_code" -eq 42
+
+rm "$fork_binary"
+expect_route "$mac_client" --remote herdr-mac
+cp "$fork_installer" "$fork_binary"
+rm "$mac_client"
+exit_code=0
+bash "$WRAPPER" --remote herdr-mac >"$TEST_ROOT/stdout" 2>"$TEST_ROOT/stderr" || exit_code=$?
+test "$exit_code" -eq 127
+test ! -s "$TEST_ROOT/stdout"
+grep -q 'Refusing to use the 0.8.0 fork' "$TEST_ROOT/stderr"
+expect_route "$fork_binary" --remote herdr-omarchy
+
+echo '✓ herdr wrapper routing tests passed'
