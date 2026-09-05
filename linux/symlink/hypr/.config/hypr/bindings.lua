@@ -4,6 +4,14 @@
 
 o.bind("SUPER + SHIFT + R", "RetroArch", "omarchy-launch-or-focus retroarch")
 
+-- Framework Laptop 13 alternatives for hardware keys absent from its keyboard.
+-- Hold Super with the display-brightness keys to adjust the keyboard backlight.
+-- Fn+Space also cycles the backlight directly in the laptop firmware.
+o.bind("SUPER + CTRL + M", "Mute microphone", "omarchy audio input mute", { locked = true })
+o.bind_toggle("SUPER + CTRL + ALT + P", "Toggle touchpad", "touchpad", { locked = true })
+o.bind("SUPER + XF86MonBrightnessUp", "Keyboard brightness up", "omarchy brightness keyboard up", { locked = true, repeating = true })
+o.bind("SUPER + XF86MonBrightnessDown", "Keyboard brightness down", "omarchy brightness keyboard down", { locked = true, repeating = true })
+
 -- Instant Replay plugin controls. These use shell IPC so they survive plugin
 -- updates without depending on the plugin's on-disk path.
 o.bind("SUPER + ALT + R", "Arm/disarm instant replay", "omarchy-shell brs98.instant-replay toggleReplay")
