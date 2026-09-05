@@ -60,6 +60,8 @@ def prepare(args):
             shutil.copytree(source, frozen / name)
         else:
             shutil.copy2(source, frozen / name)
+    if (HERE / "run_cli.py").is_file():
+        shutil.copy2(HERE / "run_cli.py", frozen / "run_cli.py")
     shutil.copytree(skill, root / "reference-skill")
     starter = root / "starter"
     shutil.copytree(frozen / "fixture", starter)

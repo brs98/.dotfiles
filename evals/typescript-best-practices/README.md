@@ -29,6 +29,17 @@ python3 run.py prepare \
 
 Use a new path for every pair. Optional `--seed INTEGER` makes the arm assignment reproducible. Keep `manifest.json` and `evaluation/` out of participants' context. Launch two fresh agents with **no conversation history**, the same model and reasoning effort, identical tool availability, and exactly their generated `prompts/A.md` or `prompts/B.md`. Their different worktree paths are operational only. Do not give one participant extra instructions or coaching.
 
+With the local Codex CLI, run both participants automatically:
+
+```sh
+python3 run_cli.py --run-root /tmp/typescript-skill-pair-001 --model gpt-6-astra --effort high
+python3 run.py grade --run-root /tmp/typescript-skill-pair-001
+```
+
+`run_cli.py` launches fresh concurrent processes, pins the same model/effort, ignores user configuration, disables automatic host-skill discovery/plugins/subagents, and explicitly reads the same fixture instructions. Both get a 900-second limit (adjust with `--timeout`). It records status, final responses, CLI events, and reported usage. It uses existing CLI authentication without reading credentials. Supported flags were checked with the installed CLI; `skip_host_skill_discovery` is an experimental flag and should be reverified after upgrades. Read isolation remains instructional. See the official [non-interactive CLI documentation](https://learn.chatgpt.com/docs/non-interactive-mode) and [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
+
+Alternatively, coordinate available agent tools manually using the steps below.
+
 Immediately before starting each participant:
 
 ```sh
@@ -43,7 +54,7 @@ python3 run.py mark --run-root /tmp/typescript-skill-pair-001 --arm B --event co
 python3 run.py grade --run-root /tmp/typescript-skill-pair-001
 ```
 
-Use `--event failed` for an unsuccessful or interrupted participant; grade its submitted work too. The runner does not launch agents, enforce budgets, or collect token usage. Record actual model IDs, token costs, tool counts, and enforced budgets separately when the host exposes them. Otherwise report them as unavailable. Measured elapsed time includes coordination delays and concurrent machine contention; it is descriptive, not a reliable speed comparison.
+Use `--event failed` for an unsuccessful or interrupted participant; grade its submitted work too. The manual `run.py` workflow does not launch agents, enforce budgets, or collect token usage; the optional CLI runner does. Record actual model IDs, token costs, tool counts, and enforced budgets separately when the host exposes them. Otherwise report them as unavailable. Measured elapsed time includes coordination delays and concurrent machine contention; it is descriptive, not a reliable speed comparison.
 
 `results/` contains machine-readable checks, a comparison, candidate snapshots, tracked-file patches, and supplied final responses. Completion freezes each submission; grading checks those snapshot hashes and uses the snapshots even if the original worktrees subsequently change. Coordinator updates are serialized with a lock. Infrastructure failures can be retried against those same frozen submissions; neither arm's grading output is published until both graders succeed. The grader copies candidates to temporary directories, uses the frozen compiler configuration and its own tests, and does not execute candidate package scripts.
 

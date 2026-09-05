@@ -18,6 +18,7 @@ class RunnerTest(unittest.TestCase):
         self.harness.mkdir()
         here = Path(__file__).resolve().parent
         shutil.copy2(here / "run.py", self.harness / "run.py")
+        shutil.copy2(here / "run_cli.py", self.harness / "run_cli.py")
         shutil.copy2(here / "task.md", self.harness / "task.md")
         shutil.copytree(here / "fixture", self.harness / "fixture")
         (self.harness / "grade.mjs").write_text(
@@ -83,6 +84,45 @@ class RunnerTest(unittest.TestCase):
         (self.run_root / "results/A.submission/src/client.ts").write_text("Tampered submission")
         result = self.call("grade", success=False)
         self.assertIn("Completed submission changed", result.stderr)
+
+    def test_cli_uses_identical_settings_and_records_failed_arm(self):
+        binaries = Path(self.temp.name) / "bin"
+        binaries.mkdir()
+        codex = binaries / "codex"
+        codex.write_text("""#!/usr/bin/env python3
+import json, pathlib, sys
+args = sys.argv[1:]
+if args == ['--version']:
+    print('codex-test-stub')
+    sys.exit(0)
+workspace = pathlib.Path(args[args.index('-C') + 1])
+(workspace / 'cli-arguments.json').write_text(json.dumps(args))
+prompt = sys.stdin.read()
+(workspace / 'received-prompt.md').write_text(prompt)
+if workspace.name == 'B':
+    print(json.dumps({'type': 'turn.failed', 'error': 'simulated infrastructure error'}))
+    sys.exit(1)
+pathlib.Path(args[args.index('--output-last-message') + 1]).write_text('Completed stub task')
+print(json.dumps({'type': 'thread.started', 'thread_id': 'test-thread'}))
+print(json.dumps({'type': 'turn.completed', 'usage': {'input_tokens': 10, 'output_tokens': 2}}))
+""")
+        codex.chmod(0o755)
+        result = subprocess.run([sys.executable, str(self.harness / "run_cli.py"),
+                                 "--run-root", str(self.run_root), "--model", "test-model", "--effort", "high"],
+                                text=True, capture_output=True, env={**os.environ, "PATH": str(binaries) + os.pathsep + os.environ["PATH"]})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        execution = json.loads((self.run_root / "cli-execution.json").read_text())
+        self.assertEqual(execution["arms"]["A"]["status"], "complete")
+        self.assertEqual(execution["arms"]["B"]["status"], "failed")
+        self.assertEqual(execution["arms"]["A"]["usage"], [{"input_tokens": 10, "output_tokens": 2}])
+        invocations = []
+        for arm in ["A", "B"]:
+            args = json.loads((self.run_root / "agents" / arm / "cli-arguments.json").read_text())
+            invocations.append(args[:args.index('-C')])
+            self.assertEqual((self.run_root / "agents" / arm / "received-prompt.md").read_text(),
+                             (self.run_root / "prompts" / f"{arm}.md").read_text())
+        self.assertEqual(*invocations)
+        self.call("grade")
 
     def test_no_retries_or_early_grading_and_failed_submission_is_retained(self):
         self.call("grade", success=False)
