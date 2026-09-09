@@ -213,6 +213,16 @@ local function is_herdr(pane)
 	return process_name == "herdr" or process_name == "herdr.exe" or pane_title == "herdr"
 end
 
+-- Let Herdr own the tab UI while it is active; restore WezTerm's bar on exit.
+wezterm.on("update-status", function(window, pane)
+	local overrides = window:get_config_overrides() or {}
+	local enable_tab_bar = not is_herdr(pane)
+	if overrides.enable_tab_bar ~= enable_tab_bar then
+		overrides.enable_tab_bar = enable_tab_bar
+		window:set_config_overrides(overrides)
+	end
+end)
+
 -- Keep the same physical WezTerm shortcuts while Herdr owns the inner panes.
 -- Raw prefix sequences remain unambiguous with Kitty keyboard reporting off.
 local function route_to_herdr(default_action, herdr_key)
