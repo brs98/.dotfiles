@@ -1,0 +1,74 @@
+{
+  "A": [
+    {
+      "command": "/usr/bin/zsh -lc 'pwd; cat AGENTS.md TASK.md'",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -lc \"git status --short; rg --files -g '\"'!node_modules'\"' -g '\"'!package-lock.json'\"'; cat src/client.ts package.json tsconfig.json smoke.mjs\"",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -c 'MISE_NODE_VERSION=24.19.0 node --version; MISE_NODE_VERSION=24.19.0 PATH=\"/home/brandon/personal/typescript-doctor/node_modules/typescript/bin:$PATH\" npm run typecheck'",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -c 'MISE_NODE_VERSION=24.19.0 PATH=\"/home/brandon/personal/typescript-doctor/node_modules/typescript/bin:$PATH\" npm test && MISE_NODE_VERSION=24.19.0 node --test tests/*.test.mjs'",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -c 'git diff --check; git diff -- src/client.ts; git status --short'",
+      "exitCode": 0
+    }
+  ],
+  "B": [
+    {
+      "command": "/usr/bin/zsh -lc 'pwd; cat AGENTS.md TASK.md; cat /tmp/typescript-skill-pilot-002/reference-skill/SKILL.md'",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -lc 'cat /tmp/typescript-skill-pilot-002/reference-skill/rules/{narrowing-unknown-boundaries,narrowing-exhaustiveness,narrowing-in-operator,narrowing-callback-scope,narrowing-map-get,generics-constrain-type-parameters,objects-propertykey-for-any-key-type,objects-index-signature-with-known-keys,deriving-contract-ownership,safety-as-const-over-object-freeze,essentials-typing-json-parse,config-module-resolution,config-verbatim-module-syntax}.md'",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -lc \"rg --files -g '\"'!node_modules'\"' -g '\"'!.git'\"'; git status --short; cat package.json tsconfig.json src/client.ts smoke.mjs\"",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -lc 'npm run typecheck; npm test'",
+      "exitCode": 1
+    },
+    {
+      "command": "/usr/bin/zsh -lc 'cat /tmp/typescript-skill-pilot-002/reference-skill/rules/generics-function-constraints.md; node /home/brandon/personal/typescript-doctor/node_modules/typescript/bin/tsc --version; npm run typecheck -- --showConfig'",
+      "exitCode": 1
+    },
+    {
+      "command": "/usr/bin/zsh -c \"command -v node npm tsc; node -p 'process.execPath'; node --version\"",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -c 'PATH=/home/brandon/personal/typescript-doctor/node_modules/typescript/bin:/usr/bin:/bin npm run typecheck -- --showConfig; PATH=/home/brandon/personal/typescript-doctor/node_modules/typescript/bin:/usr/bin:/bin npm run typecheck; PATH=/home/brandon/personal/typescript-doctor/node_modules/typescript/bin:/usr/bin:/bin npm test'",
+      "exitCode": 127
+    },
+    {
+      "command": "/usr/bin/zsh -c 'MISE_NODE_VERSION=24.19.0 npm --version'",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -c 'MISE_NODE_VERSION=24.19.0 PATH=/home/brandon/personal/typescript-doctor/node_modules/typescript/bin:/usr/bin:$PATH npm run typecheck -- --showConfig; MISE_NODE_VERSION=24.19.0 PATH=/home/brandon/personal/typescript-doctor/node_modules/typescript/bin:/usr/bin:$PATH npm run typecheck; MISE_NODE_VERSION=24.19.0 PATH=/home/brandon/personal/typescript-doctor/node_modules/typescript/bin:/usr/bin:$PATH npm test; /usr/bin/node --test tests/*.test.mjs'",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -c 'git diff --check; git diff --stat; git diff -- src/client.ts; git diff --exit-code -- package.json tsconfig.json smoke.mjs; git status --short'",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -c '/usr/bin/node tests/client.test.mjs; /usr/bin/node tests/contracts.test.mjs'",
+      "exitCode": 0
+    },
+    {
+      "command": "/usr/bin/zsh -c 'git diff --check; git status --short'",
+      "exitCode": 0
+    }
+  ]
+}

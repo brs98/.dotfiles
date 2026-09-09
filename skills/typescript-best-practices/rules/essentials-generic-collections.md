@@ -1,30 +1,16 @@
-# generic-collections
+# Generic collections
 
-**When:** Using built-in collections like `Set`, `Map`, or `Array`.
+**When:** Creating a collection without values that establish the intended element/key/value type.
 
-## Bad
+Use type arguments or a contextual annotation when a specific contract is needed. Initialized collections commonly infer it already.
+
 ```typescript
-const userIds = new Set();
-userIds.add(1);
-userIds.add("123"); // Allowed but wrong - mixing types
-
-const userMap = new Map();
-userMap.set("1", { name: "Max" }); // Key type inconsistent
-userMap.set(1, "invalid");         // Value type inconsistent
+const ids = new Set<number>();
+const names = new Map<string, string>();
+const inferred = new Set([1, 2]); // Set<number>
+const contextual: Set<number> = new Set();
 ```
 
-## Good
-```typescript
-// Pass type argument to Set
-const userIds = new Set<number>();
-userIds.add(1);
-userIds.add("123"); // Error: string not assignable to number
+Inspect the inferred type and the installed library declarations. In TypeScript 5.9, an unconstrained empty `Set` can infer `Set<unknown>`; an empty `Map` defaults to `Map<any, any>`. `unknown` requires narrowing before use, while `any` permits unchecked operations. An explicit argument can also intentionally widen a collection for later values.
 
-// Pass two type arguments to Map: <Key, Value>
-const userMap = new Map<number, { name: string }>();
-userMap.set(1, { name: "Max" });
-userMap.set("1", { name: "Max" }); // Error: string key
-```
-
-## Why
-Generic collections like `Set<T>` and `Map<K, V>` accept type arguments to constrain what they contain. Without them, TypeScript defaults to `unknown` or `any`.
+**Source:** [Generic collections](https://www.typescriptlang.org/docs/handbook/type-inference.html). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

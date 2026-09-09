@@ -1,0 +1,320 @@
+{
+  "summary": {
+    "status": "pass",
+    "passed": 22,
+    "failed": 0,
+    "total": 22,
+    "manualReview": 0,
+    "infrastructureErrors": 0,
+    "categories": {
+      "runtime": {
+        "passed": 11,
+        "failed": 0,
+        "total": 11
+      },
+      "type-contract": {
+        "passed": 9,
+        "failed": 0,
+        "total": 9
+      },
+      "safety": {
+        "passed": 1,
+        "failed": 0,
+        "total": 1
+      },
+      "integrity": {
+        "passed": 1,
+        "failed": 0,
+        "total": 1
+      }
+    }
+  },
+  "checks": [
+    {
+      "id": "protected-fixture-files",
+      "category": "integrity",
+      "pass": true,
+      "detail": {
+        "files": [
+          {
+            "file": "package.json",
+            "pass": true
+          },
+          {
+            "file": "tsconfig.json",
+            "pass": true
+          },
+          {
+            "file": "smoke.mjs",
+            "pass": true
+          }
+        ],
+        "copyIssues": []
+      }
+    },
+    {
+      "id": "strict-compilation",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": [],
+        "clientPresent": true
+      }
+    },
+    {
+      "id": "property-contract",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "event-contract",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "map-and-callback-contract",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "headers-contract",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "dictionary-contract",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "preferences-contract",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "independent-delivery-status",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "baseline": [],
+        "sampleMutation": []
+      }
+    },
+    {
+      "id": "future-event-exhaustiveness",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "baselineClean": true,
+        "diagnostics": [
+          {
+            "code": 2322,
+            "category": "Error",
+            "file": "src/client.ts",
+            "line": 37,
+            "message": "Type '{ type: \"__future_variant__\"; id: string; futureValue: boolean; }' is not assignable to type 'never'."
+          }
+        ],
+        "handlerDiagnostics": [
+          {
+            "code": 2322,
+            "category": "Error",
+            "file": "src/client.ts",
+            "line": 37,
+            "message": "Type '{ type: \"__future_variant__\"; id: string; futureValue: boolean; }' is not assignable to type 'never'."
+          }
+        ]
+      }
+    },
+    {
+      "id": "no-explicit-any-or-suppression",
+      "category": "safety",
+      "pass": true,
+      "detail": {
+        "explicitAny": [],
+        "suppressions": []
+      }
+    },
+    {
+      "id": "valid-events",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "all variants and boundary values",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "invalid-object-type-id",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "containers and primitive values",
+          "pass": true
+        },
+        {
+          "name": "discriminants",
+          "pass": true
+        },
+        {
+          "name": "required nonempty string id",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "created-attempt-validation",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "finite nonnegative integer required",
+          "pass": true
+        },
+        {
+          "name": "missing attempt",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "created-label-validation",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "only arrays containing strings",
+          "pass": true
+        },
+        {
+          "name": "absence remains absence",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "retry-and-closed-validation",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "finite nonnegative delay",
+          "pass": true
+        },
+        {
+          "name": "string or null reason required",
+          "pass": true
+        },
+        {
+          "name": "missing fields",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "fresh-filtered-copies",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "fresh objects and recognized fields only",
+          "pass": true
+        },
+        {
+          "name": "labels copied in both directions",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "json-validation",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "valid JSON applies normalization",
+          "pass": true
+        },
+        {
+          "name": "malformed or semantically invalid JSON",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "formatting",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "exact variant rendering and nullish fallback",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "map-fallback",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "preserve present values and only fall back when missing",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "deferred-callbacks",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "null enqueues nothing",
+          "pass": true
+        },
+        {
+          "name": "capture original non-null strings exactly once",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "runtime-property-and-preferences",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "symbol and number access",
+          "pass": true
+        },
+        {
+          "name": "preferences frozen with original values",
+          "pass": true
+        }
+      ]
+    }
+  ],
+  "compilerVersion": "5.9.3",
+  "manualReviewDetails": []
+}

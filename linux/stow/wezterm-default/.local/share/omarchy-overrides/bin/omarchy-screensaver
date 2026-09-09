@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# Run the Omarchy screensaver with artwork supplied by the active theme.
+#
+# Theme overlays can provide a screensaver.txt file. Omarchy stages that file
+# into its current-theme directory atomically, so reading from there stays in
+# sync even when themes are changed quickly. Themes without custom artwork
+# retain the normal global branding as a fallback.
+
+screensaver_in_focus() {
+  hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
+}
+
+exit_screensaver() {
+  hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
+  pkill -x ttfx 2>/dev/null
+  pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
+  exit 0
+}
+
+# Match the state path used by Omarchy's theme-set command.
+theme_art="$HOME/.local/state/omarchy/current/theme/screensaver.txt"
+fallback_art="$HOME/.config/omarchy/branding/screensaver.txt"
+
+# Exit the screensaver on signals and input from keyboard and mouse.
+trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
+
+printf '\033]11;rgb:00/00/00\007'
+
+hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null
+
+tty=$(tty 2>/dev/null)
+
+# Terminals initially allocate an 80x24 pty. Wait briefly for the compositor's
+# fullscreen dimensions so ttfx measures the final canvas.
+wait_for_terminal_resize() {
+  local deadline=$((SECONDS + 2))
+  while ((SECONDS < deadline)) && [[ $(stty size 2>/dev/null) == "24 80" ]]; do
+    sleep 0.02
+  done
+}
+
+wait_for_terminal_resize
+
+while true; do
+  if [[ -s $theme_art ]]; then
+    screensaver_art=$theme_art
+  else
+    screensaver_art=$fallback_art
+  fi
+
+  ttfx -i "$screensaver_art" \
+    --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c \
+    --random-effect --no-eol --no-restore-cursor &
+
+  while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
+    if read -n1 -t 1 || ! screensaver_in_focus; then
+      exit_screensaver
+    fi
+  done
+done

@@ -1,22 +1,17 @@
-# types-packages-for-untyped-libs
+# Find usable package types before writing replacements
 
-**When:** A package doesn't include TypeScript types.
+**When:** A dependency has no usable types under the project's actual module resolution.
 
-## Bad
-```typescript
-import _ from 'lodash';
-// Error: Could not find declaration file for module 'lodash'
-// Writing your own types for a popular library
-```
+Check its bundled declarations and package exports first. If types are absent, check DefinitelyTyped for a matching package. Use this repository's package manager and existing dependency conventions; for example, in an npm application:
 
-## Good
 ```bash
 npm install --save-dev @types/lodash
 ```
 
-```typescript
-import _ from 'lodash'; // Now typed via @types/lodash
-```
+The conventional mapping is `package` → `@types/package` and `@scope/name` → `@types/scope__name`. Package subpaths use the root package's type package; Node core modules use `@types/node`, not packages named after individual built-ins.
 
-## Why
-Check DefinitelyTyped (`@types/*`) before writing your own declarations. Most popular libraries have community-maintained types: `npm install --save-dev @types/package-name`.
+Development dependencies are normal for application type checking. If published declarations expose a dependency's external types, arrange dependencies so consumers receive the needed declarations too. Package authors should verify the published artifact from a consumer project. Manual declarations remain appropriate when no maintained or accurate types exist; declarations for an external-module augmentation are not replacement library typings.
+
+**Validation:** Dependency guidance source-reviewed 2026-09-04; installation command is an npm example, not executed.
+
+**Source:** [TypeScript declaration publishing and dependencies](https://www.typescriptlang.org/docs/handbook/declaration-files/publishing.html)

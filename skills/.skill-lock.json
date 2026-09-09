@@ -46,15 +46,6 @@
       "installedAt": "2026-04-09T20:52:42.646Z",
       "updatedAt": "2026-06-09T18:08:47.815Z"
     },
-    "greploop": {
-      "source": "greptileai/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/greptileai/skills.git",
-      "skillPath": "greploop/SKILL.md",
-      "skillFolderHash": "347330e4b64be5c2d59f324726d9be6dbf5ebf00",
-      "installedAt": "2026-04-09T20:52:43.028Z",
-      "updatedAt": "2026-06-09T18:08:49.188Z"
-    },
     "diagnose": {
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -83,16 +74,6 @@
       "skillFolderHash": "688c17ec27fe9309d84987716aca37b5ce7f3a88",
       "installedAt": "2026-04-30T16:49:08.804Z",
       "updatedAt": "2026-05-27T17:35:00.781Z"
-    },
-    "setup-matt-pocock-skills": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mattpocock/skills.git",
-      "skillPath": "skills/engineering/setup-matt-pocock-skills/SKILL.md",
-      "skillFolderHash": "634cf9b010bca5701642aca736dce899822f08f7",
-      "pluginName": "mattpocock-skills",
-      "installedAt": "2026-04-30T16:49:08.805Z",
-      "updatedAt": "2026-07-19T08:10:08.736Z"
     },
     "tdd": {
       "source": "mattpocock/skills",
@@ -190,15 +171,6 @@
       "installedAt": "2026-07-13T21:17:14.780Z",
       "updatedAt": "2026-07-13T21:17:14.780Z"
     },
-    "gh-stack": {
-      "source": "github/gh-stack",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/github/gh-stack.git",
-      "skillPath": "skills/gh-stack/SKILL.md",
-      "skillFolderHash": "26320e8be554b0cc1d122c353e8897f0c69739cd",
-      "installedAt": "2026-07-16T19:44:20.076Z",
-      "updatedAt": "2026-07-16T19:44:20.076Z"
-    },
     "wayfinder": {
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -218,16 +190,6 @@
       "pluginName": "mattpocock-skills",
       "installedAt": "2026-07-19T08:10:08.733Z",
       "updatedAt": "2026-07-19T08:10:08.733Z"
-    },
-    "research": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceUrl": "https://github.com/mattpocock/skills.git",
-      "skillPath": "skills/engineering/research/SKILL.md",
-      "skillFolderHash": "972a34cd8128b7952b7eb279b06715862db906a7",
-      "pluginName": "mattpocock-skills",
-      "installedAt": "2026-07-19T08:10:08.735Z",
-      "updatedAt": "2026-07-19T08:10:08.735Z"
     },
     "grilling": {
       "source": "mattpocock/skills",

@@ -1,18 +1,21 @@
-# const-over-let-inference
+# Prefer const for unchanged bindings
 
-**When:** Declaring a variable that won't be reassigned.
+**When:** A binding has an initializer and is never reassigned. Keep `let` for writes, including destructuring assignments and loop assignments.
 
-## Bad
 ```typescript
-let status = "pending"; // type: string (widened)
-let count = 0; // type: number (widened)
+const requestStatus = "pending"; // Literal type "pending"
+const count = 0;                 // Literal type 0
+
+let attempts = 0;
+attempts += 1;
+let first = 0;
+[first] = [1]; // Also a reassignment.
+
+const state = { count: 0 };
+state.count++; // const protects the binding, not the object's properties.
 ```
 
-## Good
-```typescript
-const status = "pending"; // type: "pending" (literal)
-const count = 0; // type: 0 (literal)
-```
+Primitive const initializers normally retain literal types. An explicit wider annotation may still be intentional; preserve observable API and type-query contracts when changing a declaration. Do not replace uninitialized `let` declarations mechanically with `const`. [Object readonly](safety-as-const-deep-readonly.md) is a separate decision.
 
-## Why
-`const` tells TypeScript the value won't change, enabling literal type inference. `let` variables are widened because they might be reassigned to other values of the same type.
+**Checked:** TypeScript 5.9.2 with `strict` and `noUncheckedIndexedAccess` (ES2022 + DOM).
+**Sources:** [Handbook literal inference](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#literal-inference).

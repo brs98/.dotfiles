@@ -1,24 +1,19 @@
-# no-unchecked-indexed-access
+# Account for unchecked indexed values
 
-**When:** Accessing array elements or object properties by index without guaranteed existence.
+**When:** Accessing arrays or index signatures without proof that the requested key exists.
 
-## Bad
+With `strict: true` and `noUncheckedIndexedAccess: true`:
+
 ```typescript
-// tsconfig.json: noUncheckedIndexedAccess not set
-const array = [1, 2, 3];
-const value = array[5]; // type: number (wrong - it's undefined!)
-value.toFixed(2); // runtime error
-```
-
-## Good
-```typescript
-// tsconfig.json: "noUncheckedIndexedAccess": true
-const array = [1, 2, 3];
-const value = array[5]; // type: number | undefined
+const values = [1, 2, 3];
+const value = values[5]; // number | undefined
 if (value !== undefined) {
-  value.toFixed(2); // safe
+  value.toFixed(2);
 }
 ```
 
-## Why
-Without this option, TypeScript assumes all index accesses return valid values, leading to runtime errors. This strictness setting forces you to handle potentially undefined values.
+Without the additional flag, this unchecked array access is typed as `number` even though the actual value is `undefined`. The option adds `undefined` to potentially missing array/index-signature lookups; it does not change every property access. Known properties and valid fixed tuple positions retain their known types. Strict null checking is needed for this distinction to protect subsequent use.
+
+**Validation:** Example checked with TypeScript 5.9.2, strict and noUncheckedIndexedAccess enabled.
+
+**Source:** [TypeScript noUncheckedIndexedAccess](https://www.typescriptlang.org/tsconfig/noUncheckedIndexedAccess.html)

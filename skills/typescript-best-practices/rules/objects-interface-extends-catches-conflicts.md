@@ -1,19 +1,7 @@
 # interface-extends-catches-conflicts
 
-**When:** Merging object types that might have incompatible property types.
+**Compatibility reference:** See [interface composition and conflict detection](objects-interface-extends-over-intersections.md) for the canonical guidance and checked examples.
 
-## Bad
-```typescript
-type A = { id: string };
-type B = { id: number };
-type C = A & B; // C["id"] is string & number = never (silent failure)
-```
+`extends` reports incompatible inherited properties at the declaration. Intersections remain valid for intentional compatible refinements; incompatible combinations can produce `never`.
 
-## Good
-```typescript
-interface A { id: string }
-interface B extends A { id: number } // Error: Types incompatible
-```
-
-## Why
-Interface extends surfaces property conflicts at declaration time with clear errors. Intersections silently create `never` for conflicting properties, causing confusing errors later.
+**Sources and version:** [TypeScript documentation](https://github.com/microsoft/TypeScript/wiki/Performance#preferring-interfaces-over-intersections). TypeScript 5.5+, strict mode; examples target ES2022.

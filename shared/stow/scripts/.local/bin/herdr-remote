@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-usage: herdr-remote <omarchy|omarchy-pc|mac> [herdr remote options]
+usage: herdr-remote <omarchy|omarchy-pc|mac> [--session <name>]
        herdr-remote doctor
 
 Attach to a machine's default Herdr session over SSH and Tailscale.
@@ -19,6 +19,49 @@ ssh_alias() {
         mac|macbook|brandons-macbook-pro|herdr-mac) printf '%s\n' herdr-mac ;;
         *) return 1 ;;
     esac
+}
+
+fork_client() {
+    local candidate client_status
+
+    for candidate in \
+        "$HOME/.local/lib/herdr-fork/herdr" \
+        "$HOME/.local/bin/herdr" \
+        "$(command -v herdr 2>/dev/null || true)"
+    do
+        if [ -z "$candidate" ] || [ ! -x "$candidate" ]; then
+            continue
+        fi
+        client_status="$("$candidate" status client 2>/dev/null || true)"
+        if [ "$(printf '%s\n' "$client_status" | awk '$1 == "version:" {print $2}')" = 0.8.0 ] &&
+            [ "$(printf '%s\n' "$client_status" | awk '$1 == "protocol:" {print $2}')" = 20 ]; then
+            printf '%s\n' "$candidate"
+            return
+        fi
+    done
+
+    echo "The Herdr 0.8.0 protocol-20 fork is required for Linux thin-client attach." >&2
+    return 1
+}
+
+attach_over_ssh() {
+    local target_alias="$1" remote_command
+    shift
+
+    case "$target_alias" in
+        herdr-mac) remote_command='exec /opt/homebrew/bin/herdr' ;;
+        *) remote_command='exec "$HOME/.local/bin/herdr"' ;;
+    esac
+
+    if [ "$#" -eq 0 ]; then
+        exec ssh -t "$target_alias" "$remote_command"
+    fi
+    if [ "$#" -eq 2 ] && [ "$1" = --session ] && [[ "$2" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        exec ssh -t "$target_alias" "$remote_command --session $2"
+    fi
+
+    echo "SSH-hosted attach supports the default session or --session <name>." >&2
+    return 2
 }
 
 doctor() {
@@ -81,4 +124,9 @@ if ! target_alias="$(ssh_alias "$target")"; then
     exit 2
 fi
 
-exec herdr --remote "$target_alias" "$@"
+if [ "$target_alias" = herdr-mac ] || [ "$(uname -s)" = Darwin ]; then
+    attach_over_ssh "$target_alias" "$@"
+fi
+
+client="$(fork_client)"
+exec env -u HERDR_ENV "$client" --remote "$target_alias" "$@"

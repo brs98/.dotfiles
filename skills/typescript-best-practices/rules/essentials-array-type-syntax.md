@@ -1,37 +1,16 @@
-# array-type-syntax
+# Array type syntax
 
-**When:** Declaring arrays, including arrays of objects.
+**When:** Declaring a homogeneous collection.
 
-## Bad
+`T[]` and `Array<T>` are equivalent. Follow the project convention; use parentheses for a union or function element type.
+
 ```typescript
-type ShoppingCart = {
-  userId: string;
-  items: string; // Wrong - can't assign string[] to string
-};
-
-type Recipe = {
-  ingredients: object[]; // Too loose - loses type information
-};
+const names: string[] = ["Ada"];
+const alternatives: Array<string> = ["Ada"];
+const values: (string | number)[] = ["Ada", 1];
+const callbacks: Array<() => void> = [() => {}];
 ```
 
-## Good
-```typescript
-type ShoppingCart = {
-  userId: string;
-  items: string[];
-};
+This is formatting guidance, not a safety distinction.
 
-// Arrays of objects with inline type
-type Recipe = {
-  ingredients: { name: string; quantity: string }[];
-};
-
-// Or with a separate type alias
-type Ingredient = { name: string; quantity: string };
-type Recipe = {
-  ingredients: Ingredient[];
-};
-```
-
-## Why
-TypeScript needs explicit array notation (`Type[]` or `Array<Type>`) to understand you want a collection. For arrays of objects, define the shape inline or extract to a type alias.
+**Source:** [Array type syntax](https://www.typescriptlang.org/docs/handbook/2/objects.html#the-array-type). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

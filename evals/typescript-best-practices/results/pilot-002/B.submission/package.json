@@ -1,0 +1,10 @@
+{
+  "name": "webhook-client-eval",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "npm run build && node smoke.mjs"
+  }
+}

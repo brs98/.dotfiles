@@ -21,6 +21,7 @@
 
 ## Misc Tips
 
-- When working with TypeScript projects, load/use the available TypeScript best-practices or doctor skill if the harness provides one.
+- Use `typescript-best-practices` selectively for open-ended TypeScript reviews, public type contract changes, complex type modeling, or compiler/module configuration. For routine, well-specified edits, use the project's compiler and relevant tests; load the skill when a concrete uncertainty warrants it, and read only the relevant rules.
+- Consider `typescript-doctor` for broader TypeScript source or configuration reviews, alongside the project's compiler and relevant tests. Its heuristic findings are review evidence, not proof of correctness.
 - When working with React projects, load/use the available React best-practices or doctor skill if the harness provides one.
 - When adding packages, use the project's package manager and avoid hardcoding package versions unless the project requires it.

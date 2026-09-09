@@ -23,6 +23,35 @@ if [ "${1:-}" = "update" ]; then
     exec "$fork_installer" --handoff
 fi
 
+launch_args=("$@")
+remote_target=""
+for ((argument_index = 0; argument_index < ${#launch_args[@]}; argument_index++)); do
+    case "${launch_args[argument_index]}" in
+        --) break ;;
+        --session|--remote-keybindings)
+            argument_index=$((argument_index + 1))
+            ;;
+        --remote)
+            remote_target="${launch_args[argument_index + 1]:-}"
+            break
+            ;;
+        --remote=*)
+            remote_target="${launch_args[argument_index]#--remote=}"
+            break
+            ;;
+    esac
+done
+
+if [ "$remote_target" = "herdr-mac" ]; then
+    mac_client="$HOME/.local/lib/herdr-remote-0.8.2/herdr"
+    if [ ! -x "$mac_client" ]; then
+        echo "The matching Herdr 0.8.2 Mac remote client is not installed at $mac_client." >&2
+        echo "Refusing to use the 0.8.0 fork for this connection." >&2
+        exit 127
+    fi
+    exec "$mac_client" "$@"
+fi
+
 if [ ! -x "$fork_binary" ]; then
     echo "Herdr fork is not installed; run ~/.dotfiles/install.sh" >&2
     exit 127

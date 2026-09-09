@@ -1,25 +1,21 @@
-# tsc-watch-mode
+# Run the appropriate checker in watch mode
 
-**When:** Developing TypeScript and want continuous feedback on type errors.
+**When:** Continuous TypeScript feedback helps during editing.
 
-## Bad
-```bash
-# Manually running tsc after every change
-tsc
-# Make changes...
-tsc
-# Make more changes...
-tsc
+Use the repository's package manager to run a local script, for example:
+
+```json
+{
+  "scripts": {
+    "typecheck:watch": "tsc --project tsconfig.app.json --noEmit --watch"
+  }
+}
 ```
 
-## Good
-```bash
-# Run once, watches for changes automatically
-tsc --watch
+`-w` is simply an alias for `--watch`; both use the selected config. For a project-reference build graph, use `tsc --build --watch` and retain that graph's output requirements. When tsc intentionally owns JavaScript/declaration output, omit `--noEmit` rather than disabling needed artifacts.
 
-# Or with tsconfig.json
-tsc -w
-```
+Watch mode reuses work between changes. Keep a finite typecheck command in CI so completion and exit status are unambiguous. See [project references](config-project-references.md).
 
-## Why
-`tsc --watch` incrementally recompiles on file changes, providing instant feedback on type errors. Much faster than running `tsc` manually after each edit.
+**Validation:** Tooling guidance source-reviewed 2026-09-04; commands must use the repository’s installed tools and actual project paths.
+
+**Source:** [TypeScript watch configuration](https://www.typescriptlang.org/docs/handbook/configuring-watch.html)

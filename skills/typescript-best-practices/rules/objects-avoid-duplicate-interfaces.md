@@ -1,23 +1,15 @@
 # avoid-duplicate-interfaces
 
-**When:** You see the same interface name declared multiple times.
+**When:** Multiple declarations of one interface in the same scope unintentionally combine requirements.
 
-## Bad
 ```typescript
 interface User { name: string }
 interface User { email: string }
-// Silently merges! User now requires BOTH properties
-const user: User = { name: "Alice" }; // Error: missing email
+// @ts-expect-error The merged interface requires email too.
+const incomplete: User = { name: "Alice" };
+const user: User = { name: "Alice", email: "alice@example.com" };
 ```
 
-## Good
-```typescript
-interface User {
-  name: string;
-  email: string;
-}
-// Single declaration, clear requirements
-```
+Consolidate accidental duplicates into one declaration, or choose a type alias if reopening is not part of the design. Interfaces with the same name in separate modules do not automatically merge. Intentional declaration merging and module/global augmentation are valid uses of interfaces.
 
-## Why
-Duplicate interfaces automatically merge (declaration merging), causing unexpected type requirements. This feature exists for augmenting third-party types but is confusing when unintentional.
+**Sources and version:** [TypeScript documentation](https://www.typescriptlang.org/docs/handbook/declaration-merging.html); [Pro Essentials course source](https://github.com/total-typescript/pro-essentials-workshop/blob/7491e6c5ed45dfcb3593289397e3a68244898128/src/020-objects/088-declaration-merging-of-interfaces.solution.ts). TypeScript 5.5+, strict mode; examples target ES2022.

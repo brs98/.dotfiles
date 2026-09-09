@@ -1,30 +1,19 @@
-# dts-for-javascript-not-types
+# Prefer regular modules for authored application types
 
-**When:** Deciding between `.ts` and `.d.ts` files for type definitions.
+**When:** Choosing where to store application types that do not describe a special ambient integration.
 
-## Bad
 ```typescript
-// types.d.ts - using .d.ts for regular type definitions
+// file: types.ts
 export interface User {
   id: string;
   name: string;
 }
-// Works but unconventional
 ```
 
-## Good
-```typescript
-// types.ts - use .ts for your own type definitions
-export interface User {
-  id: string;
-  name: string;
-}
+A `.ts` module is a straightforward default for authored application types. With `skipLibCheck: true`, errors in your own `.d.ts` files can be skipped too; moving an application model there should not silently weaken its validation.
 
-// Use .d.ts only for:
-// - Typing existing JavaScript files
-// - Ambient declarations (globals, modules without types)
-// - Generated declaration files from tsc
-```
+Exported interfaces/type aliases in `.d.ts` are nonetheless valid and common in JavaScript-facing or generated declaration surfaces. Intentional global declarations and type-only packages are also legitimate. The file extension is an organization choice tied to what the file represents; do not move declarations solely because they contain an interface, alias or enum.
 
-## Why
-`.d.ts` files are for describing external code that already exists. Use regular `.ts` files for your own type definitions - they're easier to work with and don't have declaration file restrictions.
+**Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
+
+**Source:** [Workshop declaration-file organization](https://www.totaltypescript.com/workshops/typescript-pro-essentials/types-you-don%27t-control/should-you-use-declaration-files-to-store-your-types/exercise), [TypeScript declaration-file overview](https://www.typescriptlang.org/docs/handbook/declaration-files/introduction.html)

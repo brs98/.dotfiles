@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "id": "brandon.omarchy-news",
+      "repository": "https://github.com/brs98/omarchy-news.git",
+      "management": "source-link",
+      "checkout": "omarchy-news",
+      "branch": "main"
+    }
+  ]
+}

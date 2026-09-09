@@ -1,0 +1,412 @@
+{
+  "summary": {
+    "status": "fail",
+    "passed": 12,
+    "failed": 10,
+    "total": 22,
+    "manualReview": 3,
+    "infrastructureErrors": 0,
+    "categories": {
+      "runtime": {
+        "passed": 2,
+        "failed": 9,
+        "total": 11
+      },
+      "type-contract": {
+        "passed": 8,
+        "failed": 1,
+        "total": 9
+      },
+      "safety": {
+        "passed": 1,
+        "failed": 0,
+        "total": 1
+      },
+      "integrity": {
+        "passed": 1,
+        "failed": 0,
+        "total": 1
+      }
+    }
+  },
+  "checks": [
+    {
+      "id": "protected-fixture-files",
+      "category": "integrity",
+      "pass": true,
+      "detail": {
+        "files": [
+          {
+            "file": "package.json",
+            "pass": true
+          },
+          {
+            "file": "tsconfig.json",
+            "pass": true
+          },
+          {
+            "file": "smoke.mjs",
+            "pass": true
+          }
+        ],
+        "copyIssues": []
+      }
+    },
+    {
+      "id": "strict-compilation",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": [],
+        "clientPresent": true
+      }
+    },
+    {
+      "id": "property-contract",
+      "category": "type-contract",
+      "pass": false,
+      "detail": {
+        "diagnostics": [
+          {
+            "code": 2345,
+            "category": "Error",
+            "file": "src/__held_out_contract__.ts",
+            "line": 12,
+            "message": "Argument of type 'number' is not assignable to parameter of type 'string'."
+          },
+          {
+            "code": 2345,
+            "category": "Error",
+            "file": "src/__held_out_contract__.ts",
+            "line": 13,
+            "message": "Argument of type 'typeof symbolKey' is not assignable to parameter of type 'string'."
+          },
+          {
+            "code": 2344,
+            "category": "Error",
+            "file": "src/__held_out_contract__.ts",
+            "line": 14,
+            "message": "Type 'false' does not satisfy the constraint 'true'."
+          },
+          {
+            "code": 2344,
+            "category": "Error",
+            "file": "src/__held_out_contract__.ts",
+            "line": 15,
+            "message": "Type 'false' does not satisfy the constraint 'true'."
+          },
+          {
+            "code": 2344,
+            "category": "Error",
+            "file": "src/__held_out_contract__.ts",
+            "line": 16,
+            "message": "Type 'false' does not satisfy the constraint 'true'."
+          },
+          {
+            "code": 2344,
+            "category": "Error",
+            "file": "src/__held_out_contract__.ts",
+            "line": 17,
+            "message": "Type 'false' does not satisfy the constraint 'true'."
+          },
+          {
+            "code": 2344,
+            "category": "Error",
+            "file": "src/__held_out_contract__.ts",
+            "line": 22,
+            "message": "Type 'false' does not satisfy the constraint 'true'."
+          },
+          {
+            "code": 2578,
+            "category": "Error",
+            "file": "src/__held_out_contract__.ts",
+            "line": 23,
+            "message": "Unused '@ts-expect-error' directive."
+          }
+        ]
+      }
+    },
+    {
+      "id": "event-contract",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "map-and-callback-contract",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "headers-contract",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "dictionary-contract",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "preferences-contract",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "diagnostics": []
+      }
+    },
+    {
+      "id": "independent-delivery-status",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "baseline": [],
+        "sampleMutation": []
+      }
+    },
+    {
+      "id": "future-event-exhaustiveness",
+      "category": "type-contract",
+      "pass": true,
+      "detail": {
+        "baselineClean": true,
+        "diagnostics": [
+          {
+            "code": 2366,
+            "category": "Error",
+            "file": "src/client.ts",
+            "line": 14,
+            "message": "Function lacks ending return statement and return type does not include 'undefined'."
+          }
+        ],
+        "handlerDiagnostics": [
+          {
+            "code": 2366,
+            "category": "Error",
+            "file": "src/client.ts",
+            "line": 14,
+            "message": "Function lacks ending return statement and return type does not include 'undefined'."
+          }
+        ]
+      }
+    },
+    {
+      "id": "no-explicit-any-or-suppression",
+      "category": "safety",
+      "pass": true,
+      "detail": {
+        "explicitAny": [],
+        "suppressions": []
+      }
+    },
+    {
+      "id": "valid-events",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "all variants and boundary values",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "invalid-object-type-id",
+      "category": "runtime",
+      "pass": false,
+      "detail": [
+        {
+          "name": "containers and primitive values",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Missing expected exception (Error).\n    at rejects (file://<temporary>/candidate/[eval1]:15:33)\n    at rejects.type.type (file://<temporary>/candidate/[eval1]:32:135)\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:30:7"
+        },
+        {
+          "name": "discriminants",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Missing expected exception (Error).\n    at rejects (file://<temporary>/candidate/[eval1]:15:33)\n    at rejects.type (file://<temporary>/candidate/[eval1]:34:101)\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:30:7"
+        },
+        {
+          "name": "required nonempty string id",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Missing expected exception (Error).\n    at rejects (file://<temporary>/candidate/[eval1]:15:33)\n    at file://<temporary>/candidate/[eval1]:35:113\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:30:7"
+        }
+      ]
+    },
+    {
+      "id": "created-attempt-validation",
+      "category": "runtime",
+      "pass": false,
+      "detail": [
+        {
+          "name": "finite nonnegative integer required",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Missing expected exception (Error).\n    at rejects (file://<temporary>/candidate/[eval1]:15:33)\n    at rejects.type (file://<temporary>/candidate/[eval1]:38:144)\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:37:7"
+        },
+        {
+          "name": "missing attempt",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Missing expected exception (Error).\n    at rejects (file://<temporary>/candidate/[eval1]:15:33)\n    at file://<temporary>/candidate/[eval1]:39:28\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:37:7"
+        }
+      ]
+    },
+    {
+      "id": "created-label-validation",
+      "category": "runtime",
+      "pass": false,
+      "detail": [
+        {
+          "name": "only arrays containing strings",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Missing expected exception (Error).\n    at rejects (file://<temporary>/candidate/[eval1]:15:33)\n    at assert.equal.Object.hasOwn.parse.type (file://<temporary>/candidate/[eval1]:44:91)\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:41:7"
+        },
+        {
+          "name": "absence remains absence",
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "retry-and-closed-validation",
+      "category": "runtime",
+      "pass": false,
+      "detail": [
+        {
+          "name": "finite nonnegative delay",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Missing expected exception (Error).\n    at rejects (file://<temporary>/candidate/[eval1]:15:33)\n    at rejects.type (file://<temporary>/candidate/[eval1]:49:131)\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:48:7"
+        },
+        {
+          "name": "string or null reason required",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Missing expected exception (Error).\n    at rejects (file://<temporary>/candidate/[eval1]:15:33)\n    at rejects.type (file://<temporary>/candidate/[eval1]:50:114)\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:48:7"
+        },
+        {
+          "name": "missing fields",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Missing expected exception (Error).\n    at rejects (file://<temporary>/candidate/[eval1]:15:33)\n    at file://<temporary>/candidate/[eval1]:51:29\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:48:7"
+        }
+      ]
+    },
+    {
+      "id": "fresh-filtered-copies",
+      "category": "runtime",
+      "pass": false,
+      "detail": [
+        {
+          "name": "fresh objects and recognized fields only",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Expected \"actual\" not to be reference-equal to \"expected\":\n\n{\n  [Symbol(extra)]: 'ignored',\n  attempt: 0,\n  extra: 'ignored',\n  id: 'x',\n  type: 'created'\n}\n\n    at labels (file://<temporary>/candidate/[eval1]:58:11)\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:53:7"
+        },
+        {
+          "name": "labels copied in both directions",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Expected \"actual\" not to be reference-equal to \"expected\":\n\n[\n  'a'\n]\n\n    at file://<temporary>/candidate/[eval1]:64:39\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:53:7"
+        }
+      ]
+    },
+    {
+      "id": "json-validation",
+      "category": "runtime",
+      "pass": false,
+      "detail": [
+        {
+          "name": "valid JSON applies normalization",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    attempt: 0,\n+   extra: true,\n    id: 'x',\n    type: 'created'\n  }\n\n    at file://<temporary>/candidate/[eval1]:72:52\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:71:7"
+        },
+        {
+          "name": "malformed or semantically invalid JSON",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Missing expected exception (Error).\n    at file://<temporary>/candidate/[eval1]:73:197\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:71:7"
+        }
+      ]
+    },
+    {
+      "id": "formatting",
+      "category": "runtime",
+      "pass": false,
+      "detail": [
+        {
+          "name": "exact variant rendering and nullish fallback",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'closed:x:unknown'\n- 'closed:x:'\n            ^\n\n    at file://<temporary>/candidate/[eval1]:83:13\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:75:7"
+        }
+      ]
+    },
+    {
+      "id": "map-fallback",
+      "category": "runtime",
+      "pass": false,
+      "detail": [
+        {
+          "name": "preserve present values and only fall back when missing",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n'fallback' !== ''\n\n    at file://<temporary>/candidate/[eval1]:89:10\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at file://<temporary>/candidate/[eval1]:86:7"
+        }
+      ]
+    },
+    {
+      "id": "deferred-callbacks",
+      "category": "runtime",
+      "pass": false,
+      "detail": [
+        {
+          "name": "null enqueues nothing",
+          "pass": true
+        },
+        {
+          "name": "capture original non-null strings exactly once",
+          "pass": false,
+          "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== 1\n\n    at file://<temporary>/candidate/[eval1]:100:68\n    at group (file://<temporary>/candidate/[eval1]:10:15)\n    at async file://<temporary>/candidate/[eval1]:96:1"
+        }
+      ]
+    },
+    {
+      "id": "runtime-property-and-preferences",
+      "category": "runtime",
+      "pass": true,
+      "detail": [
+        {
+          "name": "symbol and number access",
+          "pass": true
+        },
+        {
+          "name": "preferences frozen with original values",
+          "pass": true
+        }
+      ]
+    }
+  ],
+  "compilerVersion": "5.9.3",
+  "manualReviewDetails": [
+    {
+      "file": "src/client.ts",
+      "line": 7,
+      "text": "input as Event",
+      "kind": "type-assertion"
+    },
+    {
+      "file": "src/client.ts",
+      "line": 23,
+      "text": "value as Record<string, unknown>",
+      "kind": "type-assertion"
+    },
+    {
+      "file": "src/client.ts",
+      "line": 31,
+      "text": "label!",
+      "kind": "non-null-assertion"
+    }
+  ]
+}

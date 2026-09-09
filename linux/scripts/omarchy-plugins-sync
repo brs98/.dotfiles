@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# Reconcile the Omarchy plugins declared by linux/omarchy/plugins.json.
+#
+# Owned plugins are normal clones under ~/src and whole-directory links in
+# ~/.config/omarchy/plugins. Third-party plugins remain normal checkouts in
+# the live directory. shell.json owns enablement and placement; this script
+# owns only repository identity, checkout location, validation, and updates.
+
+set -euo pipefail
+
+export GIT_TERMINAL_PROMPT=0
+
+ACTION="${1:-sync}"
+case "$ACTION" in
+  sync|check|update) ;;
+  *)
+    echo "usage: omarchy-plugins-sync [sync|check|update]" >&2
+    exit 2
+    ;;
+esac
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${DOTFILES:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
+INVENTORY="${OMARCHY_PLUGIN_INVENTORY:-$REPO_ROOT/linux/omarchy/plugins.json}"
+SOURCE_ROOT="${OMARCHY_PLUGIN_SOURCE_ROOT:-$HOME/src}"
+LIVE_ROOT="${OMARCHY_PLUGIN_DIR:-$HOME/.config/omarchy/plugins}"
+
+fail() {
+  echo "omarchy-plugins-sync: $*" >&2
+  exit 1
+}
+
+for command_name in flock git jq omarchy; do
+  command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
+done
+
+[[ -f "$INVENTORY" ]] || fail "inventory not found: $INVENTORY"
+
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-plugins-sync.${UID}.lock"
+exec 9>"$LOCK_FILE"
+flock -n 9 || fail "another plugin reconciliation is already running"
+
+jq -e '
+  .version == 1 and
+  (.plugins | type == "array") and
+  ([.plugins[].id] | length == (unique | length)) and
+  ([.plugins[] | select(.management == "source-link") | .checkout] | length == (unique | length)) and
+  all(.plugins[];
+    (.id | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*$") and (contains("..") | not)) and
+    (.repository | type == "string" and test("^https://github[.]com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+[.]git$")) and
+    (.branch | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._/-]*$") and (contains("..") | not)) and
+    (.management == "source-link" or .management == "omarchy") and
+    (if .management == "source-link" then
+      (.checkout | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]*$") and (contains("..") | not))
+    else (.checkout == null) end)
+  )
+' "$INVENTORY" >/dev/null || fail "invalid inventory: $INVENTORY"
+
+if [[ "$ACTION" != check ]]; then
+  mkdir -p "$SOURCE_ROOT" "$LIVE_ROOT"
+fi
+
+changed=0
+
+same_checkout() {
+  [[ -L "$1" ]] || return 1
+  [[ $(readlink -f -- "$1") == $(readlink -f -- "$2") ]]
+}
+
+verify_plugin() {
+  local expected_id="$1"
+  local plugin_dir="$2"
+  local actual_id
+
+  [[ -f "$plugin_dir/manifest.json" ]] || {
+    echo "omarchy-plugins-sync: $expected_id has no manifest at $plugin_dir" >&2
+    return 1
+  }
+  actual_id=$(jq -r '.id // empty' "$plugin_dir/manifest.json")
+  [[ "$actual_id" == "$expected_id" ]] || {
+    echo "omarchy-plugins-sync: inventory id '$expected_id' does not match manifest id '$actual_id' in $plugin_dir" >&2
+    return 1
+  }
+  omarchy plugin validate "$plugin_dir" >/dev/null
+}
+
+clone_verified() {
+  local plugin_id="$1"
+  local repository="$2"
+  local branch="$3"
+  local target_dir="$4"
+  local parent_dir stage_dir
+
+  parent_dir=$(dirname -- "$target_dir")
+  mkdir -p "$parent_dir"
+  stage_dir=$(mktemp -d "$parent_dir/.omarchy-plugin-sync.XXXXXX")
+  # git clone requires its destination not to exist.
+  rmdir "$stage_dir"
+
+  if ! git clone --branch "$branch" --single-branch -- "$repository" "$stage_dir"; then
+    [[ ! -e "$stage_dir" ]] || rm -rf -- "$stage_dir"
+    fail "could not clone $plugin_id"
+  fi
+  if ! verify_plugin "$plugin_id" "$stage_dir"; then
+    rm -rf -- "$stage_dir"
+    fail "refusing invalid checkout for $plugin_id"
+  fi
+  mv -- "$stage_dir" "$target_dir"
+}
+
+update_checkout() {
+  local plugin_id="$1"
+  local plugin_dir="$2"
+  local branch="$3"
+  local validation_dir
+
+  [[ -z $(git -C "$plugin_dir" status --porcelain) ]] ||
+    fail "$plugin_id has local changes; commit or discard them before updating"
+  [[ $(git -C "$plugin_dir" branch --show-current) == "$branch" ]] ||
+    fail "$plugin_id must be on branch '$branch' before updating"
+
+  git -C "$plugin_dir" fetch --quiet origin "$branch"
+  if [[ $(git -C "$plugin_dir" rev-parse HEAD) == $(git -C "$plugin_dir" rev-parse FETCH_HEAD) ]]; then
+    return
+  fi
+
+  # Validate the fetched tree before moving the working checkout. An invalid
+  # upstream commit therefore leaves the installed plugin untouched.
+  validation_dir=$(mktemp -d)
+  rmdir "$validation_dir"
+  git -C "$plugin_dir" worktree add --quiet --detach "$validation_dir" FETCH_HEAD
+  if ! verify_plugin "$plugin_id" "$validation_dir"; then
+    git -C "$plugin_dir" worktree remove --force "$validation_dir"
+    fail "refusing invalid update for $plugin_id"
+  fi
+  git -C "$plugin_dir" worktree remove "$validation_dir"
+  git -C "$plugin_dir" merge --ff-only FETCH_HEAD >/dev/null
+  changed=1
+}
+
+while IFS=$'\t' read -r plugin_id repository management checkout branch; do
+  if [[ "$management" == source-link ]]; then
+    plugin_dir="$SOURCE_ROOT/$checkout"
+    live_dir="$LIVE_ROOT/$plugin_id"
+
+    if [[ ! -e "$plugin_dir" ]]; then
+      [[ "$ACTION" != check ]] || fail "$plugin_id checkout is missing: $plugin_dir"
+      clone_verified "$plugin_id" "$repository" "$branch" "$plugin_dir"
+      changed=1
+    fi
+    [[ -d "$plugin_dir/.git" ]] || fail "$plugin_id is not a normal Git clone: $plugin_dir"
+
+    if [[ -e "$live_dir" || -L "$live_dir" ]]; then
+      same_checkout "$live_dir" "$plugin_dir" ||
+        fail "$plugin_id live path is not the expected directory link: $live_dir"
+    else
+      [[ "$ACTION" != check ]] || fail "$plugin_id live link is missing: $live_dir"
+      ln -s "$plugin_dir" "$live_dir"
+      changed=1
+    fi
+  else
+    plugin_dir="$LIVE_ROOT/$plugin_id"
+    if [[ ! -e "$plugin_dir" && ! -L "$plugin_dir" ]]; then
+      [[ "$ACTION" != check ]] || fail "$plugin_id is not installed: $plugin_dir"
+      clone_verified "$plugin_id" "$repository" "$branch" "$plugin_dir"
+      changed=1
+    fi
+    [[ ! -L "$plugin_dir" && -d "$plugin_dir/.git" ]] ||
+      fail "$plugin_id is not a normal checkout in the live plugin directory: $plugin_dir"
+  fi
+
+  configured_remote=$(git -C "$plugin_dir" remote get-url origin 2>/dev/null || true)
+  [[ "$configured_remote" == "$repository" ]] ||
+    fail "$plugin_id origin is '$configured_remote', expected '$repository'"
+  current_branch=$(git -C "$plugin_dir" branch --show-current)
+  [[ "$current_branch" == "$branch" ]] ||
+    fail "$plugin_id is on branch '$current_branch', expected '$branch'"
+  verify_plugin "$plugin_id" "$plugin_dir" || fail "plugin validation failed for $plugin_id"
+
+  if [[ "$ACTION" == update ]]; then
+    update_checkout "$plugin_id" "$plugin_dir" "$branch"
+  fi
+done < <(jq -r '.plugins[] | [
+  .id,
+  .repository,
+  .management,
+  (.checkout // "-"),
+  .branch
+] | @tsv' "$INVENTORY")
+
+if (( changed )) && [[ "$ACTION" != check ]] && [[ ${OMARCHY_PLUGIN_RESCAN:-1} != 0 ]]; then
+  if omarchy shell shell ping >/dev/null 2>&1; then
+    omarchy shell shell rescanPlugins >/dev/null
+  else
+    echo "omarchy-plugins-sync: shell is not running; plugins will be discovered at next login" >&2
+  fi
+fi
+
+case "$ACTION" in
+  check) result_word="checked" ;;
+  sync) result_word="synced" ;;
+  update) result_word="updated" ;;
+esac
+echo "✓ Omarchy plugins are $result_word and consistent"

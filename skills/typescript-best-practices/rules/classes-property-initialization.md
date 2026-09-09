@@ -1,28 +1,17 @@
-# property-initialization
+# Class initialization
 
-**When:** Class properties need default values.
+**When:** A field has a simple, unconditional default value.
 
-## Bad
+An inline initializer makes a simple default easy to find.
+
 ```typescript
-class Counter {
+class Counter { count = 0; }
+class NamedCounter {
   count: number;
-
-  constructor() {
-    this.count = 0; // Verbose initialization
-  }
+  constructor(start: number) { this.count = start; }
 }
 ```
 
-## Good
-```typescript
-class Counter {
-  count = 0; // Direct initialization with inference
+Constructor initialization remains appropriate for argument-dependent values and ordering. Under `strictPropertyInitialization`, initialize required fields on every constructor path or model their possible absence. `!` is a trusted external-initialization assertion, not initialization. Comparisons, conditional assignments and callbacks do not necessarily initialize a field.
 
-  increment() {
-    this.count++;
-  }
-}
-```
-
-## Why
-Initialize class properties directly with default values instead of in constructors. This is more concise and TypeScript infers the type from the initial value.
+**Source:** [Class initialization](https://www.typescriptlang.org/docs/handbook/2/classes.html#fields). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

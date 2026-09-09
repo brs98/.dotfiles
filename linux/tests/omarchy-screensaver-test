@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Check screensaver artwork selection without touching the live desktop."""
+from pathlib import Path
+import os
+import subprocess
+import tempfile
+
+root = Path(__file__).resolve().parents[2]
+source = root / 'linux/stow/wezterm-default/.local/share/omarchy-overrides/bin/omarchy-screensaver'
+# Redirect only the script's home references into fixtures. Never change HOME or
+# call real compositor, terminal animation, or process-management commands.
+script = source.read_text().replace('$HOME', '$SCREENSAVER_TEST_HOME')
+mock = r'''
+hyprctl() { return 0; }
+pkill() { return 0; }
+tty() { printf '/dev/pts/mock\n'; }
+stty() { printf '50 160\n'; }
+ttfx() {
+  local input=$2
+  if [[ -s $input ]]; then
+    cat "$input" >> "$SCREENSAVER_TEST_LOG"
+  else
+    printf 'MISSING\n' >> "$SCREENSAVER_TEST_LOG"
+  fi
+  if [[ $(wc -l < "$SCREENSAVER_TEST_LOG") == 1 ]]; then
+    case $SCREENSAVER_TEST_CHANGE in
+      remove) rm "$SCREENSAVER_TEST_HOME/.local/state/omarchy/current/theme/screensaver.txt" ;;
+      add) printf 'THEME\n' > "$SCREENSAVER_TEST_HOME/.local/state/omarchy/current/theme/screensaver.txt" ;;
+    esac
+  fi
+}
+pgrep() {
+  wait
+  if [[ $(wc -l < "$SCREENSAVER_TEST_LOG") -ge 2 ]]; then
+    exit 0
+  fi
+  return 1
+}
+'''
+cases = [
+    ('nondefault-xdg-state', 'THEME\n', '', True, ['THEME', 'THEME']),
+    ('theme-to-fallback', 'THEME\n', 'remove', False, ['THEME', 'FALLBACK']),
+    ('fallback-to-theme', None, 'add', False, ['FALLBACK', 'THEME']),
+    ('empty-theme-fallback', '', '', False, ['FALLBACK', 'FALLBACK']),
+    ('stable-theme', 'THEME\n', '', False, ['THEME', 'THEME']),
+]
+failures = 0
+with tempfile.TemporaryDirectory(prefix='.screensaver-check-', dir=root) as tmp:
+    base = Path(tmp)
+    runner = base / 'screensaver'
+    runner.write_text(script)
+    bash_env = base / 'mocks.bash'
+    bash_env.write_text(mock)
+    for name, initial, change, use_xdg, expected in cases:
+        fixture = base / name
+        theme = fixture / '.local/state/omarchy/current/theme/screensaver.txt'
+        fallback = fixture / '.config/omarchy/branding/screensaver.txt'
+        theme.parent.mkdir(parents=True)
+        fallback.parent.mkdir(parents=True)
+        fallback.write_text('FALLBACK\n')
+        if initial is not None:
+            theme.write_text(initial)
+        log = fixture / 'calls.log'
+        env = os.environ.copy()
+        env.update(BASH_ENV=str(bash_env), SCREENSAVER_TEST_HOME=str(fixture),
+                   SCREENSAVER_TEST_LOG=str(log), SCREENSAVER_TEST_CHANGE=change)
+        env.pop('XDG_STATE_HOME', None)
+        if use_xdg:
+            env['XDG_STATE_HOME'] = str(fixture / 'alternate-state')
+        result = subprocess.run(['/bin/bash', str(runner)], env=env,
+                                capture_output=True, timeout=5)
+        actual = log.read_text().splitlines() if log.exists() else []
+        ok = result.returncode == 0 and actual == expected
+        print(f'{"PASS" if ok else "FAIL"} {name}: expected {expected}; got {actual}')
+        failures += not ok
+raise SystemExit(bool(failures))

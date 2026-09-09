@@ -1,24 +1,29 @@
-# dts-no-runtime-code
+# Declaration files describe runtime values without implementing them
 
-**When:** Creating or editing `.d.ts` declaration files.
+**When:** Editing `.d.ts`, `.d.mts` or `.d.cts` declaration files.
 
-## Bad
+Literal constants and signatures are valid declarations:
+
 ```typescript
-// types.d.ts
-export const API_URL = "https://api.example.com"; // Error: initializers not allowed
-export function parse(input: string) {
-  return JSON.parse(input); // Error: implementations not allowed
-}
-```
-
-## Good
-```typescript
-// types.d.ts
-export declare const API_URL: string;
+// file: api.d.ts
+export const API_URL = "https://api.example.com";
 export declare function parse(input: string): unknown;
-
-// Implementation goes in .ts or .js files
 ```
 
-## Why
-Declaration files (`.d.ts`) describe types only - they cannot contain runtime code like variable initializers or function bodies. Use `declare` keyword for ambient declarations.
+The literal constant describes an existing value; this file emits no JavaScript. Not every initializer is forbidden. TypeScript permits unannotated ambient `const`/`readonly` literal declarations, including supported string, numeric, boolean and enum literals.
+
+Runtime expressions and implementation bodies belong in `.ts` or `.js`:
+
+```typescript
+// file: invalid.d.ts
+// @ts-expect-error A runtime computation cannot initialize an ambient constant.
+export const API_URL = "https://" + "api.example.com";
+// @ts-expect-error Ambient functions cannot have implementation bodies.
+export function parse(input: string) { return JSON.parse(input); }
+```
+
+Declarations do not prove their promised values exist or match the implementation. Check authored declarations with declaration checking enabled; `skipLibCheck` may otherwise conceal their errors.
+
+**Validation:** Both valid declarations and expected ambient errors checked with TypeScript 5.9.2, skipLibCheck false.
+
+**Source:** [Workshop declaration-file exceptions](https://www.totaltypescript.com/workshops/typescript-pro-essentials/modules-scripts-and-declaration-files/declaration-files-in-typescript)

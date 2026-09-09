@@ -1,18 +1,9 @@
-# skip-lib-check
+# Choose the declaration-checking tradeoff
 
-**When:** Configuring any TypeScript project.
+**When:** Declaration checking materially affects application build time or declaration dependencies conflict.
 
-## Bad
-```json
-{
-  "compilerOptions": {
-    "skipLibCheck": false
-  }
-}
-// Type-checks all .d.ts files including node_modules
-```
+An application may choose this performance default:
 
-## Good
 ```json
 {
   "compilerOptions": {
@@ -21,5 +12,10 @@
 }
 ```
 
-## Why
-`skipLibCheck` skips type checking of declaration files (.d.ts), significantly speeding up compilation. Third-party declaration files may have conflicts or errors outside your control that would otherwise block your build.
+Keeping it `false` is also valid. The flag skips checking declaration files, including your own `.d.ts` files, and can hide inconsistent declaration types. It does not stop TypeScript from using those declarations to check application code.
+
+Diagnose dependency/version conflicts rather than assuming suppression repairs them. When authoring or publishing declarations, include a validation job with declaration checking enabled. Treat the workshop's application performance default as a tradeoff, not a universal measure of type safety.
+
+**Validation:** Compiler examples checked with TypeScript 5.9.2; strict checking unless stated otherwise.
+
+**Source:** [TypeScript skipLibCheck](https://www.typescriptlang.org/tsconfig/skipLibCheck.html), [workshop declaration checking](https://www.totaltypescript.com/workshops/typescript-pro-essentials/types-you-don%27t-control/tsconfig-options-and-declaration-files/solution)

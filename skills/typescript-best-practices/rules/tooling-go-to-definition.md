@@ -1,24 +1,13 @@
-# go-to-definition
+# Navigate by symbol identity
 
-**When:** Navigating to where a function, type, or variable is defined.
+**When:** Locating the declaration or references for a specific binding.
 
-## Bad
-```
-1. Open file search (Cmd+P)
-2. Guess which file contains the definition
-3. Search within the file for the name
-4. Hope you found the right one
-```
+Use the editor/LSP's **Go to Definition** or **Find References** command. Semantic navigation distinguishes unrelated bindings that happen to have the same name and can follow imports across files.
 
-## Good
-```
-- Cmd+Click (Mac) / Ctrl+Click (Windows) on any identifier
-- Or press F12 with cursor on identifier
-- Jump directly to the definition
+With typical VS Code keymaps, F12 invokes Go to Definition and Shift+F12 invokes Find References. Cmd+Click on macOS or Ctrl+Click on Windows/Linux commonly navigates too; bindings can be customized. Agents should use available semantic tools rather than emulate a particular keystroke.
 
-- On a definition: Shift+F12 to see all references
-- Alt+Left to go back to previous location
-```
+Text/file search remains useful for dynamic references, generated names or unavailable language-service context. A declaration map may let navigation reach source instead of `.d.ts` when those sources are accessible.
 
-## Why
-Go to Definition leverages TypeScript's understanding of your code to jump directly to declarations. Essential for navigating codebases and understanding how code connects.
+**Validation:** Tooling guidance source-reviewed 2026-09-04; commands must use the repository’s installed tools and actual project paths.
+
+**Source:** [VS Code TypeScript code navigation](https://code.visualstudio.com/docs/typescript/typescript-editing#_code-navigation)

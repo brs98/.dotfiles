@@ -1,27 +1,28 @@
-# this-annotation
+# Dynamic and bound receivers
 
-**When:** Attaching a method to an object where `this` context matters.
+**When:** A callable depends on its receiver.
 
-## Bad
+Use an explicit `this` parameter for a function intended to receive its object from the call site.
+
+```typescript
+function showLabel(this: { label: string }) { return this.label; }
+const button = { label: "Submit", showLabel };
+button.showLabel();
+const bound = button.showLabel.bind(button);
+bound();
+```
+
+Use an arrow field when callbacks must retain the instance:
+
 ```typescript
 class Button {
-  label = "Click me";
-  handleClick = () => {
-    console.log(this.label); // Arrow captures `this`, but can't be rebound
-  };
+  label = "Submit";
+  showLabel = () => this.label;
 }
-// Arrow functions increase memory per instance
+const callback = new Button().showLabel;
+callback();
 ```
 
-## Good
-```typescript
-function handleClick(this: { label: string }) {
-  console.log(this.label);
-}
+A `this` annotation is erased and does not bind anything at runtime. Replacing a bound arrow with a prototype method can break detached callbacks. Arrow fields allocate per instance; choose based on binding and API needs.
 
-const button = { label: "Submit", handleClick };
-button.handleClick(); // Works - `this` is the button object
-```
-
-## Why
-Use regular functions with a typed `this` parameter when the function will be called as a method. This allows `this` to be determined by call-site and uses less memory than arrow functions.
+**Source:** [Dynamic and bound receivers](https://www.typescriptlang.org/docs/handbook/2/classes.html#this-at-runtime-in-classes). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

@@ -1,25 +1,20 @@
 # function-default-type
 
-**When:** A generic function has a sensible default type when inference isn't possible.
+**When:** A generic function has a useful common type when neither arguments nor context provide an inference candidate.
 
-## Bad
 ```typescript
-function createState<T>(): { value: T | undefined; set: (v: T) => void } {
-  let value: T | undefined;
-  return { value, set: (v) => { value = v; } };
+function createStringMap<T = string>() {
+  return new Map<string, T>();
 }
-const state = createState(); // T is unknown - not useful
+const labels = createStringMap();
+labels.set("save", "Save");
+// @ts-expect-error The default value type is string.
+labels.set("count", 1);
+
+const counts = createStringMap<number>();
+counts.set("count", 1);
 ```
 
-## Good
-```typescript
-function createState<T = unknown>(): { value: T | undefined; set: (v: T) => void } {
-  let value: T | undefined;
-  return { value, set: (v) => { value = v; } };
-}
-const state = createState<number>(); // Explicit when needed
-const anyState = createState(); // Defaults to unknown
-```
+A default is a fallback; inference or an explicit type argument can select another type. Choose it from the API's actual common case. An unconstrained, uninferred parameter already falls back to `unknown`, so adding `= unknown` alone does not make that case more useful.
 
-## Why
-Default type parameters provide a fallback when inference isn't possible (e.g., no arguments to infer from). This improves ergonomics while keeping the function generic.
+**Sources and version:** [TypeScript documentation](https://www.typescriptlang.org/docs/handbook/2/generics.html#generic-parameter-defaults); [Pro Essentials course source](https://github.com/total-typescript/pro-essentials-workshop/blob/7491e6c5ed45dfcb3593289397e3a68244898128/src/085-the-utils-folder/216-type-parameter-defaults-in-generic-functions.solution.ts). TypeScript 5.5+, strict mode; examples target ES2022.

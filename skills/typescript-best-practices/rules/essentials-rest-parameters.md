@@ -1,29 +1,15 @@
-# rest-parameters
+# Rest parameter contracts
 
-**When:** A function accepts a variable number of arguments using `...`.
+**When:** Typing a variable number of arguments.
 
-## Bad
+Annotate an untyped rest parameter, or supply its type contextually. Use arrays for homogeneous arguments and tuples for positional contracts.
+
 ```typescript
-function concatenate(...strings) {
-  // Error: Rest parameter 'strings' implicitly has an 'any[]' type
-  return strings.join("");
-}
+function sum(...values: number[]) { return values.reduce((a, b) => a + b, 0); }
+const contextual: (...values: number[]) => number = (...values) => sum(...values);
+function pair(...args: [name: string, count: number]) { return args; }
 ```
 
-## Good
-```typescript
-// Annotate rest parameter as an array type
-function concatenate(...strings: string[]) {
-  return strings.join("");
-}
+Do not demand a redundant annotation when contextual typing already supplies it.
 
-concatenate("Hello", " ", "World"); // "Hello World"
-
-// Works with other types too
-function sum(...numbers: number[]) {
-  return numbers.reduce((a, b) => a + b, 0);
-}
-```
-
-## Why
-Rest parameters collect multiple arguments into an array. Annotate them with the array type (`Type[]`) to get proper type checking on each argument passed.
+**Source:** [Rest parameter contracts](https://www.typescriptlang.org/docs/handbook/2/functions.html#rest-parameters). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

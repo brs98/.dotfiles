@@ -1,31 +1,17 @@
-# function-type-annotations
+# Function contracts
 
-**When:** A function accepts another function as a parameter (callbacks, handlers).
+**When:** Typing a callback or exported callable contract.
 
-## Bad
+Describe the arguments and result rather than using the broad `Function` type.
+
 ```typescript
-const modifyUser = (users: User[], id: string, makeChange) => {
-  // Error: Parameter 'makeChange' implicitly has an 'any' type
-  return users.map((u) => (u.id === id ? makeChange(u) : u));
-};
+type User = { name: string };
+type FormatUser = (user: User) => string;
+const format: FormatUser = user => user.name;
+const callbacks: Array<() => void> = [];
+const addCallback: () => void = () => callbacks.push(() => {});
 ```
 
-## Good
-```typescript
-// Function type: (params) => returnType
-const modifyUser = (
-  users: User[],
-  id: string,
-  makeChange: (user: User) => User
-) => {
-  return users.map((u) => (u.id === id ? makeChange(u) : u));
-};
+A contextual `() => void` contract means the caller ignores the result; the implementation may return a value, as `push` does here. A function explicitly declared `function f(): void` cannot return a number. Parameter annotations can be inferred from a contextual callback type.
 
-// Void return for callbacks that don't return anything
-const onClick = (handler: () => void) => {
-  document.addEventListener("click", handler);
-};
-```
-
-## Why
-Function types use arrow syntax `(param: Type) => ReturnType`. Use `void` for functions that should not return anything. This enables TypeScript to check both parameters and return value.
+**Source:** [Function contracts](https://www.typescriptlang.org/docs/handbook/2/functions.html#return-type-void). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

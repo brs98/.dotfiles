@@ -1,30 +1,21 @@
-# tsx-for-scripts
+# Choose an appropriate TypeScript script runner
 
-**When:** Running TypeScript scripts, migrations, or utilities without a build step.
+**When:** Running development scripts without a separate output build is useful.
 
-## Bad
-```bash
-# Compile first, then run
-tsc scripts/migrate.ts --outDir tmp
-node tmp/migrate.js
-rm -rf tmp
-```
+`tsx` is an option when the repository supports it. Install development tooling with the project's package manager, then use a package-local script:
 
-## Good
-```bash
-# Install tsx
-npm install -D tsx
-
-# Run TypeScript directly
-npx tsx scripts/migrate.ts
-
-# Or add to package.json
+```json
 {
   "scripts": {
-    "migrate": "tsx scripts/migrate.ts"
+    "script:example": "tsx scripts/example.ts"
   }
 }
 ```
 
-## Why
-`tsx` runs TypeScript files instantly without compilation steps. Perfect for scripts, database migrations, and one-off utilities. Much faster iteration than compiling first.
+`tsx` transpiles and executes TypeScript without type checking. Keep a separate checker covering the script and its intended runtime globals. Compiling with the project config and then running the emitted JavaScript is also valid, especially for published/deployed output.
+
+Supported Node versions can run erasable TypeScript directly, for example `node scripts/example.ts`. Native type stripping ignores `tsconfig.json`, requires runtime-resolvable import paths, and does not transform enums, parameter properties, runtime namespaces or JSX. Use `erasableSyntaxOnly` (TypeScript 5.8+) to check relevant syntax restrictions when choosing that runtime; still verify the installed Node version and its documented support. Do not replace a working runner solely because native support exists.
+
+**Validation:** Tooling guidance source-reviewed 2026-09-04; commands must use the repository’s installed tools and actual project paths.
+
+**Source:** [Node TypeScript execution](https://nodejs.org/api/typescript.html), [workshop tsx](https://www.totaltypescript.com/workshops/typescript-pro-essentials/typescript-in-the-build-process/quickly-create-scripts-with-tsx)

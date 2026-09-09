@@ -1,18 +1,14 @@
 # typeof-for-object-keys
 
-**When:** You need a union type of keys from a runtime object or constant.
+**When:** A key union should follow all the statically known keys of an accessible runtime object.
 
-## Bad
 ```typescript
 const routes = { home: "/", about: "/about", contact: "/contact" };
-type Route = "home" | "about" | "contact"; // Manual, can drift
-```
-
-## Good
-```typescript
-const routes = { home: "/", about: "/about", contact: "/contact" } as const;
 type Route = keyof typeof routes; // "home" | "about" | "contact"
 ```
 
-## Why
-`keyof typeof` derives a union of keys directly from a runtime value. Combined with `as const`, the type stays in sync with the actual object - add a key to the object and the type updates automatically.
+`keyof typeof` derives the key union without `as const`. A const assertion changes literal values and readonly properties, not the ordinary object literal key names here. Derive the union when adding a source key should expand the consumer's contract. Index signatures can broaden `keyof` to string/number/symbol domains, so this is not always a finite list of strings.
+
+Include every index signature in that check, including inherited symbol indexes and template patterns such as `[key: \`data-${string}\`]: unknown`. A list of named properties does not cover those keys. Do not replace a finite union with `keyof` unless the broader domain is intended. See [symbol and template-pattern index signatures](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-4.html#symbol-and-template-string-pattern-index-signatures).
+
+**Sources and version:** [TypeScript documentation](https://www.typescriptlang.org/docs/handbook/2/keyof-types.html). TypeScript 5.5+, strict mode; examples target ES2022.

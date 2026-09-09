@@ -1,22 +1,11 @@
-# rename-symbol
+# Rename symbols with semantic tooling
 
-**When:** Renaming a variable, function, type, or any identifier.
+**When:** Renaming a variable, function, type or imported binding across its known references.
 
-## Bad
-```
-1. Use Find and Replace (Cmd+H)
-2. Replace "userId" with "id"
-3. Accidentally rename "userIdValidator" to "idValidator"
-4. Accidentally rename "userId" in comments and strings
-```
+Use **Rename Symbol** in the editor/LSP (typically F2 in VS Code), inspect its preview, then verify the resulting diff. It follows the selected binding instead of replacing every textual match; unrelated same-named symbols should remain unchanged.
 
-## Good
-```
-1. Click on the identifier you want to rename
-2. Press F2 (or right-click > Rename Symbol)
-3. Type the new name
-4. Press Enter - all references updated correctly
-```
+A semantic rename can update references across the loaded project, but cannot guarantee updates to external consumers, dynamic string lookups, generated contracts or another package's public API usage. Treat exported names as API changes when appropriate and run the relevant checks. Plain search remains useful to review those non-semantic references.
 
-## Why
-Rename Symbol understands TypeScript's scope and semantics. It only renames actual references to that specific binding, not text matches. Works across files automatically.
+**Validation:** Tooling guidance source-reviewed 2026-09-04; commands must use the repository’s installed tools and actual project paths.
+
+**Source:** [VS Code TypeScript refactoring](https://code.visualstudio.com/docs/typescript/typescript-refactoring)

@@ -1,25 +1,27 @@
-# as-const-on-return-tuples
+# Preserve intended tuple returns
 
-**When:** Returning a tuple from a function and wanting proper tuple inference.
+**When:** A return value has fixed positions with different meanings, and an inferred array loses that relationship.
 
-## Bad
 ```typescript
-function useState<T>(initial: T) {
-  return [initial, (v: T) => {}]; // Inferred as (T | ((v: T) => void))[]
+function createCell<T>(initial: T) {
+  let current = initial;
+  const read = () => current;
+  const write = (next: T) => { current = next; };
+  return [read, write] as const;
 }
-const [value, setValue] = useState(0);
-setValue(1); // Error: not callable - it's a union!
+
+const [read, write] = createCell(0);
+write(1);
+const value: number = read(); // 1 at runtime; both slots have distinct types.
+
+// An explicit tuple contract is another valid choice, including mutable tuples.
+function pair(): [string, number] {
+  return ["ready", 1];
+}
+pair()[0] = "updated";
 ```
 
-## Good
-```typescript
-function useState<T>(initial: T) {
-  return [initial, (v: T) => {}] as const;
-  // Inferred as readonly [T, (v: T) => void]
-}
-const [value, setValue] = useState(0);
-setValue(1); // Works - properly typed as function
-```
+Use `as const` when a readonly tuple contract is intended. Explicit return annotations and contextual typing can also produce tuples. An ordinary homogeneous array return is valid when callers need array behavior; do not add `as const` merely because a return expression contains two or more elements.
 
-## Why
-Without `as const`, array literals are inferred as arrays (not tuples), creating a union of all element types. `as const` preserves the tuple structure and individual element types.
+**Checked:** TypeScript 5.9.2 with `strict` and `noUncheckedIndexedAccess` (ES2022 + DOM).
+**Sources:** [TS readonly tuples and const assertions](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-4.html#const-assertions).

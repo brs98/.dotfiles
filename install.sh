@@ -505,6 +505,14 @@ else
         DOTFILES="$PWD" linux/scripts/omarchy-shell-config-sync seed
     fi
 
+    # Owned plugins live as standalone repositories under ~/src and are linked
+    # into the shell; external plugins stay in Omarchy-managed checkouts.
+    if command -v omarchy >/dev/null 2>&1 && [ -x "linux/scripts/omarchy-plugins-sync" ]; then
+        echo "  → Reconciling Omarchy plugins..."
+        DOTFILES="$PWD" linux/scripts/omarchy-plugins-sync sync ||
+            echo "    ⚠ Omarchy plugin reconciliation reported issues"
+    fi
+
     if [ -f "$HOME/.config/systemd/user/omarchy-openrgb-theme.service" ]; then
         if command -v openrgb >/dev/null 2>&1; then
             systemctl --user daemon-reload

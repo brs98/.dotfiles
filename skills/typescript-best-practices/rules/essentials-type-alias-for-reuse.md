@@ -1,35 +1,15 @@
-# type-alias-for-reuse
+# Shared type aliases
 
-**When:** The same object type shape is used in multiple places.
+**When:** Repeated shapes represent one domain concept that should evolve together.
 
-## Bad
+An alias can keep a shared contract consistent.
+
 ```typescript
-// Duplicated type definitions
-const getRectangleArea = (rectangle: { width: number; height: number }) => {
-  return rectangle.width * rectangle.height;
-};
-
-const getRectanglePerimeter = (rectangle: { width: number; height: number }) => {
-  return 2 * (rectangle.width + rectangle.height);
-};
+type Rectangle = { width: number; height: number };
+function area(rectangle: Rectangle) { return rectangle.width * rectangle.height; }
+function perimeter(rectangle: Rectangle) { return 2 * (rectangle.width + rectangle.height); }
 ```
 
-## Good
-```typescript
-// Single source of truth with type alias
-type Rectangle = {
-  width: number;
-  height: number;
-};
+Structurally identical transport, domain, and UI models may have independent ownership. Keep those contracts separate when changes should not propagate automatically.
 
-const getRectangleArea = (rectangle: Rectangle) => {
-  return rectangle.width * rectangle.height;
-};
-
-const getRectanglePerimeter = (rectangle: Rectangle) => {
-  return 2 * (rectangle.width + rectangle.height);
-};
-```
-
-## Why
-Using a type alias creates a single source of truth. When you need to modify properties, you only change one place instead of hunting through every usage.
+**Source:** [Shared type aliases](https://www.typescriptlang.org/docs/handbook/2/everyday-types.html#type-aliases). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

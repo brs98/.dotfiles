@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
+SYNC="$REPO_ROOT/linux/scripts/omarchy-plugins-sync"
+INVENTORY="$SCRIPT_DIR/fixtures/omarchy-plugins-source-link.json"
+TEST_ROOT=$(mktemp -d)
+SOURCE_ROOT="$TEST_ROOT/source"
+LIVE_ROOT="$TEST_ROOT/live"
+
+cleanup() {
+  rm -rf -- "$TEST_ROOT"
+}
+trap cleanup EXIT
+
+mkdir -p "$SOURCE_ROOT" "$LIVE_ROOT"
+
+run_sync() {
+  OMARCHY_PLUGIN_INVENTORY="$INVENTORY" \
+    OMARCHY_PLUGIN_SOURCE_ROOT="$SOURCE_ROOT" \
+    OMARCHY_PLUGIN_DIR="$LIVE_ROOT" \
+    OMARCHY_PLUGIN_RESCAN=0 \
+    "$SYNC" "$@"
+}
+
+if run_sync check >/dev/null 2>&1; then
+  echo "expected check to reject a missing checkout" >&2
+  exit 1
+fi
+
+run_sync sync
+[[ -d "$SOURCE_ROOT/omarchy-news/.git" ]]
+[[ -L "$LIVE_ROOT/brandon.omarchy-news" ]]
+[[ $(readlink -f -- "$LIVE_ROOT/brandon.omarchy-news") == "$SOURCE_ROOT/omarchy-news" ]]
+run_sync check
+
+git -C "$SOURCE_ROOT/omarchy-news" remote set-url origin https://github.com/brs98/wrong-repository.git
+if run_sync check >/dev/null 2>&1; then
+  echo "expected check to reject a mismatched origin" >&2
+  exit 1
+fi
+
+git -C "$SOURCE_ROOT/omarchy-news" remote set-url origin https://github.com/brs98/omarchy-news.git
+git -C "$SOURCE_ROOT/omarchy-news" switch -c wrong-branch >/dev/null
+if run_sync check >/dev/null 2>&1; then
+  echo "expected check to reject a mismatched branch" >&2
+  exit 1
+fi
+
+echo "✓ omarchy-plugins-sync integration test passed"

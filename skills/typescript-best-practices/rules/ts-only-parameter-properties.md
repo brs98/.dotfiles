@@ -1,8 +1,9 @@
-# parameter-properties
+# Use parameter properties only when their emit is supported
 
-**When:** Defining class constructor parameters that should become instance properties.
+**When:** A constructor stores parameters as instance fields and shorthand matches the intended initialization and public contract.
 
-## Bad
+Explicit fields work with erasable TypeScript syntax:
+
 ```typescript
 class CanvasNode {
   private x: number;
@@ -14,12 +15,16 @@ class CanvasNode {
 }
 ```
 
-## Good
+When the configured transpiler supports parameter-property transforms, this is an optional alternative:
+
 ```typescript
 class CanvasNode {
   constructor(private x: number, private y: number) {}
 }
 ```
 
-## Why
-Parameter properties reduce boilerplate by automatically creating and assigning instance properties from constructor parameters. Adding `public`, `private`, or `readonly` before a parameter makes it a class property.
+The second block is rejected by `erasableSyntaxOnly` (TypeScript 5.8+) and by native Node type stripping. Do not recommend it for that runtime. Retain explicit assignments when order, parameter transformations, accessors, decorators or field initialization can observe a difference. Preserve `private`/`protected`/`public`, `readonly`, optionality and the instance contract when comparing forms. Neither style is a universal correctness improvement.
+
+**Validation:** Both alternatives checked separately with TypeScript 5.9.2; explicit fields pass erasableSyntaxOnly and parameter properties produce expected TS1294.
+
+**Source:** [TypeScript erasableSyntaxOnly](https://www.typescriptlang.org/tsconfig/erasableSyntaxOnly.html), [workshop TS feature comparison](https://github.com/total-typescript/pro-essentials-workshop/blob/7491e6c5ed45dfcb3593289397e3a68244898128/src/032-typescript-only-features/124-prefer-es-features-to-ts-features.explainer/index.ts)

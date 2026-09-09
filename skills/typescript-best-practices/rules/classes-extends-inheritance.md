@@ -1,34 +1,19 @@
-# extends-inheritance
+# Intentional inheritance
 
-**When:** Multiple classes share common functionality that should be inherited.
+**When:** A subclass has an intentional subtype relationship and shares behavior with its base.
 
-## Bad
-```typescript
-class Dog {
-  name: string;
-  constructor(name: string) { this.name = name; }
-  eat() { console.log(`${this.name} eats`); }
-}
-class Cat {
-  name: string;
-  constructor(name: string) { this.name = name; }
-  eat() { console.log(`${this.name} eats`); } // Duplicated!
-}
-```
+Inheritance is one design choice; shared helper functions or composition may fit independent concepts better.
 
-## Good
 ```typescript
 class Animal {
   constructor(public name: string) {}
-  eat() { console.log(`${this.name} eats`); }
+  describe() { return this.name; }
 }
 class Dog extends Animal {
-  bark() { console.log("Woof!"); }
-}
-class Cat extends Animal {
-  meow() { console.log("Meow!"); }
+  bark() { return `${this.name}: woof`; }
 }
 ```
 
-## Why
-`extends` allows classes to inherit properties and methods from a parent class, eliminating duplication. Child classes can add their own members or override inherited ones.
+Do not introduce inheritance solely because methods look similar. Child field initializers can intentionally replace inherited values; removing them changes runtime behavior. Type-only `declare` refinements and emitted fields also have different semantics.
+
+**Source:** [Intentional inheritance](https://www.typescriptlang.org/docs/handbook/2/classes.html#extends-clauses). Examples target TypeScript 5.9 with `strict: true` unless stated otherwise.

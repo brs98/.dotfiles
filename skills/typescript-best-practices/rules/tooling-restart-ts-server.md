@@ -1,20 +1,11 @@
-# restart-ts-server
+# Restart stale language-service state after checking the project context
 
-**When:** VS Code shows stale errors, missing autocomplete, or incorrect types.
+**When:** Editor diagnostics or completions disagree with the actual project after configuration, dependency or generated-file changes.
 
-## Bad
-```
-- Close and reopen VS Code
-- Delete node_modules and reinstall
-- Restart your computer
-```
+In VS Code, run **TypeScript: Restart TS Server** from the Command Palette. Other editors may expose a corresponding language-server restart. Check that the editor uses the intended workspace TypeScript version and project configuration.
 
-## Good
-```
-1. Open Command Palette: Cmd+Shift+P (Mac) / Ctrl+Shift+P (Windows)
-2. Type: "TypeScript: Restart TS Server"
-3. Press Enter
-```
+A restart refreshes analysis without reinstalling dependencies or restarting the machine. It is troubleshooting for stale state, not evidence that a compiler error has been fixed. Compare with the repository's real typecheck command; if the error persists, diagnose the source/configuration rather than repeatedly restarting.
 
-## Why
-The TypeScript language server can get out of sync after package updates, config changes, or heavy refactoring. Restarting it forces a fresh analysis without restarting your entire editor.
+**Validation:** Tooling guidance source-reviewed 2026-09-04; commands must use the repository’s installed tools and actual project paths.
+
+**Source:** [VS Code TypeScript compiler versions](https://code.visualstudio.com/docs/typescript/typescript-compiling#_using-newer-typescript-versions)
