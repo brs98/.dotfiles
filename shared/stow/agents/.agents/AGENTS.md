@@ -4,6 +4,8 @@
 
 - Prefer isolated workspaces/worktrees for repository tasks instead of working directly on the main checkout or switching branches in-place.
 - Use native Git worktrees when creating a task workspace.
+- Create native Git worktrees under `~/worktrees/<repo-slug>/<task-slug>`, outside the primary checkout. Use a stable, unambiguous repo slug and a short task slug.
+- Before removing a worktree, check for uncommitted changes and unpushed commits. Remove finished worktrees with `git worktree remove`; use `git worktree prune` to clear stale metadata.
 - Do not share one writable workspace across parallel implementation agents.
 
 ### Agent Team and Subagent Strategy
