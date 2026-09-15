@@ -8,7 +8,7 @@ import sys
 import warnings
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'shortcut-rest' / 'scripts'))
-from shortcut_core import SafeError, identity, operation, private_directory, read_credentials, request
+from shortcut_core import SafeError, identity, mcp_operation, private_directory, read_credentials, request
 
 SLUG = 'sixfifty'
 CREDENTIALS = Path.home() / '.config/shortcut/workspaces/sixfifty/credentials.json'
@@ -40,25 +40,24 @@ def setup():
 
 
 def main():
-    parser = argparse.ArgumentParser(description='SixFifty-locked Shortcut REST client')
+    parser = argparse.ArgumentParser(description='SixFifty-locked Shortcut MCP client')
     sub = parser.add_subparsers(dest='command', required=True)
-    for name in ('setup', 'rotate-token', 'whoami', 'members', 'workflows', 'groups', 'labels', 'epics', 'iterations'):
+    for name in ('setup', 'rotate-token', 'whoami', 'list-tools'):
         sub.add_parser(name)
-    search = sub.add_parser('search')
-    search.add_argument('query')
-    search.add_argument('--page-size', type=int, choices=range(1, 26), default=25)
-    search.add_argument('--next', help='Relative next URL from the previous search response')
-    for name in ('story', 'comments', 'create-story', 'update-story', 'add-comment'):
+    for name in ('describe-tool', 'call-tool'):
         cmd = sub.add_parser(name)
-        if name != 'create-story':
-            cmd.add_argument('id', type=int)
-        if name in ('create-story', 'update-story', 'add-comment'):
-            cmd.add_argument('--body-file', required=True)
+        cmd.add_argument('name')
+        if name == 'call-tool':
+            cmd.add_argument('--arguments-file', help='JSON object matching the tool input schema')
     args = parser.parse_args()
     if args.command == 'setup':
         setup()
         return
-    spec = None if args.command == 'rotate-token' else operation(args)
+    arguments = {}
+    if args.command == 'call-tool' and args.arguments_file:
+        arguments = json.loads(Path(args.arguments_file).read_text())
+        if not isinstance(arguments, dict):
+            raise SafeError('Arguments must be a JSON object')
     credentials = read_credentials(CREDENTIALS)
     if args.command == 'rotate-token':
         if not sys.stdin.isatty() or not sys.stdout.isatty():
@@ -81,7 +80,8 @@ def main():
                 os.unlink(temporary)
         result = {'status': 'token rotated'}
     else:
-        result = request(token, *spec) if spec else {'status': 'authenticated'}
+        result = ({'status': 'authenticated'} if args.command == 'whoami' else
+                  mcp_operation(token, args.command, getattr(args, 'name', None), arguments))
     print(json.dumps({'workspace': workspace, 'result': result}, indent=2))
 
 

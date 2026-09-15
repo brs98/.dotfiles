@@ -1,61 +1,62 @@
-# Setup and use
+# Runtime and setup
 
-Create a **v3 API token** at https://app.shortcut.com/settings/account/api-tokens.
-The transport uses the stable v3 REST API, not the alpha v4 API.
+The launcher uses the published `@shortcut/mcp` package through the official MCP
+client SDK. Its dependency versions are recorded in `shortcut-rest/mcp/package-lock.json`.
+The local upstream server is archived; this integration deliberately uses that
+published implementation to retain API-token authentication without hosted OAuth.
+Source: https://github.com/useshortcut/mcp-server-shortcut
 
-Run in an interactive terminal (a Herdr shell pane works):
-
-```bash
-python3 ~/.agents/skills/shortcut-sixfifty/scripts/shortcut-sixfifty.py setup
-```
-
-Wait for the **hidden** token prompt before pasting. Press Enter. The token is
-not echoed or passed through shell history, arguments, or environment variables.
-Setup verifies the `sixfifty` workspace before saving anything. It records the
-workspace UUID and refuses to overwrite an existing enrollment.
-
-Storage: `~/.config/shortcut/workspaces/sixfifty/credentials.json` (mode 600).
-Do not read this file manually or commit it. The launcher loads it internally.
-
-To replace an expired or revoked token while retaining the enrolled workspace:
+On another machine, install the locked runtime without lifecycle scripts:
 
 ```bash
-python3 ~/.agents/skills/shortcut-sixfifty/scripts/shortcut-sixfifty.py rotate-token
+cd ~/.agents/skills/shortcut-rest/mcp
+npm ci --ignore-scripts --no-audit --no-fund
 ```
 
-## Operations
+Python 3 and a Node version supported by the installed packages must be available.
+No runtime package downloading occurs during tool calls. To update dependencies,
+use npm in that directory, inspect the changes, test, and commit the lockfile.
+
+## Token enrollment
+
+Existing credentials continue to work. For first-time setup, create a v3 token
+at https://app.shortcut.com/settings/account/api-tokens, then run:
+
+```bash
+SC=~/.agents/skills/shortcut-sixfifty/scripts/shortcut-sixfifty.py
+python3 "$SC" setup
+```
+
+Wait for the hidden prompt, paste directly into the terminal, and press Enter.
+The token is not echoed or placed in shell history. Setup verifies SixFifty
+before saving its workspace UUID and token in an owner-only credential file at
+`~/.config/shortcut/workspaces/sixfifty/credentials.json`. Never inspect that file.
+Use `rotate-token` to replace the token while preserving the workspace lock.
+
+## Commands
 
 ```bash
 SC=~/.agents/skills/shortcut-sixfifty/scripts/shortcut-sixfifty.py
 python3 "$SC" whoami
-python3 "$SC" search 'is:story owner:me'
-python3 "$SC" story 1234
-python3 "$SC" comments 1234
-python3 "$SC" workflows
-python3 "$SC" groups
-python3 "$SC" create-story --body-file /tmp/story.json
-python3 "$SC" update-story 1234 --body-file /tmp/update.json
-python3 "$SC" add-comment 1234 --body-file /tmp/comment.json
+python3 "$SC" list-tools
+python3 "$SC" describe-tool stories-get-by-id
+python3 "$SC" call-tool workflows-list
+python3 "$SC" call-tool stories-get-by-id --arguments-file /tmp/shortcut-args.json
+python3 "$SC" rotate-token
 ```
 
-Create-story body example (replace workflow state with a discovered ID):
+Build argument JSON from `describe-tool`'s `inputSchema`, including required
+fields. The launcher returns `{workspace, result}`; tool calls retain the MCP
+result's content blocks and structured content when present. Tool failures exit
+nonzero with a sanitized error. Raw upstream diagnostics are suppressed.
 
-```json
-{"name":"Example story","story_type":"feature","workflow_state_id":123,"description":"Requirements"}
-```
+The handwritten REST operation commands (such as `story`, `search`, and
+`update-story`) have been replaced by `call-tool` with upstream tool names.
+Use discovery rather than a static tool list: the installed server determines
+available tools and their schemas. It covers stories, comments, subtasks,
+relations, external links, uploads, epics, iterations, Docs, objectives, teams,
+users, workflows, labels, projects, and custom fields.
 
-Update-story body: `{"description":"Revised requirements"}`.
-Comment body: `{"text":"Comment text"}`.
-Only include intended fields in update bodies. Preserve existing descriptions
-when making partial editorial changes. Remove temporary bodies when finished.
-
-Search returns one page plus pagination metadata. Supply its relative `next`
-URL via `search '<same query>' --next '<returned next>'` until it is empty.
-Other discovery commands return their endpoint response as documented.
-
-The client intentionally exposes a small operation catalog: story reads, search,
-comments, story create/update, and discovery. Unsupported operations require an
-explicit transport extension, checked against the official schema and tests.
-No deletion or bulk mutation command is provided.
-
-API reference: https://developer.shortcut.com/api/rest/v3
+Every command verifies the enrolled workspace before starting the server.
+The process closes after each call; timeouts terminate the whole process group.
+A cancelled network mutation can still complete remotely: inspect before retrying.

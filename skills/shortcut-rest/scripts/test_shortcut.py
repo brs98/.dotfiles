@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from shortcut_core import SafeError, identity, operation, read_credentials, request, NoRedirect
+from shortcut_core import SafeError, identity, mcp_operation, read_credentials, request, NoRedirect
 
 LAUNCHER = Path(__file__).resolve().parents[2] / 'shortcut-sixfifty/scripts/shortcut-sixfifty.py'
 spec = importlib.util.spec_from_file_location('launcher', LAUNCHER)
@@ -22,10 +22,12 @@ class ShortcutTests(unittest.TestCase):
                        {'workspace2': {'id': 'different', 'url_slug': 'sixfifty'}}):
             with self.subTest(member=member), patch.object(launcher, 'read_credentials', return_value=credentials), \
                  patch.object(launcher, 'request', return_value=member) as api, \
-                 patch('sys.argv', ['shortcut', 'story', '123']):
+                 patch.object(launcher, 'mcp_operation') as mcp, \
+                 patch('sys.argv', ['shortcut', 'call-tool', 'stories-get-by-id']):
                 with self.assertRaises(SafeError):
                     launcher.main()
                 api.assert_called_once_with('synthetic', 'GET', '/member')
+                mcp.assert_not_called()
 
     def test_private_credentials_and_symlink_rejection(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -51,13 +53,6 @@ class ShortcutTests(unittest.TestCase):
                 request(token, 'GET', '/member')
             self.assertEqual(str(raised.exception), 'Invalid token format')
 
-    def test_pagination_cannot_change_origin(self):
-        for url in ('https://other.example/api/v3/search/stories', '//other.example/api/v3/search/stories', '/api/v3/members'):
-            with self.assertRaises(SafeError):
-                operation(argparse.Namespace(command='search', query='x', page_size=25, next=url))
-        result = operation(argparse.Namespace(command='search', query='x', page_size=25, next='/api/v3/search/stories?next=abc'))
-        self.assertEqual(result, ('GET', '/search/stories?next=abc', None))
-
     def test_hidden_input_fails_closed(self):
         import getpass
         import warnings
@@ -72,11 +67,43 @@ class ShortcutTests(unittest.TestCase):
         credentials = {'token': 'synthetic', 'workspace': {'id': 'expected'}}
         member = {'workspace2': {'id': 'expected', 'url_slug': 'sixfifty'}}
         with patch.object(launcher, 'read_credentials', return_value=credentials), \
-             patch.object(launcher, 'request', side_effect=[member, {'id': 123}]) as api, \
-             patch('sys.argv', ['shortcut', 'story', '123']), patch('builtins.print') as output:
+             patch.object(launcher, 'request', return_value=member) as api, \
+             patch.object(launcher, 'mcp_operation', return_value={'content': []}) as mcp, \
+             patch('sys.argv', ['shortcut', 'call-tool', 'workflows-list']), patch('builtins.print') as output:
             launcher.main()
-            self.assertEqual(api.call_count, 2)
+            api.assert_called_once()
+            mcp.assert_called_once_with('synthetic', 'call-tool', 'workflows-list', {})
             self.assertEqual(json.loads(output.call_args.args[0])['workspace']['id'], 'expected')
+
+    def test_mcp_uses_private_input_and_sanitized_environment(self):
+        with patch('subprocess.Popen') as spawn:
+            process = spawn.return_value
+            process.returncode = 0
+            process.communicate.return_value = ('{"result":"synthetic"}', '')
+            self.assertEqual(mcp_operation('synthetic', 'list-tools'), {'result': '[REDACTED]'})
+            self.assertNotIn('synthetic', str(spawn.call_args.args))
+            self.assertNotIn('SHORTCUT_API_TOKEN', spawn.call_args.kwargs['env'])
+            self.assertNotIn('NODE_OPTIONS', spawn.call_args.kwargs['env'])
+            self.assertTrue(spawn.call_args.kwargs['start_new_session'])
+            self.assertEqual(json.loads(process.communicate.call_args.args[0])['token'], 'synthetic')
+
+    def test_mcp_failure_does_not_relay_process_output(self):
+        with patch('subprocess.Popen') as spawn:
+            spawn.return_value.returncode = 1
+            spawn.return_value.communicate.return_value = ('synthetic', 'synthetic')
+            with self.assertRaises(SafeError) as raised:
+                mcp_operation('synthetic', 'call-tool', 'unknown')
+            self.assertNotIn('synthetic', str(raised.exception))
+
+    def test_timeout_kills_server_process_group(self):
+        import subprocess
+        import signal
+        with patch('subprocess.Popen') as spawn, patch('os.killpg') as kill:
+            spawn.return_value.pid = 123
+            spawn.return_value.communicate.side_effect = [subprocess.TimeoutExpired('node', 90), ('', '')]
+            with self.assertRaises(SafeError):
+                mcp_operation('synthetic', 'list-tools')
+            kill.assert_called_once_with(123, signal.SIGKILL)
 
 
 if __name__ == '__main__':

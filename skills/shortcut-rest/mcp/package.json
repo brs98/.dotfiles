@@ -1,0 +1,1 @@
+{"name":"shortcut-skill-mcp-runtime","private":true,"type":"module","dependencies":{"@modelcontextprotocol/sdk":"^1.30.0","@shortcut/mcp":"^0.25.0"}}

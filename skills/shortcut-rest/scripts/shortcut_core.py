@@ -2,7 +2,6 @@ import json
 import os
 import stat
 import urllib.error
-import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -64,29 +63,27 @@ def identity(member, slug, workspace_id=None):
     return {'id': workspace['id'], 'url_slug': workspace['url_slug']}
 
 
-def operation(args):
-    command = args.command
-    if command == 'whoami':
-        return None
-    if command in ('members', 'workflows', 'groups', 'labels', 'epics', 'iterations'):
-        return 'GET', '/' + command, None
-    if command == 'search':
-        params = {'query': args.query, 'page_size': args.page_size}
-        if args.next:
-            parsed = urllib.parse.urlsplit(args.next)
-            if parsed.scheme or parsed.netloc or parsed.path != '/api/v3/search/stories':
-                raise SafeError('Unexpected pagination URL')
-            return 'GET', '/search/stories?' + parsed.query, None
-        return 'GET', '/search/stories?' + urllib.parse.urlencode(params), None
-    if command in ('story', 'comments'):
-        return 'GET', f'/stories/{args.id}' + ('/comments' if command == 'comments' else ''), None
-    body = json.loads(Path(args.body_file).read_text())
-    if not isinstance(body, dict):
-        raise SafeError('Body must be a JSON object')
-    if command == 'create-story':
-        return 'POST', '/stories', body
-    if command == 'update-story':
-        return 'PUT', f'/stories/{args.id}', body
-    if command == 'add-comment':
-        return 'POST', f'/stories/{args.id}/comments', body
-    raise SafeError('Unknown operation')
+def mcp_operation(token, command, name=None, arguments=None):
+    import subprocess
+    bridge = Path(__file__).resolve().parents[1] / 'mcp/bridge.mjs'
+    environment = {key: os.environ[key] for key in ('PATH', 'HOME', 'TMPDIR') if key in os.environ}
+    import signal
+    process = subprocess.Popen(
+        ['node', str(bridge)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True, env=environment, start_new_session=True,
+    )
+    try:
+        output, _ = process.communicate(
+            json.dumps({'token': token, 'command': command, 'name': name, 'arguments': arguments or {}}),
+            timeout=90,
+        )
+    except (subprocess.TimeoutExpired, KeyboardInterrupt):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.communicate()
+        raise SafeError('Shortcut MCP interrupted or timed out; verify write outcome before retrying') from None
+    if process.returncode:
+        raise SafeError('Shortcut MCP failed; details suppressed. Check arguments, runtime installation, and access. Verify write outcome before retrying.')
+    return json.loads(output.replace(token, '[REDACTED]'))

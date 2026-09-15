@@ -1,24 +1,36 @@
 ---
 name: shortcut-rest
-description: Maintain the shared Shortcut REST transport behind workspace-locked launchers. Use when extending or debugging a locked Shortcut integration; use the workspace skill for ordinary issue operations.
+description: Maintain Shortcut credential checks and the local MCP bridge behind workspace-locked launchers. Use when extending or debugging the Shortcut integration; use the workspace skill for ordinary operations.
 ---
 
-# Shortcut REST transport
+# Shortcut transport and MCP bridge
 
-`scripts/shortcut_core.py` provides the fixed v3 HTTPS transport, operation
-catalog, permission checks, and workspace identity validation. It is a library,
-not a generic CLI. SixFifty operations must use `shortcut-sixfifty`.
+The directory name is retained for existing launcher paths. `scripts/shortcut_core.py`
+handles credential permissions, fixed-origin REST identity verification, and the
+private subprocess boundary. `mcp/bridge.mjs` uses the official MCP SDK to run
+`@shortcut/mcp` and discover/call its existing tools. There is no handwritten
+business-operation catalog. Use the `shortcut-sixfifty` launcher for user work.
 
-Keep the API origin fixed, refuse redirects, and verify the workspace before
-each operation. Do not introduce token arguments, environment fallback,
-credential-path overrides, endpoint overrides, or preflight bypasses.
+Keep the preflight API origin fixed and redirects disabled. Verify workspace
+slug and UUID before starting MCP. Never introduce credential-path or endpoint
+overrides, ambient-token fallback, token command arguments, or preflight bypasses.
+Only the launcher reads credentials; the bridge receives them over a private
+pipe and sets them internally in the server environment. Suppress raw errors,
+redact tokens from results, and terminate the process group on timeout.
 
-Extend the explicit operation catalog only after consulting the official
-https://developer.shortcut.com/api/rest/v3 schema. Send user data as JSON,
-preserve pagination metadata, and do not automatically retry mutations.
+Runtime installation (no secrets needed):
 
-Run the transport's tests with:
+```bash
+cd ~/.agents/skills/shortcut-rest/mcp
+npm ci --ignore-scripts --no-audit --no-fund
+```
+
+Validation:
 
 ```bash
 python3 -m unittest discover -s ~/.agents/skills/shortcut-rest/scripts -p 'test_*.py'
+python3 ~/.agents/skills/shortcut-sixfifty/scripts/shortcut-sixfifty.py list-tools
+python3 ~/.agents/skills/shortcut-sixfifty/scripts/shortcut-sixfifty.py call-tool workflows-list
 ```
+
+Upstream source: https://github.com/useshortcut/mcp-server-shortcut
