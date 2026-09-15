@@ -8,7 +8,7 @@ import sys
 import warnings
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'shortcut-rest' / 'scripts'))
-from shortcut_core import SafeError, identity, mcp_operation, private_directory, read_credentials, request
+from shortcut_core import SafeError, identity, mcp_operation, private_directory, read_credentials, request, search_custom_field
 
 SLUG = 'sixfifty'
 CREDENTIALS = Path.home() / '.config/shortcut/workspaces/sixfifty/credentials.json'
@@ -44,6 +44,9 @@ def main():
     sub = parser.add_subparsers(dest='command', required=True)
     for name in ('setup', 'rotate-token', 'whoami', 'list-tools'):
         sub.add_parser(name)
+    custom = sub.add_parser('search-custom-field', help='Match a custom field/value across active and archived stories')
+    custom.add_argument('--field', required=True)
+    custom.add_argument('--value', required=True)
     for name in ('describe-tool', 'call-tool'):
         cmd = sub.add_parser(name)
         cmd.add_argument('name')
@@ -79,6 +82,8 @@ def main():
             if os.path.exists(temporary):
                 os.unlink(temporary)
         result = {'status': 'token rotated'}
+    elif args.command == 'search-custom-field':
+        result = search_custom_field(token, args.field, args.value)
     else:
         result = ({'status': 'authenticated'} if args.command == 'whoami' else
                   mcp_operation(token, args.command, getattr(args, 'name', None), arguments))

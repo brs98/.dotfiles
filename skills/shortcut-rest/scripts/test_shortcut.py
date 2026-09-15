@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from shortcut_core import SafeError, identity, mcp_operation, read_credentials, request, NoRedirect
+from shortcut_core import SafeError, identity, mcp_operation, read_credentials, request, NoRedirect, search_custom_field
 
 LAUNCHER = Path(__file__).resolve().parents[2] / 'shortcut-sixfifty/scripts/shortcut-sixfifty.py'
 spec = importlib.util.spec_from_file_location('launcher', LAUNCHER)
@@ -94,6 +94,34 @@ class ShortcutTests(unittest.TestCase):
             with self.assertRaises(SafeError) as raised:
                 mcp_operation('synthetic', 'call-tool', 'unknown')
             self.assertNotIn('synthetic', str(raised.exception))
+
+    def test_custom_field_matches_ids_and_includes_archived(self):
+        field = {'id': 'field', 'name': 'Creative Period Team', 'values': [{'id': 'value', 'value': 'The Welcome Wagon'}]}
+        good = {'id': 1, 'custom_fields': [{'field_id': 'field', 'value_id': 'value'}]}
+        wrong = {'id': 2, 'custom_fields': [{'field_id': 'other', 'value_id': 'value'}]}
+        archived = {'id': 3, 'archived': True, 'custom_fields': good['custom_fields']}
+        with patch('shortcut_core.request', side_effect=[[field], [good, wrong], [archived]]) as api:
+            result = search_custom_field('synthetic', 'creative period team', 'the welcome wagon')
+            self.assertEqual(result['scanned_count'], 3)
+            self.assertEqual([s['id'] for s in result['stories']], [1, 3])
+            self.assertTrue(api.call_args.args[3]['archived'])
+
+    def test_custom_field_rejects_unknown_or_ambiguous_names(self):
+        for fields in ([], [{'name': 'x'}, {'name': 'X'}]):
+            with patch('shortcut_core.request', return_value=fields) as api:
+                with self.assertRaises(SafeError):
+                    search_custom_field('synthetic', 'x', 'y')
+                api.assert_called_once()
+
+    def test_custom_field_still_requires_workspace_preflight(self):
+        credentials = {'token': 'synthetic', 'workspace': {'id': 'expected'}}
+        with patch.object(launcher, 'read_credentials', return_value=credentials), \
+             patch.object(launcher, 'request', return_value={'workspace2': {'id': 'wrong', 'url_slug': 'sixfifty'}}), \
+             patch.object(launcher, 'search_custom_field') as search, \
+             patch('sys.argv', ['shortcut', 'search-custom-field', '--field', 'x', '--value', 'y']):
+            with self.assertRaises(SafeError):
+                launcher.main()
+            search.assert_not_called()
 
     def test_timeout_kills_server_process_group(self):
         import subprocess

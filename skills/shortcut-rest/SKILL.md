@@ -9,7 +9,8 @@ The directory name is retained for existing launcher paths. `scripts/shortcut_co
 handles credential permissions, fixed-origin REST identity verification, and the
 private subprocess boundary. `mcp/bridge.mjs` uses the official MCP SDK to run
 `@shortcut/mcp` and discover/call its existing tools. There is no handwritten
-business-operation catalog. Use the `shortcut-sixfifty` launcher for user work.
+business-operation catalog for MCP tools. `search_custom_field` is a read-only
+REST fallback for advanced custom fields unsupported by MCP search. Use the `shortcut-sixfifty` launcher for user work.
 
 Keep the preflight API origin fixed and redirects disabled. Verify workspace
 slug and UUID before starting MCP. Never introduce credential-path or endpoint

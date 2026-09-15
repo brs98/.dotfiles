@@ -36,6 +36,16 @@ or change the launcher or enrolled identity during ordinary Shortcut work.
    temporary argument files when done. Never retry a failed write automatically;
    inspect its outcome first because a timed-out request may have completed.
 
+## Advanced custom-field search
+
+For a grouping stored in an advanced custom field rather than Shortcut's Team
+field, use `search-custom-field --field '<exact field name>' --value '<exact value>'`.
+For example: `--field 'Creative Period Team' --value 'The Welcome Wagon'`.
+This is a read-only REST fallback inside the same locked launcher. It resolves
+field/value IDs and filters active and archived stories locally because upstream
+MCP search does not support arbitrary custom fields. It returns matching story
+descriptions and counts. Do not substitute the ordinary `team` search filter.
+
 ## Credentials
 
 Only the launcher may load the credential file internally. Never read, print,

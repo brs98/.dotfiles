@@ -60,3 +60,18 @@ users, workflows, labels, projects, and custom fields.
 Every command verifies the enrolled workspace before starting the server.
 The process closes after each call; timeouts terminate the whole process group.
 A cancelled network mutation can still complete remotely: inspect before retrying.
+
+## Custom-field search fallback
+
+```bash
+python3 "$SC" search-custom-field --field 'Creative Period Team' --value 'The Welcome Wagon'
+```
+
+Matches exact names case-insensitively and rejects missing or ambiguous names.
+The launcher queries `/custom-fields`, then the read-only `POST /stories/search`
+endpoint separately for active and archived stories, requesting descriptions.
+This documented endpoint returns an array without pagination; the fallback
+filters by both field UUID and value UUID and deduplicates story IDs. It returns
+`scanned_count`, `matched_count`, and only matching stories. This is a workspace
+scan and can take longer than an indexed search. Completed stories are included.
+API reference: https://developer.shortcut.com/api/rest/v3#Query-Stories

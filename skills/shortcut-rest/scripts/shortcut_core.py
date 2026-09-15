@@ -63,6 +63,41 @@ def identity(member, slug, workspace_id=None):
     return {'id': workspace['id'], 'url_slug': workspace['url_slug']}
 
 
+def search_custom_field(token, field_name, value_name):
+    fields = request(token, 'GET', '/custom-fields')
+    matches = [field for field in fields if field['name'].casefold() == field_name.casefold()]
+    if len(matches) != 1:
+        raise SafeError('Custom field name must match exactly one field')
+    field = matches[0]
+    values = [value for value in field['values'] if value['value'].casefold() == value_name.casefold()]
+    if len(values) != 1:
+        raise SafeError('Custom field value must match exactly one value')
+    value = values[0]
+    stories = {}
+    scanned = set()
+    keys = ('id', 'name', 'description', 'app_url', 'archived', 'story_type',
+            'completed', 'started', 'workflow_state_id', 'epic_id', 'iteration_id',
+            'created_at', 'updated_at', 'custom_fields')
+    for archived in (False, True):
+        batch = request(token, 'POST', '/stories/search', {
+            'archived': archived, 'includes_description': True,
+        })
+        if not isinstance(batch, list):
+            raise SafeError('Unexpected story query response; completeness cannot be verified')
+        for story in batch:
+            scanned.add(story['id'])
+            if any(item.get('field_id') == field['id'] and item.get('value_id') == value['id']
+                   for item in story.get('custom_fields', [])):
+                stories[story['id']] = {key: story.get(key) for key in keys}
+    return {
+        'field': {'id': field['id'], 'name': field['name']},
+        'value': {'id': value['id'], 'name': value['value']},
+        'includes_archived': True, 'scanned_count': len(scanned),
+        'matched_count': len(stories),
+        'stories': sorted(stories.values(), key=lambda story: story['id']),
+    }
+
+
 def mcp_operation(token, command, name=None, arguments=None):
     import subprocess
     bridge = Path(__file__).resolve().parents[1] / 'mcp/bridge.mjs'
