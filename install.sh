@@ -2,6 +2,12 @@
 
 set -e
 
+# macOS uses a preflighted per-file manifest, with no force links, game saves,
+# network skill installer, or adoption of runtime data into the repository.
+if [[ "$(uname -s)" == Darwin ]]; then
+    exec python3 "$(dirname "$0")/mac/bootstrap/configure.py" "$@"
+fi
+
 echo "Installing dotfiles..."
 
 # Navigate to dotfiles directory

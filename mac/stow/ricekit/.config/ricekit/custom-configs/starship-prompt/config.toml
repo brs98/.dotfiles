@@ -1,0 +1,16 @@
+[metadata]
+name = "starship-prompt"
+author = "Brandon Southwick"
+version = "1.0.0"
+description = "Complete Starship prompt with a RiceKit palette and no file-mutating reload hook"
+setup_instructions = "Enable this config and apply a theme. RiceKit owns ~/.config/starship.toml; edit this template to customize the prompt. Starship reads the generated config on each prompt."
+app = "starship"
+category = "terminal"
+type = "config"
+
+[target.macos]
+path = "~/.config/starship.toml"
+strategy = "symlink"
+
+[requires]
+colors = ["ansi", "semantic"]

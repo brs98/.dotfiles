@@ -1,0 +1,209 @@
+diff --git a/docs/next/website/src/content/docs/configuration.mdx b/docs/next/website/src/content/docs/configuration.mdx
+index 80abc388..30e215aa 100644
+--- a/docs/next/website/src/content/docs/configuration.mdx
++++ b/docs/next/website/src/content/docs/configuration.mdx
+@@ -277,6 +277,8 @@ Color values accept hex, named colors, `rgb(r,g,b)`, or reset aliases like `rese
+ 
+ The sidebar is the main Herdr dashboard. Its expanded desktop view is one session tree: workspaces contain tabs, and tabs contain shell or Agent panes. A tab with one pane is condensed into one pane row; a split tab shows an unnumbered, selectable tab row with each numbered pane beneath it. Clicking or selecting a workspace, tab, or pane focuses it. Press `prefix+w` to focus the tree from the keyboard, then use `j`/`k`, `h`/`l`, Enter, and `/` for movement, collapse/expand, activation, and inline filtering. In Navigate mode, the selected row uses the active theme accent; outside Navigate mode, the currently focused pane keeps that accent background. Search `ui.` in the [Config reference](/docs/config-reference/) for sizing, collapsed mode, mouse behavior, pane borders, and other presentation settings. `ui.agent_panel_sort` still controls Agent cycling and the compact collapsed rail; it does not reorder the hierarchical tree.
+ 
++Set `hide_tab_bar = true` under `[ui]` to hide the desktop tab row regardless of tab count or position. Tabs remain accessible through the sidebar and configured keybindings. This takes precedence over `hide_tab_bar_when_single_tab`, which only hides the row for a workspace with one tab. Both options default to `false`.
++
+ Set `tab_bar_position = "bottom"` under `[ui]` to place the desktop tab row below the terminal panes. Prefix, Navigate, Copy, and Resize mode bars temporarily replace the bottom tab row while active. The default is `"top"`.
+ 
+ Configure an ordered tmux-style status area at the right edge of the tab row:
+diff --git a/docs/next/website/src/data/config-reference.json b/docs/next/website/src/data/config-reference.json
+index 3eab2854..5559d9e7 100644
+--- a/docs/next/website/src/data/config-reference.json
++++ b/docs/next/website/src/data/config-reference.json
+@@ -736,6 +736,12 @@
+           "default": "false",
+           "description": "Hide the tab row when the workspace has one tab."
+         },
++        {
++          "key": "ui.hide_tab_bar",
++          "type": "boolean",
++          "default": "false",
++          "description": "Hide the desktop tab row regardless of tab count or position. Tabs remain accessible through the sidebar and configured keybindings. Takes precedence over hide_tab_bar_when_single_tab."
++        },
+         {
+           "key": "ui.tab_bar_position",
+           "type": "enum",
+diff --git a/src/app/mod.rs b/src/app/mod.rs
+index 74e8ed09..9c44f298 100644
+--- a/src/app/mod.rs
++++ b/src/app/mod.rs
+@@ -652,6 +652,7 @@ impl App {
+             pane_gaps: config.ui.pane_gaps,
+             show_agent_labels_on_pane_borders: config.ui.show_agent_labels_on_pane_borders,
+             hide_tab_bar_when_single_tab: config.ui.hide_tab_bar_when_single_tab,
++            hide_tab_bar: config.ui.hide_tab_bar,
+             tab_bar_position: config.ui.tab_bar_position,
+             tab_bar_right: Vec::new(),
+             tab_bar_right_separator: String::new(),
+@@ -1481,6 +1482,7 @@ impl App {
+                 self.state.show_agent_labels_on_pane_borders =
+                     config.ui.show_agent_labels_on_pane_borders;
+                 self.state.hide_tab_bar_when_single_tab = config.ui.hide_tab_bar_when_single_tab;
++                self.state.hide_tab_bar = config.ui.hide_tab_bar;
+                 self.state.tab_bar_position = config.ui.tab_bar_position;
+                 self.configure_tab_bar_status(
+                     &config.ui.tab_bar_right,
+diff --git a/src/app/state.rs b/src/app/state.rs
+index 7a979a5f..5c38aed3 100644
+--- a/src/app/state.rs
++++ b/src/app/state.rs
+@@ -1513,6 +1513,8 @@ pub struct AppState {
+     pub pane_gaps: bool,
+     pub show_agent_labels_on_pane_borders: bool,
+     pub hide_tab_bar_when_single_tab: bool,
++    /// Hide the desktop tab row regardless of tab count. Default: false.
++    pub hide_tab_bar: bool,
+     pub tab_bar_position: TabBarPositionConfig,
+     pub tab_bar_right: Vec<TabBarStatusSegment>,
+     pub tab_bar_right_separator: String,
+@@ -1887,6 +1889,7 @@ impl AppState {
+             pane_gaps: false,
+             show_agent_labels_on_pane_borders: false,
+             hide_tab_bar_when_single_tab: false,
++            hide_tab_bar: false,
+             tab_bar_position: TabBarPositionConfig::Top,
+             tab_bar_right: Vec::new(),
+             tab_bar_right_separator: " ".into(),
+diff --git a/src/config/model.rs b/src/config/model.rs
+index 6bd18300..6a70e074 100644
+--- a/src/config/model.rs
++++ b/src/config/model.rs
+@@ -896,6 +896,8 @@ pub struct UiConfig {
+     pub show_agent_labels_on_pane_borders: bool,
+     /// Hide the tab row when the workspace has one tab. Default: false.
+     pub hide_tab_bar_when_single_tab: bool,
++    /// Hide the desktop tab row regardless of tab count. Default: false.
++    pub hide_tab_bar: bool,
+     /// Desktop tab row placement. Default: top.
+     pub tab_bar_position: TabBarPositionConfig,
+     /// Ordered entries shown at the right edge of the desktop tab row. Empty by default.
+@@ -1120,6 +1122,7 @@ impl Default for UiConfig {
+             pane_gaps: true,
+             show_agent_labels_on_pane_borders: false,
+             hide_tab_bar_when_single_tab: false,
++            hide_tab_bar: false,
+             tab_bar_position: TabBarPositionConfig::Top,
+             tab_bar_right: Vec::new(),
+             tab_bar_right_separator: " ".into(),
+@@ -1375,6 +1378,7 @@ status_indicators = "symbols"
+         assert!(default_config.ui.pane_gaps);
+         assert!(!default_config.ui.show_agent_labels_on_pane_borders);
+         assert!(!default_config.ui.hide_tab_bar_when_single_tab);
++        assert!(!default_config.ui.hide_tab_bar);
+         assert_eq!(
+             default_config.ui.tab_bar_position,
+             TabBarPositionConfig::Top
+@@ -1390,6 +1394,7 @@ pane_scrollbars = false
+ pane_gaps = true
+ show_agent_labels_on_pane_borders = true
+ hide_tab_bar_when_single_tab = true
++hide_tab_bar = true
+ tab_bar_position = "bottom"
+ tab_bar_right = [
+   { type = "zoom" },
+@@ -1407,6 +1412,7 @@ tab_bar_right_separator = " · "
+         assert!(config.ui.pane_gaps);
+         assert!(config.ui.show_agent_labels_on_pane_borders);
+         assert!(config.ui.hide_tab_bar_when_single_tab);
++        assert!(config.ui.hide_tab_bar);
+         assert_eq!(config.ui.tab_bar_position, TabBarPositionConfig::Bottom);
+         assert_eq!(config.ui.tab_bar_right.len(), 5);
+         assert!(matches!(
+diff --git a/src/main.rs b/src/main.rs
+index ba8bbb52..139d6b10 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -333,6 +333,10 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
+ # New tabs can still be created with the configured keybinding.
+ # hide_tab_bar_when_single_tab = false
+ 
++# Hide the desktop tab row regardless of tab count or position.
++# Tabs remain accessible through the sidebar and configured keybindings.
++# hide_tab_bar = false
++
+ # Desktop tab row placement: "top" or "bottom".
+ # tab_bar_position = "top"
+ 
+diff --git a/src/ui.rs b/src/ui.rs
+index d7eb0ae5..c901f48a 100644
+--- a/src/ui.rs
++++ b/src/ui.rs
+@@ -198,8 +198,8 @@ fn desktop_tab_bar_and_terminal_area(
+     ws: &crate::workspace::Workspace,
+     main_area: Rect,
+ ) -> (Rect, Rect) {
+-    let hide_single_tab_bar = app.hide_tab_bar_when_single_tab && ws.tabs.len() == 1;
+-    if !hide_single_tab_bar && main_area.height > 1 {
++    let hide_tab_bar = app.hide_tab_bar || (app.hide_tab_bar_when_single_tab && ws.tabs.len() == 1);
++    if !hide_tab_bar && main_area.height > 1 {
+         match app.tab_bar_position {
+             crate::config::TabBarPositionConfig::Top => {
+                 let [tab_bar_rect, terminal_area] =
+@@ -897,6 +897,44 @@ mod tests {
+         assert!(mode_row.contains("PREFIX"), "{mode_row}");
+     }
+ 
++    #[test]
++    fn hide_tab_bar_reclaims_row_for_multiple_tabs_in_both_positions() {
++        for position in [
++            crate::config::TabBarPositionConfig::Top,
++            crate::config::TabBarPositionConfig::Bottom,
++        ] {
++            let mut app = crate::app::state::AppState::test_new();
++            app.tab_bar_position = position;
++            app.hide_tab_bar_when_single_tab = true;
++            app.workspaces = vec![Workspace::test_new("one")];
++            app.workspaces[0].test_add_tab(Some("logs"));
++            app.active = Some(0);
++            app.selected = 0;
++            app.mode = Mode::Terminal;
++
++            compute_view(&mut app, Rect::new(0, 0, 80, 20));
++            let sidebar = app.view.sidebar_rect;
++            let visible_tab_bar = app.view.tab_bar_rect;
++            assert_eq!(visible_tab_bar.height, 1);
++            assert_eq!(app.view.tab_hit_areas.len(), 2);
++
++            app.hide_tab_bar = true;
++            compute_view(&mut app, Rect::new(0, 0, 80, 20));
++            assert_eq!(app.view.tab_bar_rect, Rect::default());
++            assert_eq!(app.view.terminal_area, Rect::new(26, 0, 54, 20));
++            assert_eq!(app.view.sidebar_rect, sidebar);
++            assert!(app.view.tab_hit_areas.is_empty());
++            assert_eq!(app.view.new_tab_hit_area, Rect::default());
++            assert_eq!(app.view.tab_scroll_left_hit_area, Rect::default());
++            assert_eq!(app.view.tab_scroll_right_hit_area, Rect::default());
++
++            app.hide_tab_bar = false;
++            compute_view(&mut app, Rect::new(0, 0, 80, 20));
++            assert_eq!(app.view.tab_bar_rect, visible_tab_bar);
++            assert_eq!(app.view.tab_hit_areas.len(), 2);
++        }
++    }
++
+     #[test]
+     fn hide_tab_bar_when_single_tab_toggles_geometry_with_tab_count() {
+         let mut app = crate::app::state::AppState::test_new();
+@@ -987,6 +1025,17 @@ mod tests {
+             app.workspaces[1].tabs[background_tab].runtimes[&two_tab_pane].current_size();
+         assert_eq!(one_tab_size, (20, 53));
+         assert_eq!(two_tab_size, (19, 53));
++
++        app.hide_tab_bar = true;
++        compute_view(&mut app, Rect::new(0, 0, 80, 20));
++        assert_eq!(
++            app.workspaces[0].tabs[0].runtimes[&one_tab_pane].current_size(),
++            (20, 53)
++        );
++        assert_eq!(
++            app.workspaces[1].tabs[background_tab].runtimes[&two_tab_pane].current_size(),
++            (20, 53)
++        );
+     }
+ 
+     #[tokio::test]

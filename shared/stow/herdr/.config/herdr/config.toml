@@ -41,6 +41,7 @@ command = "$HOME/.local/bin/herdr-smart-navigate right"
 name = "terminal"
 
 [ui]
+hide_tab_bar = true
 hide_tab_bar_when_single_tab = true
 agent_panel_sort = "spaces"
 status_indicators = "symbols"

@@ -1,0 +1,2 @@
+# Unified patches encode empty context lines with a single leading space.
+mac/bootstrap/patches/*.patch whitespace=-blank-at-eol
