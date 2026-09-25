@@ -42,28 +42,34 @@ expect_route "$fork_binary" pane run example -- --remote herdr-mac
 expect_route "$fork_binary" --session '--remote=herdr-mac'
 expect_route "$fork_binary" --remote-keybindings '--remote=herdr-mac'
 expect_route "$fork_binary" --remote
-expect_route "$mac_client" --remote herdr-mac
-expect_route "$mac_client" --remote=herdr-mac
-expect_route "$mac_client" --session work --remote herdr-mac
-expect_route "$mac_client" --remote herdr-mac --session work --remote-keybindings server
-expect_route "$mac_client" --remote-keybindings local --remote=herdr-mac --help
+expect_route "$fork_binary" --remote herdr-mac
+expect_route "$fork_binary" --remote=herdr-mac
+expect_route "$fork_binary" --session work --remote herdr-mac
+expect_route "$fork_binary" --remote herdr-mac --session work --remote-keybindings server
+expect_route "$fork_binary" --remote-keybindings local --remote=herdr-mac --help
 
-test "$(bash "$WRAPPER" update)" = "$(printf '%s\n' "$fork_installer" --handoff)"
+test "$(bash "$WRAPPER" update)" = "$(printf '%s\n' "$fork_installer")"
 test "$(bash "$WRAPPER" update --handoff)" = "$(printf '%s\n' "$fork_installer" --handoff)"
 bash "$WRAPPER" update --help | grep -q 'usage: herdr update'
 exit_code=0
 FAKE_EXIT_CODE=42 bash "$WRAPPER" --remote herdr-mac >/dev/null || exit_code=$?
 test "$exit_code" -eq 42
 
-rm "$fork_binary"
-expect_route "$mac_client" --remote herdr-mac
-cp "$fork_installer" "$fork_binary"
+# All saved-machine and legacy Mac routes use the same compatible fork client.
+expect_route "$fork_binary" --machine personal-mac pane list
+expect_route "$fork_binary" --machine framework workspace list
 rm "$mac_client"
+expect_route "$fork_binary" --remote herdr-mac
+
+exit_code=0
+bash "$WRAPPER" update unexpected >"$TEST_ROOT/stdout" 2>"$TEST_ROOT/stderr" || exit_code=$?
+test "$exit_code" -eq 2
+
+rm "$fork_binary"
 exit_code=0
 bash "$WRAPPER" --remote herdr-mac >"$TEST_ROOT/stdout" 2>"$TEST_ROOT/stderr" || exit_code=$?
 test "$exit_code" -eq 127
 test ! -s "$TEST_ROOT/stdout"
-grep -q 'Refusing to use the 0.8.0 fork' "$TEST_ROOT/stderr"
-expect_route "$fork_binary" --remote herdr-omarchy
+grep -q 'Herdr fork is not installed' "$TEST_ROOT/stderr"
 
 echo '✓ herdr wrapper routing tests passed'

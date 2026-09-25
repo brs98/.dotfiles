@@ -185,7 +185,7 @@ install_herdr_fork() {
         return 1
     fi
 
-    "$installer" --handoff
+    "$installer"
 }
 
 # Preserve a standalone Herdr binary before Stow links the dotfiles wrapper.

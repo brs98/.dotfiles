@@ -1,42 +1,47 @@
 # Herdr remote attach over Tailscale
 
-Herdr 0.8 already supports remote attachment through ordinary OpenSSH. Its
-server continues to use a local Unix socket; do not expose a separate Herdr TCP
-port. The reusable command after setup is:
+The Linux installer pins `fork-v0.9.1-1` from `brs98/herdr`, built from
+`f1cb7cba5d04c8951ed7692792ea09e1809753e4`. Its application version is
+`0.9.1-custom.brs98-0.9.1-navigation` and private protocol is 22.
+Work-mac, personal-mac, PC, and Framework use this version, with the custom sidebar.
+
+Herdr uses ordinary OpenSSH over Tailscale and a local Unix socket on each
+machine. Do not expose a separate Herdr TCP port. Saved profiles are available
+through `herdr machine list`; for example:
 
 ```sh
-herdr-remote omarchy
-herdr-remote omarchy-pc
-herdr-remote mac
+herdr --machine pc pane list
+herdr --machine framework workspace list
+herdr --remote herdr-mac
 ```
 
-The aliases resolve through Tailscale MagicDNS and call Herdr's native
-`herdr --remote <ssh-target>` mode.
+All Linux wrapper routes use the same fork binary. The separate 0.8.2 Mac client
+is no longer needed. The older `herdr-remote` helper and its SSH-hosted Mac
+attachment remain separate from saved-machine CLI forwarding.
 
-The two Linux computers run the same custom Herdr 0.8.0 protocol-20 fork, so
-Linux-to-Linux connections use Herdr's thin-client `--remote` mode. The Mac runs
-the native 0.8.2 build. The `herdr-remote` helper's Mac routes use Herdr's supported
-SSH-hosted attach mode and runs the destination's own client. This prevents an
-attach from replacing a managed binary or asking to restart an active server.
+## Updating the pinned Linux fork
 
-The default session and `--session <name>` work in both modes. SSH-hosted Mac
-routes do not provide the thin client's local desktop image-clipboard bridge;
-terminal text paste still works.
+`herdr update` downloads the pinned release, verifies its SHA-256, preserves the
+previous binary, and installs atomically. It leaves running sessions unchanged.
+`herdr update --handoff` explicitly opts into live handoff only for the tested
+0.9.0-to-0.9.1 server/client pair. A server already running the target version is
+left alone; other server versions are not automatically stopped or migrated.
+Reopen attached clients to load the updated UI. The macOS logout/DNS fix needs
+a fresh server session; handoff does not repair inherited service context.
 
-## Native Linux-to-Mac client
+The release asset named `herdr` and this installer are Linux x86_64 only. macOS
+uses the separately built native fork binary. This published pin replaces the
+old per-machine local-build override; do not restore an old `local-build.pin`
+when migrating an earlier installer.
 
-On Linux, `herdr --remote herdr-mac` uses a separate matching 0.8.2 client at
-`~/.local/lib/herdr-remote-0.8.2/herdr`. This client must be installed separately;
-the dotfiles installer does not provision it. The wrapper refuses this route if
-the client is missing rather than falling back to the 0.8.0 fork and risking a
-remote replacement prompt. `--remote=herdr-mac` and `--session <name>` also work.
+## Legacy three-computer bootstrap
 
-Ordinary `herdr` commands, other remote targets, and `herdr update` continue to
-use the pinned fork. `herdr-remote mac` retains its SSH-hosted behavior. If the
-Mac's Herdr version changes, install a matching local client and update this
-route; do not approve a remote replacement or restart just to connect.
+The following instructions describe the original three-computer setup. The
+current four-machine mesh additionally authorizes work-mac on every destination.
+Preserve those rules and the existing `00-herdr-mesh.conf` SSH aliases when
+maintaining an already configured machine.
 
-## One-time setup on all three computers
+### Original one-time setup
 
 1. Pull these dotfiles and run `./install.sh` on `omarchy`, `omarchy-pc`, and
    the Mac. This installs the shared SSH aliases without taking ownership of
@@ -120,15 +125,6 @@ Remote Login gives all six connection directions the same authentication
 model. Ensure **Allow incoming connections** is enabled in Tailscale and
 Tailscale SSH interception is disabled (`tailscale set --ssh=false`) on the
 Linux destinations.
-
-## Version caveat
-
-The Linux setup pins a custom Herdr 0.8 fork whose installer is Linux-only. Do
-not install that wrapper on the Mac; use a native macOS Herdr build with a
-compatible protocol. Remote attach can offer to install or replace a mismatched
-remote helper and restart its server. Read that prompt before accepting it on a
-machine with active panes; use `--handoff` only when intentionally opting into
-Herdr's live handoff behavior.
 
 Herdr documentation: <https://herdr.dev/docs/persistence-remote/>
 

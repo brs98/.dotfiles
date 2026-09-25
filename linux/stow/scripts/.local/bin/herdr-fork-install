@@ -2,11 +2,13 @@
 
 set -euo pipefail
 
-fork_tag="fork-v0.8.0-1"
+fork_tag="fork-v0.9.1-1"
 fork_url="https://github.com/brs98/herdr/releases/download/$fork_tag/herdr"
-fork_sha256="6c9665185a8022826c39459659bbecc46d97b6163abbd17aa31dbfc4bd39ec05"
+fork_sha256="d8a11dd074018b30691e342cbf09b6cbb5a4b9fa7c2e57a801220d7fe6e49474"
 install_dir="${HERDR_FORK_INSTALL_DIR:-$HOME/.local/lib/herdr-fork}"
 install_path="$install_dir/herdr"
+fork_version="0.9.1-custom.brs98-0.9.1-navigation"
+fork_protocol=22
 handoff=false
 
 usage() {
@@ -67,27 +69,50 @@ else
     fi
 
     mkdir -p "$install_dir"
+    if [ -x "$install_path" ]; then
+        mkdir -p "$install_dir/backups"
+        install -m 0755 "$install_path" "$install_dir/backups/herdr-$installed_sha256"
+        echo "    ✓ Preserved previous client: $install_dir/backups/herdr-$installed_sha256"
+    fi
     install -m 0755 "$download_path" "$install_dir/.herdr.new"
     mv -f "$install_dir/.herdr.new" "$install_path"
     echo "    ✓ Installed $install_path"
 fi
 
 if [ "$handoff" = true ]; then
-    server_status="$($install_path status server 2>/dev/null || true)"
-    if printf '%s\n' "$server_status" | awk '$1 == "status:" && $2 == "running" { found = 1 } END { exit !found }'; then
-        protocol="$(printf '%s\n' "$server_status" | awk '/^protocol:/ { print $2 }')"
-        version="$($install_path --version | awk '{ print $2 }')"
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "jq is required to verify live handoff; binary installed, server unchanged." >&2
+        exit 1
+    fi
 
-        if [ -z "$protocol" ] || [ -z "$version" ]; then
-            echo "Could not determine the running Herdr protocol or fork version." >&2
+    server_status="$("$install_path" status server --json)"
+    if printf '%s\n' "$server_status" | jq -e '.running == false' >/dev/null; then
+        echo "    ✓ No running server to migrate"
+    elif printf '%s\n' "$server_status" | jq -e --arg version "$fork_version" \
+        '.running == true and .version == $version' >/dev/null; then
+        echo "    ✓ Running server already uses this fork version"
+    else
+        client_status="$("$install_path" status client --json)"
+        # This 0.9.0 -> 0.9.1 pair was verified with disposable sessions on Linux
+        # and macOS, including preserved shell PIDs, scrollback and terminal I/O.
+        if ! printf '%s\n' "$client_status" | jq -e --arg version "$fork_version" \
+            --argjson protocol "$fork_protocol" \
+            '.version == $version and .protocol == $protocol' >/dev/null ||
+            ! printf '%s\n' "$server_status" | jq -e \
+            '.running == true and .protocol == 22 and .capabilities.live_handoff == true
+             and ((.version // "") | test("^0\\.9\\.0(-custom[.].+)?$"))' >/dev/null; then
+            echo "Live handoff is not verified for this server/client pair; binary installed, server unchanged." >&2
+            echo "Keep its session running until the work is finished, then start a new session." >&2
             exit 1
         fi
 
         echo "  → Handing the live session to the fork..."
         "$install_path" server live-handoff \
             --import-exe "$install_path" \
-            --expected-protocol "$protocol" \
-            --expected-version "$version"
+            --expected-protocol "$fork_protocol" \
+            --expected-version "$fork_version"
         echo "    ✓ Live Herdr session now runs the fork"
     fi
+else
+    echo "    ✓ Binary ready; running servers and panes were left untouched"
 fi
