@@ -2,7 +2,7 @@
 name = "jankyborders-colors"
 author = "Brandon Southwick"
 version = "1.1.0"
-description = "JankyBorders themed window border colors with gradient active border"
+description = "JankyBorders themed window border colors with solid active border"
 setup_instructions = """JankyBorders must be installed: brew install FelixKratz/formulae/borders
 
 If using AeroSpace, add to your aerospace.toml:

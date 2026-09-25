@@ -5,8 +5,7 @@
 # Convert #RRGGBB to 0xffRRGGBB (ARGB format)
 hex() { echo "0xff${1:1}"; }
 
-# Linear gradient on the active border: accent -> foreground (TL -> BR)
-ACTIVE_COLOR="gradient(top_left=$(hex "{{accent}}"),bottom_right=$(hex "{{foreground}}"))"
+ACTIVE_COLOR=$(hex "{{accent}}")
 INACTIVE_COLOR=$(hex "{{border}}")
 BORDER_WIDTH="5.0"
 # Uniform corner radius for all borders — macOS Tahoe gives WezTerm's
