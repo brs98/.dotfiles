@@ -93,14 +93,14 @@ setup_retroarch_saves() {
     # Create parent directory if it doesn't exist
     mkdir -p "$target_dir"
 
-    # Remove existing directory or symlink if it exists
-    if [ -e "$target_link" ] || [ -L "$target_link" ]; then
-        rm -rf "$target_link"
+    # Rooms requires a real Card A directory; preserve existing save files.
+    mkdir -p "$target_link"
+    if [[ "$OSTYPE" != "darwin"* ]]; then
+        if ! python3 "$dotfiles_dir/linux/scripts/sync-retroarch-saves.py"; then
+            echo "    ⚠ Save sync needs attention; existing saves have been preserved"
+        fi
     fi
-
-    # Create symlink
-    ln -sf "$source_dir" "$target_link"
-    echo "    ✓ RetroArch Card A saves symlinked"
+    echo "    ✓ RetroArch Card A saves preserved"
 }
 
 # Make all scripts executable
@@ -455,7 +455,8 @@ else
         systemctl --user daemon-reload
         systemctl --user enable retroarch-saves.path
         systemctl --user start retroarch-saves.path
-        echo "    ✓ RetroArch saves auto-backup enabled"
+        systemctl --user enable --now retroarch-saves.timer
+        echo "    ✓ RetroArch saves synchronization enabled"
     else
         echo "    ⚠ Warning: retroarch-saves.path not found, skipping..."
     fi
