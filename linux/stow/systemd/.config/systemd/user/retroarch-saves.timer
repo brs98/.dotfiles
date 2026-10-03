@@ -1,0 +1,11 @@
+[Unit]
+Description=Pull GameCube saves and retry pending save uploads
+
+[Timer]
+OnStartupSec=15s
+OnUnitInactiveSec=30s
+AccuracySec=1s
+Unit=retroarch-saves.service
+
+[Install]
+WantedBy=timers.target

@@ -1,9 +1,10 @@
 [Unit]
-Description=Watch RetroArch saves directory for changes
+Description=Watch GameCube Card A saves for changes
 After=local-fs.target
 
 [Path]
 PathModified=%h/.dotfiles/shared/symlink/retroarch/.config/retroarch/saves/dolphin-emu/User/GC/USA/Card A
+PathModified=%h/.config/retroarch/saves/dolphin-emu/User/GC/USA/Card A
 Unit=retroarch-saves.service
 
 [Install]

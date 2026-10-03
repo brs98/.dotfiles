@@ -1,6 +1,8 @@
 [Unit]
-Description=Backup RetroArch save files to git
+Description=Synchronize GameCube Card A saves with git
 
 [Service]
 Type=oneshot
-ExecStart=%h/.dotfiles/linux/scripts/backup-retroarch-saves.sh
+ExecStartPre=/usr/bin/sleep 2
+ExecStart=/usr/bin/python3 %h/.dotfiles/linux/scripts/sync-retroarch-saves.py
+TimeoutStartSec=90
