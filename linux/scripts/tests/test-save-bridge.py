@@ -31,6 +31,17 @@ class BridgeTest(unittest.TestCase):
             self.assertFalse(card.is_symlink())
             module.bridge(card, tracked, backup)
 
+    def test_headless_dolphin_is_checked_and_process_errors_fail_closed(self):
+        with patch.object(module.subprocess, 'run') as run:
+            run.return_value.returncode = 0
+            self.assertTrue(module.playing())
+            self.assertIn('dolphin-emu-nog', run.call_args.args[0][-1])
+            run.return_value.returncode = 1
+            self.assertFalse(module.playing())
+            run.return_value.returncode = 2
+            with self.assertRaisesRegex(RuntimeError, 'Cannot check'):
+                module.playing()
+
     def test_rejects_unexpected_link(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

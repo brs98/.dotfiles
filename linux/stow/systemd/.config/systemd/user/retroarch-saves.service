@@ -4,5 +4,5 @@ Description=Synchronize GameCube Card A saves with git
 [Service]
 Type=oneshot
 ExecStartPre=/usr/bin/sleep 2
-ExecStart=/usr/bin/python3 %h/.dotfiles/linux/scripts/sync-retroarch-saves.py
+ExecStart=/usr/bin/python3 %h/.dotfiles/linux/scripts/game-saves-sync sync --no-notify
 TimeoutStartSec=90

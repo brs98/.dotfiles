@@ -14,7 +14,7 @@ fail() {
     # Log every failed attempt, but only notify once until the error changes.
     if [[ -n "$ERROR_FILE" ]] && [[ ! -f "$ERROR_FILE" || "$(cat "$ERROR_FILE")" != "$message" ]]; then
         printf '%s\n' "$message" > "$ERROR_FILE"
-        if command -v notify-send >/dev/null 2>&1; then
+        if [[ "${RETROARCH_SYNC_NO_NOTIFY:-0}" != 1 ]] && command -v notify-send >/dev/null 2>&1; then
             timeout 3s notify-send -a 'Game save sync' 'Game saves need attention' "$message" >/dev/null 2>&1 || true
         fi
     fi
@@ -23,7 +23,14 @@ fail() {
 trap 'fail "Unexpected failure at line $LINENO. Local saves have not been discarded; see the service journal."' ERR
 
 emulator_running() {
-    pgrep -x 'retroarch|dolphin-emu|dolphin-emu-qt2' >/dev/null
+    local status=0
+    # Linux comm truncates dolphin-emu-nogui to 15 bytes.
+    pgrep -x 'retroarch|dolphin-emu|dolphin-emu-qt2|dolphin-emu-nog' >/dev/null 2>&1 || status=$?
+    case "$status" in
+        0) return 0 ;;
+        1) return 1 ;;
+        *) fail 'Cannot check for running emulators; sync stopped safely.' ;;
+    esac
 }
 defer_for_emulator() {
     if emulator_running; then

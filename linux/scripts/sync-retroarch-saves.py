@@ -14,8 +14,14 @@ CARD = Path('dolphin-emu/User/GC/USA/Card A')
 
 
 def playing():
-    return any(subprocess.run(['pgrep', '-x', name], stdout=subprocess.DEVNULL).returncode == 0
-               for name in ('retroarch', 'dolphin-emu', 'dolphin-emu-qt2'))
+    # Linux comm names are limited to 15 bytes (dolphin-emu-nogui truncates).
+    result = subprocess.run(
+        ['pgrep', '-x', 'retroarch|dolphin-emu|dolphin-emu-qt2|dolphin-emu-nog'],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    if result.returncode not in (0, 1):
+        raise RuntimeError('Cannot check for running emulators; sync stopped safely')
+    return result.returncode == 0
 
 
 def link_file(source, target):

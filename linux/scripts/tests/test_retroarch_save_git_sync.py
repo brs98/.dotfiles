@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Integration tests use disposable repositories; never access installed saves."""
 import fcntl
+import json
+import sys
 import os
 from pathlib import Path
 import subprocess
@@ -61,6 +63,27 @@ class SaveGitSyncTests(unittest.TestCase):
 
     def head(self, repo):
         return self.git(repo, 'rev-parse', 'HEAD').stdout.strip()
+
+    def test_widget_cli_uses_real_backend_for_local_and_remote_saves(self):
+        self.save(self.b, 'one.gci', b'remote\x00progress')
+        self.commit(self.b, 'remote progress')
+        self.git(self.b, 'push')
+        self.save(self.a, 'two.gci', b'local\x00progress')
+        card = self.root / 'active-card'
+        card.mkdir()
+        env = dict(self.env, RETROARCH_SAVES_REPO=str(self.a),
+                   RETROARCH_CARD_DIR=str(card), XDG_STATE_HOME=str(self.root / 'state'))
+        cli = SCRIPT.with_name('game-saves-sync')
+        result = subprocess.run([sys.executable, str(cli), 'sync', '--no-notify'],
+                                env=env, capture_output=True, text=True)
+        self.assert_sync(result)
+        value = json.loads(result.stdout)
+        self.assertEqual(value['state'], 'success')
+        self.assertTrue(value['lastSuccess'])
+        self.assert_sync(self.sync(self.b))
+        self.assertEqual(self.head(self.a), self.head(self.b))
+        self.assertEqual((self.a / CARD / 'one.gci').read_bytes(), b'remote\x00progress')
+        self.assertEqual((self.b / CARD / 'two.gci').read_bytes(), b'local\x00progress')
 
     def test_clean_pull_and_local_push(self):
         self.save(self.b, 'one.gci', b'remote\x00progress')
@@ -139,6 +162,24 @@ class SaveGitSyncTests(unittest.TestCase):
         self.assertEqual((self.a / CARD / 'one.gci').read_bytes(), b'playing\x00save')
         self.assertEqual((self.a / CARD / 'two.gci').read_bytes(), b'initial\x00two')
         self.assert_sync(self.sync())
+
+    def test_process_check_failure_leaves_saves_untouched(self):
+        original = self.head(self.a)
+        self.save(self.a, 'one.gci', b'playing\x00save')
+        result = self.sync(TEST_EMULATOR_STATUS='2')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Cannot check', result.stderr)
+        self.assertEqual(self.head(self.a), original)
+
+    def test_headless_dolphin_defers_sync(self):
+        pgrep = self.bin / 'pgrep'
+        pgrep.write_text('#!/bin/sh\ncase "$2" in *dolphin-emu-nog*) exit 0 ;; *) exit 1 ;; esac\n')
+        original = self.head(self.a)
+        self.save(self.a, 'one.gci', b'playing\x00save')
+        result = self.sync()
+        self.assert_sync(result)
+        self.assertIn('emulator running', result.stdout)
+        self.assertEqual(self.head(self.a), original)
 
     def test_unrelated_staged_changes_are_not_committed(self):
         original = self.head(self.a)
