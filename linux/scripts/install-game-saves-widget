@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Install the Game Saves widget and its shared background sync service.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES_ROOT="${DOTFILES:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
+SOURCE="$DOTFILES_ROOT/linux/omarchy/plugins/brs98.game-saves"
+TARGET="$HOME/.config/omarchy/plugins/brs98.game-saves"
+REPO="$DOTFILES_ROOT/shared/symlink/retroarch/.config/retroarch/saves"
+CARD='dolphin-emu/User/GC/USA/Card A'
+
+for tool in git python3 flock timeout pgrep systemctl omarchy; do
+    command -v "$tool" >/dev/null || { echo "Game Saves requires $tool." >&2; exit 1; }
+done
+if [[ "$(realpath "$DOTFILES_ROOT")" != "$(realpath "$HOME/.dotfiles")" ]]; then
+    echo 'Install from ~/.dotfiles; the service and widget use that location.' >&2
+    exit 1
+fi
+if ! omarchy shell shell ping >/dev/null 2>&1; then
+    echo 'Start the Omarchy desktop, then rerun ~/.dotfiles/linux/scripts/install-game-saves-widget to install its bar widget.' >&2
+    exit 1
+fi
+omarchy plugin validate "$SOURCE" >/dev/null
+# Refuse to replace independently installed plugins or units.
+if [[ -e "$TARGET" || -L "$TARGET" ]]; then
+    if [[ ! -L "$TARGET" || "$(readlink -f "$TARGET")" != "$(readlink -f "$SOURCE")" ]]; then
+        echo "Game Saves: $TARGET exists elsewhere; leaving it unchanged." >&2
+        exit 1
+    fi
+fi
+for kind in service path timer; do
+    unit="$HOME/.config/systemd/user/retroarch-saves.$kind"
+    source_unit="$DOTFILES_ROOT/linux/stow/systemd/.config/systemd/user/retroarch-saves.$kind"
+    if [[ -e "$unit" || -L "$unit" ]]; then
+        if [[ "$(readlink -f "$unit")" != "$(readlink -f "$source_unit")" ]]; then
+            echo "Game Saves: $unit is independently managed; leaving it unchanged." >&2
+            exit 1
+        fi
+    fi
+done
+
+# A fresh clone needs the data repository; never reset an existing checkout.
+if [[ ! -e "$REPO/.git" ]]; then
+    git clone --branch main https://github.com/brs98/game-saves.git "$REPO"
+fi
+[[ "$(git -C "$REPO" rev-parse --show-toplevel)" == "$(realpath "$REPO")" ]] || exit 1
+branch="$(git -C "$REPO" branch --show-current)"
+if [[ -z "$branch" ]]; then
+    if ! git -C "$REPO" show-ref --verify --quiet refs/heads/main; then
+        git -C "$REPO" switch -c main
+    elif [[ "$(git -C "$REPO" rev-parse main)" == "$(git -C "$REPO" rev-parse HEAD)" ]]; then
+        git -C "$REPO" switch main
+    else
+        echo 'Detached saves differ from main. Preserve and reconcile those commits before installation.' >&2
+        exit 1
+    fi
+elif [[ "$branch" != main ]]; then
+    echo 'Save repository must be on main. Existing branches were left untouched.' >&2
+    exit 1
+fi
+
+# Do not silently choose between pre-existing local and downloaded game progress.
+python3 - "$HOME/.config/retroarch/saves/$CARD" "$REPO/$CARD" <<'PY'
+from pathlib import Path
+import sys
+card, tracked = map(Path, sys.argv[1:])
+conflicts = []
+for path in card.glob('*.gci'):
+    other = tracked / path.name
+    if path.is_symlink():
+        if path.resolve() != other.resolve():
+            conflicts.append(path.name + ' (unexpected link)')
+    elif other.exists() and path.read_bytes() != other.read_bytes():
+        conflicts.append(path.name)
+if conflicts:
+    sys.exit('Existing saves differ; reconcile before installation. No saves were overwritten:\n' + '\n'.join(conflicts))
+card.mkdir(parents=True, exist_ok=True)
+PY
+
+mkdir -p "$(dirname "$TARGET")" "$HOME/.config/systemd/user"
+[[ -L "$TARGET" ]] || ln -s "$SOURCE" "$TARGET"
+for kind in service path timer; do
+    unit="$HOME/.config/systemd/user/retroarch-saves.$kind"
+    [[ -e "$unit" || -L "$unit" ]] || ln -s "$DOTFILES_ROOT/linux/stow/systemd/.config/systemd/user/retroarch-saves.$kind" "$unit"
+done
+systemctl --user daemon-reload
+systemctl --user enable --now retroarch-saves.path retroarch-saves.timer
+if omarchy shell shell ping >/dev/null 2>&1; then
+    omarchy shell shell rescanPlugins >/dev/null
+fi
+omarchy bar put brs98.game-saves --section right --index 2
+if ! systemctl --user start retroarch-saves.service; then
+    echo 'Widget installed; the first sync needs attention. Click the gamepad or check the service journal.' >&2
+    exit 1
+fi
+echo 'Game Saves installed. Automatic sync runs every 30 seconds while emulators are closed; click the gamepad to sync now.'

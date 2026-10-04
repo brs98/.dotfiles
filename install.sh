@@ -95,11 +95,7 @@ setup_retroarch_saves() {
 
     # Rooms requires a real Card A directory; preserve existing save files.
     mkdir -p "$target_link"
-    if [[ "$OSTYPE" != "darwin"* ]]; then
-        if ! python3 "$dotfiles_dir/linux/scripts/sync-retroarch-saves.py"; then
-            echo "    ⚠ Save sync needs attention; existing saves have been preserved"
-        fi
-    fi
+    # The Game Saves installer below checks differing saves before any sync.
     echo "    ✓ RetroArch Card A saves preserved"
 }
 
@@ -449,17 +445,6 @@ else
         echo "    ⚠ Warning: omarchy nvim theme not found, skipping..."
     fi
 
-    # Enable systemd user units
-    echo "  → Enabling systemd user units..."
-    if [ -f "$HOME/.config/systemd/user/retroarch-saves.path" ]; then
-        systemctl --user daemon-reload
-        systemctl --user enable retroarch-saves.path
-        systemctl --user start retroarch-saves.path
-        systemctl --user enable --now retroarch-saves.timer
-        echo "    ✓ RetroArch saves synchronization enabled"
-    else
-        echo "    ⚠ Warning: retroarch-saves.path not found, skipping..."
-    fi
 
 fi
 
@@ -518,6 +503,12 @@ else
         echo "  → Reconciling Omarchy plugins..."
         DOTFILES="$PWD" linux/scripts/omarchy-plugins-sync sync ||
             echo "    ⚠ Omarchy plugin reconciliation reported issues"
+    fi
+
+    if command -v omarchy >/dev/null 2>&1 && [ -x "linux/scripts/install-game-saves-widget" ]; then
+        echo "  → Installing Game Saves widget and background sync..."
+        DOTFILES="$PWD" linux/scripts/install-game-saves-widget ||
+            echo "    ⚠ Game Saves installation needs attention; existing saves were preserved"
     fi
 
     if [ -f "$HOME/.config/systemd/user/omarchy-openrgb-theme.service" ]; then

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "brs98.game-saves",
+  "name": "Game Saves",
+  "version": "1.0.0",
+  "author": "brs98",
+  "description": "Sync RetroArch game saves with GitHub and show the latest result.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Widget.qml"
+  },
+  "barWidget": {
+    "displayName": "Game Saves",
+    "description": "Click to safely download and upload your game saves.",
+    "category": "System",
+    "allowMultiple": false
+  }
+}
