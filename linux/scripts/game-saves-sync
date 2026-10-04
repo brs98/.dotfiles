@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""Expose the shared GameCube sync backend's results to the Omarchy widget."""
+import argparse
+from datetime import datetime, timezone
+import fcntl
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import tempfile
+
+TIMEOUT = 75
+DEFAULT = {'state': 'idle', 'message': 'Close your emulator, then click to sync game saves.', 'lastSuccess': ''}
+
+
+def read_status(path):
+    try:
+        value = json.loads(path.read_text())
+        if (value.get('state') in ('idle', 'busy', 'success', 'error')
+                and isinstance(value.get('message'), str)
+                and isinstance(value.get('lastSuccess'), str)):
+            return {key: value[key] for key in DEFAULT}
+    except (OSError, ValueError, AttributeError):
+        pass
+    return dict(DEFAULT)
+
+
+def write_status(path, value):
+    # Readers never see a partial JSON document, including after interruption.
+    fd, temporary = tempfile.mkstemp(prefix='.status-', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w') as output:
+            json.dump(value, output)
+            output.write('\n')
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def acquire(lock):
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except BlockingIOError:
+        return False
+
+
+def backend_busy(state_home):
+    path = state_home / 'retroarch-save-sync/bridge.lock'
+    try:
+        with path.open('a') as lock:
+            return not acquire(lock)
+    except FileNotFoundError:
+        return False
+
+
+def result(previous, state, message):
+    return {**previous, 'state': state, 'message': message}
+
+
+def run_backend():
+    script = Path(__file__).resolve().with_name('sync-retroarch-saves.py')
+    # Keep the backend's transport output private: Git can print credentialed URLs.
+    # The adapter reports only recognized outcomes and fixed, actionable messages.
+    with tempfile.TemporaryFile() as output:
+        process = subprocess.Popen(
+            [sys.executable, str(script)], stdout=output, stderr=output,
+            env={**os.environ, 'RETROARCH_SYNC_NO_NOTIFY': '1'}, start_new_session=True,
+        )
+        try:
+            process.wait(timeout=TIMEOUT)
+        except (subprocess.TimeoutExpired, KeyboardInterrupt):
+            # Kill the entire group, including Git/SSH grandchildren, before releasing
+            # the status lock. Otherwise a retry could race an orphaned writer.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+            return 'error', 'Save sync timed out or was interrupted. Close your emulator and retry.'
+        output.seek(0)
+        message = output.read().decode('utf-8', errors='replace')
+    if process.returncode:
+        if 'The machines changed the same save.' in message:
+            return 'error', 'Both machines changed the same save. Both versions are preserved; resolve the conflict before syncing.'
+        if 'Fetch failed;' in message or 'Push failed;' in message:
+            return 'error', 'Cannot reach the save repository. Local save commits are safe; check your connection and GitHub access.'
+        if 'recovery required' in message:
+            return 'error', 'Rooms save recovery is required before syncing. Open Rooms to recover the session.'
+        return 'error', 'Game save sync failed. Check repository setup, GitHub access, and unresolved conflicts.'
+    # Deferrals also exit zero. Only the backend success marker means synchronized.
+    if 'emulator is running' in message or 'emulator running; deferring' in message:
+        return 'idle', 'Sync deferred: close your emulator. Automatic sync will retry.'
+    if 'Rooms session is active' in message:
+        return 'idle', 'Sync deferred: close your Rooms session. Automatic sync will retry.'
+    if 'Game save sync: main is synchronized.' in message:
+        return 'success', 'GameCube saves are synchronized.'
+    if not message.strip():
+        return 'busy', 'Another game save sync is running.'
+    return 'error', 'Save sync did not confirm completion. Check the repository setup and retry.'
+
+
+def notify(value):
+    try:
+        subprocess.run(
+            ['notify-send', '-a', 'Game saves', 'Game save sync', value['message']],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('command', choices=('sync', 'backup', 'status'), nargs='?', default='sync',
+                        help='backup is an alias for the same safe, two-way sync')
+    parser.add_argument('--no-notify', action='store_true')
+    args = parser.parse_args(argv)
+    state_home = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state'))
+    directory = state_home / 'game-saves-sync'
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / 'status.json'
+    with (directory / 'sync.lock').open('a') as lock:
+        if not acquire(lock):
+            value = result(read_status(path), 'busy', 'Syncing game saves…')
+        else:
+            value = read_status(path)
+            if args.command == 'status':
+                if backend_busy(state_home):
+                    value = result(value, 'busy', 'Another game save sync is running.')
+                elif value['state'] == 'busy':
+                    value = result(value, 'idle', 'The previous sync ended without a result. Click to retry.')
+                    write_status(path, value)
+            else:
+                write_status(path, result(value, 'busy', 'Syncing game saves…'))
+                try:
+                    state, message = run_backend()
+                except OSError:
+                    state, message = 'error', 'Could not start game save sync. Check that the backend is installed.'
+                value = result(value, state, message)
+                if state == 'success':
+                    value['lastSuccess'] = datetime.now(timezone.utc).isoformat()
+                write_status(path, value)
+                if not args.no_notify:
+                    notify(value)
+    print(json.dumps(value))
+    return 1 if args.command != 'status' and value['state'] == 'error' else 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except OSError:
+        print(json.dumps({**DEFAULT, 'state': 'error', 'message': 'Cannot read or write the game save sync status directory.'}))
+        sys.exit(1)

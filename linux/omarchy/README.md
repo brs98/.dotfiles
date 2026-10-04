@@ -20,3 +20,18 @@ linux/scripts/omarchy-plugins-sync update
 ```
 
 The public catalog for the owned plugins is [`brs98/omarchy-plugins`](https://github.com/brs98/omarchy-plugins). It is intentionally a catalog rather than a submodule aggregator.
+
+
+## Game Saves widget
+
+`brs98.game-saves` and its sync backend are bundled in this repository. Install
+both on Omarchy without replacing other desktop settings:
+
+```sh
+~/.dotfiles/linux/scripts/install-game-saves-widget
+```
+
+The gamepad button and 30-second background timer use the same Rooms-aware
+backend. Close RetroArch or Dolphin before syncing. Only GameCube Card A saves
+are included. See [setup and recovery](../../docs/retroarch-save-sync.md) for
+requirements, conflict handling, and status commands.
