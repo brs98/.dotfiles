@@ -24,3 +24,7 @@
 - When working with TypeScript projects, load/use the available TypeScript best-practices or doctor skill if the harness provides one.
 - When working with React projects, load/use the available React best-practices or doctor skill if the harness provides one.
 - When adding packages, use the project's package manager and avoid hardcoding package versions unless the project requires it.
+
+## Shared Omarchy configuration
+
+For Omarchy desktop, shell, theme, plugin, or shared-keybinding work, read `~/omarchy-config/AGENTS.md` and `~/omarchy-config/linux/omarchy/README.md` before editing. If `~/.config/omarchy/local/dotfiles-path` names another active checkout, use that path instead. These local instructions supplement the required packaged Omarchy skill; do not modify the packaged skill. Finish shared changes through the private sync workflow on both machines, preserving machine-local settings and existing work.
