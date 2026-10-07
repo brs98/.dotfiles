@@ -42,6 +42,9 @@ python3 "$SC" list-tools
 python3 "$SC" describe-tool stories-get-by-id
 python3 "$SC" call-tool workflows-list
 python3 "$SC" call-tool stories-get-by-id --arguments-file /tmp/shortcut-args.json
+python3 "$SC" call-tool teams-list --json
+python3 "$SC" create-story --name 'Test' --type chore --owner me --team Engineering \
+  --state 'On Deck' --custom-field 'Creative Period Team=MCPizza' --dry-run
 python3 "$SC" rotate-token
 ```
 
@@ -49,6 +52,17 @@ Build argument JSON from `describe-tool`'s `inputSchema`, including required
 fields. The launcher returns `{workspace, result}`; tool calls retain the MCP
 result's content blocks and structured content when present. Tool failures exit
 nonzero with a sanitized error. Raw upstream diagnostics are suppressed.
+
+`call-tool --json` unwraps the result instead: stdout is only the parsed
+`<json>` payload (a list if a tool returns several), or the plain text when
+there is none. The deprecation notice is dropped. The summary line (for example
+`Result (25 shown of 80 total stories found):`) and `next_page_token: <token>`
+go to stderr; pass that token back as the tool's `nextPageToken` argument.
+The workspace check still runs first.
+
+Story reads: `stories-get-by-id` is slim by default and omits `group_id`
+(team), `workflow_id`, and custom fields. After any story write other than
+`create-story`, read it back with `{"storyPublicId": N, "full": true}`.
 
 The handwritten REST operation commands (such as `story`, `search`, and
 `update-story`) have been replaced by `call-tool` with upstream tool names.
@@ -60,6 +74,52 @@ users, workflows, labels, projects, and custom fields.
 Every command verifies the enrolled workspace before starting the server.
 The process closes after each call; timeouts terminate the whole process group.
 A cancelled network mutation can still complete remotely: inspect before retrying.
+
+## create-story
+
+```text
+create-story --name NAME [--description TEXT | --description-file PATH]
+             --type {feature,bug,chore} [--owner MENTION|me]... --team TEAM
+             --state STATE [--custom-field 'Field Name=Value']...
+             [--epic ID|NAME] [--iteration ID|NAME] [--label NAME]... [--dry-run]
+```
+
+Use it instead of the MCP `stories-create`. That tool picks the team's first
+listed workflow (not its default) and its default state, ignores custom fields,
+and has created SixFifty stories with no team in the Design workflow while
+reporting success.
+
+Resolution is read-only REST through the locked launcher, after the workspace
+check: `/groups` (Team name or mention name, archived teams excluded), the
+team's `default_workflow_id` and `/workflows/{id}` states, `/members` (mention
+name or full name, disabled members excluded; `me` is the token's user),
+`/custom-fields` (enabled fields and values; story-type restrictions enforced),
+`/epics`, `/iterations` (ID or name), and `/labels` (existing labels only).
+Matches are exact and case-insensitive, with a leading `@` ignored. A missing
+or ambiguous name fails before any write and lists the candidates. `--state`
+is required: there is no default state, and a team without a default workflow
+is an error.
+
+The write is a single `POST /stories` setting `name`, `story_type`,
+`group_id`, `workflow_state_id`, `owner_ids`, `custom_fields`, and when given
+`description`, `epic_id`, `iteration_id`, and `labels`. `--dry-run` prints that
+exact payload and writes nothing. A failed or timed-out POST is never retried.
+
+The story is then read back with `GET /stories/{id}` and compared on name,
+description, type, team, workflow, workflow state, owners, requested custom
+fields, epic, iteration, and labels. The result is
+`{workspace, result: {status, id, url, resolved}}` where `resolved` holds the
+team, workflow, state, owner, and custom-field names. `status` is `created`
+(exit 0), `mismatch`, or `unverified` (exit 1; each mismatch is printed to
+stderr with the story ID and URL). Fix a mismatched story with `stories-update`
+(`team_id`, `workflow_state_id`, `custom_fields`, ...); do not recreate it.
+
+**Team vs Creative Period Team.** *Team* is the Shortcut Team (Engineering,
+default workflow "Engineering Workflow"; Engineering Support shares it).
+*Creative Period Team* is an enum custom field (MCPizza, The Welcome Wagon,
+...). "Engineering, creative period team MCPizza" is
+`--team Engineering --custom-field 'Creative Period Team=MCPizza'`.
+The MCP `stories-create` cannot set custom fields; `create-story` does.
 
 ## Custom-field search fallback
 

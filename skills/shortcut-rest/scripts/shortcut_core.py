@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import stat
 import urllib.error
 import urllib.request
@@ -96,6 +97,38 @@ def search_custom_field(token, field_name, value_name):
         'matched_count': len(stories),
         'stories': sorted(stories.values(), key=lambda story: story['id']),
     }
+
+
+DEPRECATION_PREFIX = '\u26a0\ufe0f DEPRECATED:'
+JSON_BLOCK = re.compile(r'<json>\s*(.*?)\s*</json>', re.S)
+PAGE_TOKEN = re.compile(r'<next-page-token>(.*?)</next-page-token>', re.S)
+
+
+def tool_payload(result):
+    """Unwrap an MCP tool result: parsed <json> payload (or plain text), summary notes, next-page token."""
+    if isinstance(result, dict) and result.get('structuredContent') is not None:
+        return {'payload': result['structuredContent'], 'notes': [], 'next_page_token': None}
+    payloads, texts, notes, token = [], [], [], None
+    for block in (result or {}).get('content') or []:
+        text = block.get('text') if block.get('type') == 'text' else None
+        if not text or text.startswith(DEPRECATION_PREFIX):
+            continue
+        page = PAGE_TOKEN.search(text)
+        token = page.group(1).strip() if page else token
+        found = JSON_BLOCK.findall(text)
+        if found:
+            payloads.extend(json.loads(item) for item in found)
+            note = text[:text.index('<json>')].strip()
+            if note:
+                notes.append(note)
+        else:
+            texts.append(PAGE_TOKEN.sub('', text).strip())
+    if payloads:
+        payload = payloads[0] if len(payloads) == 1 else payloads
+        notes.extend(texts)
+    else:
+        payload = '\n\n'.join(texts)
+    return {'payload': payload, 'notes': notes, 'next_page_token': token}
 
 
 def mcp_operation(token, command, name=None, arguments=None):

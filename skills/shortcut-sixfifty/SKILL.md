@@ -25,8 +25,9 @@ or change the launcher or enrolled identity during ordinary Shortcut work.
 2. Use `describe-tool <name>` to get its exact input schema before calling it.
    Do not assume REST field names match the MCP arguments.
 3. Write arguments as a JSON object in a temporary file, then run:
-   `python3 "$SC" call-tool <name> --arguments-file <file.json>`.
-   Omit the file for tools with no required arguments.
+   `python3 "$SC" call-tool <name> --arguments-file <file.json> --json`.
+   Omit the file for tools with no required arguments. `--json` prints only the
+   parsed payload; the summary line and any `next_page_token` go to stderr.
 4. Resolve IDs with discovery tools; never guess. Follow pagination exposed by
    each tool. Ask if multiple matches remain ambiguous.
 5. State intended writes first and only perform changes authorized by the user.
@@ -35,6 +36,32 @@ or change the launcher or enrolled identity during ordinary Shortcut work.
 6. Confirm the returned workspace and report relevant IDs and URLs. Remove
    temporary argument files when done. Never retry a failed write automatically;
    inspect its outcome first because a timed-out request may have completed.
+7. After any story write other than `create-story`, verify it with
+   `stories-get-by-id` and `"full": true`. The default slim read omits team
+   and workflow, so a story in the wrong team looks fine there.
+
+## Creating stories
+
+Create stories with `create-story`, not raw `stories-create`. The MCP tool
+cannot set custom fields or a workflow state, and it can put a story in another
+team's workflow with no team while reporting success.
+
+```bash
+python3 "$SC" create-story --name 'Fix login copy' --type chore --owner me \
+  --team Engineering --state 'On Deck' \
+  --custom-field 'Creative Period Team=MCPizza' --description-file /tmp/body.md --dry-run
+```
+
+It resolves every name (exact, case-insensitive; candidates listed on a miss),
+creates the story in one write, reads it back, and exits nonzero listing each
+mismatch with the story ID and URL. Run `--dry-run` first and show the user
+the resolved names. On a mismatch, fix that story; never create it again.
+
+**Team vs Creative Period Team.** In SixFifty, *Team* is the Shortcut Team
+(Engineering, whose default workflow is "Engineering Workflow"). *Creative
+Period Team* is an enum custom field (MCPizza, The Welcome Wagon, ...).
+"Engineering, creative period team MCPizza" means
+`--team Engineering --custom-field 'Creative Period Team=MCPizza'`.
 
 ## Advanced custom-field search
 

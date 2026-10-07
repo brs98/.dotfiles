@@ -10,7 +10,12 @@ handles credential permissions, fixed-origin REST identity verification, and the
 private subprocess boundary. `mcp/bridge.mjs` uses the official MCP SDK to run
 `@shortcut/mcp` and discover/call its existing tools. There is no handwritten
 business-operation catalog for MCP tools. `search_custom_field` is a read-only
-REST fallback for advanced custom fields unsupported by MCP search. Use the `shortcut-sixfifty` launcher for user work.
+REST fallback for advanced custom fields unsupported by MCP search.
+`story_create.py` backs the launchers' `create-story`: read-only name
+resolution, exactly one `POST /stories`, then a full read-back compared with
+the request. It is the only REST write; it never retries, and its tests fake
+`shortcut_core.request`. `tool_payload` unwraps MCP text results for
+`call-tool --json`. Use the `shortcut-sixfifty` launcher for user work.
 
 Keep the preflight API origin fixed and redirects disabled. Verify workspace
 slug and UUID before starting MCP. Never introduce credential-path or endpoint
