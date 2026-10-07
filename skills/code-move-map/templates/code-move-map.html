@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__CMM_TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef0f3; --border: #e1e4ea;
+    --ink: #1d2330; --soft: #3d4452; --muted: #646b7a;
+    --stay-bg: #f3f4f6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 "Geist", system-ui, sans-serif; }
+  code, .mono { font-family: "Geist Mono", ui-monospace, monospace; font-size: .85em; }
+  code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 28px 16px 80px; }
+  h1 { margin: 0 0 6px; font-size: 26px; line-height: 1.2; }
+  h2 { margin: 36px 0 8px; font-size: 19px; }
+  .lede { color: var(--soft); max-width: 86ch; margin: 0 0 14px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0; }
+  .controls button { font: inherit; font-size: 13.5px; padding: 6px 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; color: var(--ink); }
+  .controls button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+  .legend span { display: inline-flex; gap: 6px; align-items: center; }
+  .legend i { width: 26px; height: 0; border-top: 3px solid var(--c); display: inline-block; }
+  .legend i[data-kind="stay"], .legend i[data-kind="new"], .legend i[data-kind="removed"] { border-top-style: dashed; }
+
+  .map { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 220px minmax(0, 1fr); align-items: start; }
+  svg.arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .col h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .file { background: var(--surface); border: 2px solid var(--ink); border-radius: 12px; padding: 8px; margin-bottom: 18px; }
+  .file .fname { font-family: "Geist Mono", monospace; font-size: 12.5px; font-weight: 600; margin: 0 0 6px; display: flex; justify-content: space-between; gap: 8px; overflow-wrap: anywhere; }
+  .file .fname span { color: var(--muted); font-weight: 400; white-space: nowrap; }
+  .blk { border-radius: 7px; padding: 4px 9px; margin: 3px 0; font-size: 12.5px; line-height: 1.3; display: flex; justify-content: space-between; gap: 8px; align-items: center; overflow: hidden; cursor: default; transition: opacity .15s, box-shadow .15s; }
+  .blk:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .blk .ln { font-family: "Geist Mono", monospace; font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .blk[data-kind="move"] { background: color-mix(in srgb, var(--c) 12%, #fff); border: 1px solid color-mix(in srgb, var(--c) 45%, #fff); }
+  .blk[data-kind="stay"] { background: var(--stay-bg); border: 1px solid var(--border); color: var(--soft); }
+  .blk[data-kind="new"] { background: color-mix(in srgb, var(--c) 9%, #fff); border: 1px dashed var(--c); }
+  .blk[data-kind="removed"] { background: color-mix(in srgb, var(--c) 7%, #fff); border: 1px dashed var(--c); color: var(--soft); }
+  .blk[data-kind="removed"] .lbl { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--c) 60%, #fff); }
+  .blk.dim { opacity: .25; }
+  .blk.hot { box-shadow: 0 0 0 2px var(--ink); }
+  path.arrow { fill: none; stroke: var(--c); stroke-width: 2.2; opacity: .85; transition: opacity .15s, stroke-width .15s; }
+  path.arrow[data-kind="stay"] { stroke-dasharray: 4 4; stroke-width: 1.5; }
+  path.arrow.dim { opacity: .08; }
+  path.arrow.hot { stroke-width: 3.5; opacity: 1; }
+  .gutter { text-align: center; font-size: 12px; color: var(--muted); padding: 40px 8px 0; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; margin: 14px 0; }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--surface-2); }
+  .tag { font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; color: var(--c); background: color-mix(in srgb, var(--c) 12%, #fff); }
+  .tag[data-kind="stay"] { color: var(--soft); background: var(--stay-bg); }
+  pre.mermaid { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; display: flex; justify-content: center; overflow-x: auto; }
+  .note { font-size: 13px; color: var(--muted); }
+
+  @media (max-width: 960px) {
+    .map { grid-template-columns: minmax(0, 1fr); }
+    .gutter, svg.arrows { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script id="cmm-data" type="application/json">/*__CMM_DATA__*/</script>
+<script>
+(() => {
+  const DATA = JSON.parse(document.getElementById('cmm-data').textContent);
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const SCALE = DATA.scale ?? 0.55;
+  const MIN = DATA.minHeight ?? 22;
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const md = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+  const el = (tag, attrs = {}, html) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'style') n.style.cssText = v; else n.setAttribute(k, v);
+    }
+    if (html !== undefined) n.innerHTML = html;
+    return n;
+  };
+  const range = (b) => (b.start === b.end ? `${b.start}` : `${b.start}–${b.end}`);
+  const paras = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+
+  const cats = new Map(DATA.categories.map((c) => [c.id, c]));
+  const blocks = new Map();
+  for (const f of DATA.files) for (const b of f.blocks) blocks.set(b.id, { ...b, file: f });
+  const MOVES = DATA.moves.map((m) => ({ ...m, kind: cats.get(m.category).kind }));
+  const catStyle = (id) => `--c:${cats.get(id).color}`;
+
+  const app = document.getElementById('app');
+  app.append(el('h1', {}, md(DATA.title)));
+  for (const p of paras(DATA.intro)) app.append(el('p', { class: 'lede' }, md(p)));
+
+  const controls = el('div', { class: 'controls', role: 'group', 'aria-label': 'Filter arrows' });
+  const filters = [{ f: 'all', label: 'All moves' }];
+  for (const c of DATA.categories) {
+    if (c.kind === 'move' && MOVES.some((m) => m.category === c.id)) filters.push({ f: c.id, label: c.filter || `${c.label} only` });
+  }
+  if (MOVES.some((m) => m.kind === 'stay')) filters.push({ f: 'moved', label: 'Hide code that stayed' });
+  for (const { f, label } of filters) {
+    controls.append(el('button', { type: 'button', 'data-f': f, 'aria-pressed': String(f === 'all') }, esc(label)));
+  }
+  if (filters.length > 1) app.append(controls);
+
+  const legend = el('div', { class: 'legend' });
+  for (const c of DATA.categories) {
+    const s = el('span');
+    s.append(el('i', { 'data-kind': c.kind, style: catStyle(c.id) }));
+    s.append(document.createTextNode(c.label));
+    legend.append(s);
+  }
+  app.append(legend);
+
+  const map = el('div', { class: 'map', id: 'map' });
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'arrows');
+  svg.setAttribute('aria-hidden', 'true');
+  map.append(svg);
+
+  const column = (side) => {
+    const col = el('div', { class: 'col' });
+    col.append(el('h3', {}, md(DATA[side]?.label || (side === 'before' ? 'Before' : 'After'))));
+    for (const f of DATA.files.filter((x) => x.side === side)) {
+      const meta = [f.lines ? `${f.lines.toLocaleString('en-US')} lines` : null, f.note || null].filter(Boolean).join(' · ');
+      const box = el('div', { class: 'file' });
+      box.append(el('p', { class: 'fname', title: f.path }, `${esc(f.display || f.path)}${meta ? ` <span>${esc(meta)}</span>` : ''}`));
+      for (const b of f.blocks) {
+        const kind = cats.get(b.category).kind;
+        const n = el('div', {
+          class: 'blk', id: `blk-${b.id}`, tabindex: '0', 'data-id': b.id, 'data-kind': kind,
+          style: `${catStyle(b.category)};min-height:${Math.max(MIN, (b.end - b.start + 1) * SCALE)}px`,
+          title: `${f.path}:${range(b)}`,
+        }, `<span class="lbl">${md(b.label)}</span><span class="ln">${range(b)}</span>`);
+        box.append(n);
+      }
+      col.append(box);
+    }
+    return col;
+  };
+  map.append(column('before'));
+  map.append(el('div', { class: 'gutter' }, md(DATA.gutter || '')));
+  map.append(column('after'));
+  app.append(map);
+
+  const t = DATA.table || {};
+  app.append(el('h2', {}, md(t.title || 'The same moves as a table')));
+  const card = el('div', { class: 'card tw' });
+  const table = el('table');
+  const cols = t.columns || ['Code', 'From', 'To', 'Commit / PR', 'Changed while moving?'];
+  table.append(el('tr', {}, cols.map((c) => `<th>${md(c)}</th>`).join('')));
+  const loc = (b) => `\`${b.file.display || b.file.path}:${range(b)}\``;
+  const rows = t.rows || MOVES.map((m) => ({
+    code: blocks.get(m.from).label, from: loc(blocks.get(m.from)), to: loc(blocks.get(m.to)),
+    category: m.category, changed: m.changed || '',
+  }));
+  for (const r of rows) {
+    const c = cats.get(r.category);
+    const tag = `<span class="tag" data-kind="${c.kind}" style="${catStyle(c.id)}">${md(r.tag || c.short || c.label)}</span>`;
+    table.append(el('tr', {}, [md(r.code), md(r.from || '—'), md(r.to || '—'), tag, md(r.changed || '')].map((x) => `<td>${x}</td>`).join('')));
+  }
+  card.append(table);
+  app.append(card);
+
+  let mermaidNode = null;
+  if (DATA.diagram?.source) {
+    app.append(el('h2', {}, md(DATA.diagram.title || 'How the code fits together now')));
+    for (const p of paras(DATA.diagram.intro)) app.append(el('p', { class: 'lede' }, md(p)));
+    mermaidNode = el('pre', { class: 'mermaid' });
+    mermaidNode.textContent = DATA.diagram.source;
+    app.append(mermaidNode);
+  }
+  for (const p of paras(DATA.footnote)) app.append(el('p', { class: 'note' }, md(p)));
+
+  let filter = 'all';
+  const visible = (m) => filter === 'all' || (filter === 'moved' ? m.kind !== 'stay' : m.category === filter);
+
+  function draw() {
+    const box = map.getBoundingClientRect();
+    svg.replaceChildren();
+    const defs = document.createElementNS(SVG_NS, 'defs');
+    for (const c of DATA.categories) {
+      const mk = document.createElementNS(SVG_NS, 'marker');
+      for (const [k, v] of Object.entries({ id: `ah-${c.id}`, viewBox: '0 0 10 10', refX: '9', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto-start-reverse' })) mk.setAttribute(k, v);
+      const tri = document.createElementNS(SVG_NS, 'path');
+      tri.setAttribute('d', 'M0,1 L10,5 L0,9 z');
+      tri.setAttribute('fill', c.color);
+      mk.append(tri);
+      defs.append(mk);
+    }
+    svg.append(defs);
+    for (const m of MOVES) {
+      const a = document.getElementById(`blk-${m.from}`).getBoundingClientRect();
+      const b = document.getElementById(`blk-${m.to}`).getBoundingClientRect();
+      const x1 = a.right - box.left, y1 = a.top + a.height / 2 - box.top;
+      const x2 = b.left - box.left - 2, y2 = b.top + b.height / 2 - box.top;
+      const dx = (x2 - x1) / 2;
+      const p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d', `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`);
+      p.setAttribute('class', `arrow${visible(m) ? '' : ' dim'}`);
+      p.setAttribute('style', catStyle(m.category));
+      p.setAttribute('marker-end', `url(#ah-${m.category})`);
+      p.dataset.kind = m.kind; p.dataset.from = m.from; p.dataset.to = m.to;
+      svg.append(p);
+    }
+    map.querySelectorAll('.blk').forEach((n) => {
+      const linked = MOVES.filter((m) => m.from === n.dataset.id || m.to === n.dataset.id);
+      n.classList.toggle('dim', linked.length > 0 && !linked.some(visible));
+    });
+  }
+
+  function highlight(id, on) {
+    svg.querySelectorAll('path.arrow').forEach((p) => p.classList.toggle('hot', on && (p.dataset.from === id || p.dataset.to === id)));
+    const linked = new Set([id]);
+    for (const m of MOVES) { if (m.from === id) linked.add(m.to); if (m.to === id) linked.add(m.from); }
+    map.querySelectorAll('.blk').forEach((n) => n.classList.toggle('hot', on && linked.has(n.dataset.id)));
+  }
+  map.querySelectorAll('.blk').forEach((n) => {
+    n.addEventListener('mouseenter', () => highlight(n.dataset.id, true));
+    n.addEventListener('mouseleave', () => highlight(n.dataset.id, false));
+    n.addEventListener('focus', () => highlight(n.dataset.id, true));
+    n.addEventListener('blur', () => highlight(n.dataset.id, false));
+  });
+  controls.querySelectorAll('button').forEach((btn) => btn.addEventListener('click', () => {
+    filter = btn.dataset.f;
+    controls.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === btn)));
+    draw();
+  }));
+
+  window.addEventListener('resize', draw);
+  window.addEventListener('load', draw);
+  document.fonts?.ready.then(draw);
+  if ('ResizeObserver' in window) new ResizeObserver(draw).observe(map);
+  draw();
+
+  if (mermaidNode) {
+    import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs')
+      .then(({ default: mermaid }) => {
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+        return mermaid.run({ nodes: [mermaidNode] });
+      })
+      .then(draw)
+      .catch((err) => {
+        console.warn('Mermaid did not render:', err);
+        mermaidNode.insertAdjacentHTML('afterend', '<p class="note">The diagram could not load (offline?). Its source is shown above.</p>');
+      });
+  }
+})();
+</script>
+</body>
+</html>

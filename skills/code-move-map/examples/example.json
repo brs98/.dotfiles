@@ -1,0 +1,76 @@
+{
+  "title": "Where the server code moved",
+  "intro": "The left side is `server.py` on `main`: one 240-line file. The right side is the same code after two commits. Block heights follow line counts. **Teal arrows** are the helper extraction, **purple arrows** are the data-access move, and grey dashed arrows are code that stayed. Hover a block to trace it.",
+  "before": { "label": "Before · on main", "ref": "main", "sha": "1a2b3c4" },
+  "after": { "label": "After · both commits", "ref": "split-server", "sha": "9f8e7d6" },
+  "gutter": "moved by\ntwo commits",
+  "categories": [
+    { "id": "c1", "kind": "move", "label": "1a2b3c4 · helpers extracted", "filter": "Commit 1 only", "short": "commit 1" },
+    { "id": "c2", "kind": "move", "label": "9f8e7d6 · data access moved", "filter": "Commit 2 only", "short": "commit 2" },
+    { "id": "stay", "kind": "stay", "label": "stayed in server.py", "short": "stays" },
+    { "id": "new", "kind": "new", "label": "new code (no source)", "short": "new" },
+    { "id": "gone", "kind": "removed", "label": "deleted", "short": "deleted" }
+  ],
+  "files": [
+    {
+      "side": "before", "path": "app/server.py", "display": "server.py", "lines": 240,
+      "blocks": [
+        { "id": "b1", "label": "Imports, app setup", "start": 1, "end": 24, "category": "stay", "anchor": "import" },
+        { "id": "b2", "label": "`slugify`, `truncate`", "start": 26, "end": 51, "category": "c1" },
+        { "id": "b3", "label": "Connection pool", "start": 53, "end": 70, "category": "c2" },
+        { "id": "b4", "label": "User queries", "start": 72, "end": 118, "category": "c2" },
+        { "id": "b5", "label": "Legacy CSV export", "start": 120, "end": 139, "category": "gone" },
+        { "id": "b6", "label": "Routes: users (parse request, query, respond)", "start": 141, "end": 205, "category": "stay" },
+        { "id": "b7", "label": "Routes: health, metrics", "start": 207, "end": 240, "category": "stay" }
+      ]
+    },
+    {
+      "side": "after", "path": "app/server.py", "display": "server.py", "lines": 131,
+      "blocks": [
+        { "id": "a1", "label": "Imports (trimmed), app setup", "start": 1, "end": 20, "category": "stay" },
+        { "id": "a2", "label": "Routes: users (now call `db.users`)", "start": 22, "end": 96, "category": "stay" },
+        { "id": "a3", "label": "Routes: health, metrics", "start": 98, "end": 131, "category": "stay" }
+      ]
+    },
+    {
+      "side": "after", "path": "app/db.py", "display": "db.py", "lines": 74, "note": "new",
+      "blocks": [
+        { "id": "d1", "label": "Connection pool", "start": 1, "end": 18, "category": "c2" },
+        { "id": "d2", "label": "`users` query object", "start": 20, "end": 66, "category": "c2" },
+        { "id": "d3", "label": "`transaction()` context manager", "start": 68, "end": 74, "category": "new" }
+      ]
+    },
+    {
+      "side": "after", "path": "app/text_utils.py", "display": "text_utils.py", "lines": 27, "note": "new",
+      "blocks": [
+        { "id": "t1", "label": "`slugify`, `truncate`", "start": 1, "end": 27, "category": "c1" }
+      ]
+    }
+  ],
+  "moves": [
+    { "from": "b1", "to": "a1", "category": "stay" },
+    { "from": "b2", "to": "t1", "category": "c1", "changed": "No" },
+    { "from": "b3", "to": "d1", "category": "c2", "changed": "No" },
+    { "from": "b4", "to": "d2", "category": "c2", "changed": "Wrapped in a class; queries unchanged" },
+    { "from": "b6", "to": ["a2"], "category": "stay" },
+    { "from": "b6", "to": "d2", "category": "c2", "changed": "Inline row mapping moved into `users.get`" },
+    { "from": "b7", "to": "a3", "category": "stay" }
+  ],
+  "table": {
+    "columns": ["Code", "From (main)", "To", "Commit", "Changed while moving?"],
+    "rows": [
+      { "code": "`slugify`, `truncate`", "from": "`server.py:26–51`", "to": "`text_utils.py:1–27`", "category": "c1", "changed": "No (verified with `compare.py`)" },
+      { "code": "Connection pool", "from": "`server.py:53–70`", "to": "`db.py:1–18`", "category": "c2", "changed": "No" },
+      { "code": "User queries", "from": "`server.py:72–118`", "to": "`db.py:20–66`", "category": "c2", "changed": "Wrapped in a `Users` class; SQL unchanged" },
+      { "code": "Row mapping in the users route", "from": "`server.py:141–205` (part)", "to": "`db.py:20–66`", "category": "c2", "changed": "Moved into `users.get`" },
+      { "code": "`transaction()`", "from": "—", "to": "`db.py:68–74`", "category": "new", "changed": "New helper" },
+      { "code": "Legacy CSV export", "from": "`server.py:120–139`", "to": "—", "category": "gone", "changed": "Deleted; nothing called it" },
+      { "code": "Routes", "from": "`server.py:141–240`", "to": "same file", "category": "stay", "tag": "stays, slimmed", "changed": "Users route now calls `db.users`" }
+    ]
+  },
+  "diagram": {
+    "title": "How a request flows now",
+    "intro": "Routes stay thin; data access and text helpers live in their own modules.",
+    "source": "flowchart LR\n  C[Client] -->|GET /users/:id| S[server.py<br/>routes]\n  S --> D[db.py<br/>users, pool]\n  S --> T[text_utils.py]\n  D --> P[(Postgres)]"
+  }
+}
