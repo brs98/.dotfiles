@@ -9,7 +9,7 @@ from merged_prs import day_bounds, extract_fhbh, fetch_prs, render_report
 def pr(number=1, body="### ❤️ FHBH\n\nMade it better.\n\n### TL;DR\nOther text.",
        merger="me", merged_at="2026-10-12T18:00:00Z"):
     return {"number": number, "body": body, "mergedBy": {"login": merger},
-            "mergedAt": merged_at, "repository": {"nameWithOwner": "example/app"}}
+            "mergedAt": merged_at, "repository": {"nameWithOwner": "sixfiftylabs/app"}}
 
 
 def page(nodes, more=False, cursor=None, count=5):
@@ -35,7 +35,7 @@ class ReportTests(unittest.TestCase):
     def test_empty_and_missing_fhbh(self):
         for body in [None, "", "## Description\nText", "## FHBH\n<!-- template -->\n## Testing"]:
             self.assertEqual(render_report([pr(body=body)]),
-                             "PR's merged\n\n- FHBH missing for example/app#1.\n")
+                             "PR's merged\n\n- FHBH missing for sixfiftylabs/app#1.\n")
 
     def test_no_merges(self):
         self.assertEqual(render_report([]), "PR's merged\n\n- No PRs merged.\n")
@@ -52,14 +52,14 @@ class ReportTests(unittest.TestCase):
         gh.side_effect = [page([pr(2), pr(3, merger="someone-else")], True, "next"),
                           page([first, pr(2), pr(4, merged_at="2026-10-13T06:00:00Z"),
                                 pr(5, merged_at="2026-10-12T05:59:59Z"), None])]
-        self.assertEqual([p["number"] for p in fetch_prs("example/app", start, end)], [1, 2])
+        self.assertEqual([p["number"] for p in fetch_prs(start, end)], [1, 2])
         self.assertIn("cursor=next", gh.call_args.args)
-        self.assertIn("search=repo:example/app is:pr is:merged merged:2026-10-12T06:00:00Z..2026-10-13T05:59:59Z", gh.call_args.args)
+        self.assertIn("search=repo:sixfiftylabs/app is:pr is:merged merged:2026-10-12T06:00:00Z..2026-10-13T05:59:59Z", gh.call_args.args)
 
     @patch("merged_prs.gh_json", return_value=page([], count=1001))
     def test_search_limit_fails_instead_of_truncating(self, gh):
         with self.assertRaisesRegex(RuntimeError, "incomplete report"):
-            fetch_prs("example/app", *day_bounds(date(2026, 10, 12), ZoneInfo("America/Denver")))
+            fetch_prs(*day_bounds(date(2026, 10, 12), ZoneInfo("America/Denver")))
 
 
 if __name__ == "__main__":

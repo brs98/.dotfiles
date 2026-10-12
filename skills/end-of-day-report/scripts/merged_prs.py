@@ -41,14 +41,14 @@ def gh_json(*args):
     return payload
 
 
-def fetch_prs(repo, start, end):
+def fetch_prs(start, end):
     lower = start.strftime("%Y-%m-%dT%H:%M:%SZ")
     upper = (end - timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    search = f"repo:{repo} is:pr is:merged merged:{lower}..{upper}"
+    search = f"repo:sixfiftylabs/app is:pr is:merged merged:{lower}..{upper}"
     cursor = None
     prs = {}
     while True:
-        args = ["api", "graphql", "-f", f"query={QUERY}", "-f", f"search={search}"]
+        args = ["api", "graphql", "--hostname", "github.com", "-f", f"query={QUERY}", "-f", f"search={search}"]
         if cursor:
             args += ["-f", f"cursor={cursor}"]
         data = gh_json(*args)["data"]
@@ -115,18 +115,15 @@ def render_report(prs):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Report merged PRs using their FHBH sections.")
-    parser.add_argument("--repo", default="sixfiftylabs/app", help="GitHub OWNER/REPO")
+    parser = argparse.ArgumentParser(description="Report sixfiftylabs/app merged PRs using their FHBH sections.")
     parser.add_argument("--date", type=date.fromisoformat, help="Calendar date YYYY-MM-DD (default: today)")
     parser.add_argument("--timezone", default="America/Denver", help="IANA timezone (default: America/Denver)")
     args = parser.parse_args()
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repo):
-        parser.error("--repo must be OWNER/REPO")
     try:
         zone = ZoneInfo(args.timezone)
         day = args.date or datetime.now(zone).date()
         start, end = day_bounds(day, zone)
-        report = render_report(fetch_prs(args.repo, start, end))
+        report = render_report(fetch_prs(start, end))
     except (OSError, ValueError, KeyError, RuntimeError, subprocess.TimeoutExpired, ZoneInfoNotFoundError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
