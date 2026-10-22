@@ -38,7 +38,8 @@ or change the launcher or enrolled identity during ordinary Shortcut work.
    inspect its outcome first because a timed-out request may have completed.
 7. After any story write other than `create-story`, verify it with
    `stories-get-by-id` and `"full": true`. The default slim read omits team
-   and workflow, so a story in the wrong team looks fine there.
+   and workflow, so a story in the wrong team looks fine there. A story moved
+   into active work also needs an iteration; see Iterations below.
 
 ## Creating stories
 
@@ -48,7 +49,7 @@ team's workflow with no team while reporting success.
 
 ```bash
 python3 "$SC" create-story --name 'Fix login copy' --type chore --owner me \
-  --team Engineering --state 'On Deck' \
+  --team Engineering --state 'On Deck' --iteration current \
   --custom-field 'Creative Period Team=MCPizza' --description-file /tmp/body.md --dry-run
 ```
 
@@ -62,6 +63,21 @@ the resolved names. On a mismatch, fix that story; never create it again.
 Period Team* is an enum custom field (MCPizza, The Welcome Wagon, ...).
 "Engineering, creative period team MCPizza" means
 `--team Engineering --custom-field 'Creative Period Team=MCPizza'`.
+
+## Iterations
+
+The board shows only stories in the team's iteration, so a story in active work
+needs one. Active work is On Deck, In Progress, PR Review, or Test yourself (in
+Prod); Backlog stories stay out of iterations unless the user names one.
+
+- Creating in an active state: pass `--iteration current` (or the iteration the
+  user names). It resolves to the team's one started iteration and fails rather
+  than guessing when there are none or several.
+- Moving an existing story into an active state with `stories-update`: if its
+  `iteration_id` is empty, set `"iteration"` in the same update to the ID from
+  `python3 "$SC" current-iteration --team <Team>`. If it is already in a
+  different iteration, leave it and tell the user instead of moving it.
+- Verify `iteration_id` in the full read-back along with team and workflow.
 
 ## Advanced custom-field search
 

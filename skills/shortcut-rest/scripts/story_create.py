@@ -83,6 +83,41 @@ def _resolve_by_id_or_name(token, kind, wanted, path, include):
     return {'id': item['id'], 'name': item['name']}
 
 
+def _resolve_team(token, wanted):
+    teams = [team for team in _get(token, '/groups') if not team.get('archived')]
+    return _pick('Team', wanted, teams, (lambda t: t['name'], lambda t: t['mention_name']),
+                 lambda t: f"{t['name']} (@{t['mention_name']})")
+
+
+def _current_iteration(iterations, team):
+    """The one started iteration associated with the team; anything else is an error, never a guess."""
+    active = [i for i in iterations if i.get('status') == 'started' and team['id'] in (i.get('group_ids') or [])]
+    if len(active) == 1:
+        return active[0]
+    if active:
+        names = ', '.join(sorted(f"{i['name']!r} ({i['id']})" for i in active))
+        raise shortcut_core.SafeError(f"Team {team['name']!r} has more than one started iteration: {names}")
+    raise shortcut_core.SafeError(f"Team {team['name']!r} has no started iteration; pass an iteration ID or name")
+
+
+def _resolve_iteration(token, wanted, team):
+    iterations = _get(token, '/iterations')
+    if _fold(wanted) == 'current':
+        item = _current_iteration(iterations, team)
+    else:
+        item = _pick('Iteration', wanted, iterations, (lambda i: str(i['id']), lambda i: i['name']),
+                     lambda i: f"{i['name']!r} ({i['id']})")
+    return {'id': item['id'], 'name': item['name']}
+
+
+def current_iteration(token, team_name):
+    """Resolve a team's started iteration for callers that set it with stories-update."""
+    team = _resolve_team(token, team_name)
+    item = _current_iteration(_get(token, '/iterations'), team)
+    return {'id': item['id'], 'name': item['name'], 'team': team['name'],
+            'start_date': item.get('start_date'), 'end_date': item.get('end_date')}
+
+
 def _resolve_labels(token, labels):
     if not labels:
         return []
@@ -100,9 +135,7 @@ def resolve(token, me, spec):
         raise shortcut_core.SafeError(f"Story type must be one of: {', '.join(STORY_TYPES)}")
     if not spec['name'].strip():
         raise shortcut_core.SafeError('Story name must not be empty')
-    teams = [team for team in _get(token, '/groups') if not team.get('archived')]
-    team = _pick('Team', spec['team'], teams, (lambda t: t['name'], lambda t: t['mention_name']),
-                 lambda t: f"{t['name']} (@{t['mention_name']})")
+    team = _resolve_team(token, spec['team'])
     workflow_id = team.get('default_workflow_id')
     if not workflow_id:
         raise shortcut_core.SafeError(f"Team {team['name']!r} has no default workflow; refusing to guess one")
@@ -111,8 +144,7 @@ def resolve(token, me, spec):
                   lambda s: repr(s['name']), f" in {workflow['name']!r}")
     epic = spec.get('epic') and _resolve_by_id_or_name(
         token, 'Epic', spec['epic'], '/epics', lambda e: not e.get('archived'))
-    iteration = spec.get('iteration') and _resolve_by_id_or_name(
-        token, 'Iteration', spec['iteration'], '/iterations', lambda i: True)
+    iteration = spec.get('iteration') and _resolve_iteration(token, spec['iteration'], team)
     return {
         'name': spec['name'],
         'description': spec.get('description'),

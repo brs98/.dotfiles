@@ -14,7 +14,8 @@ REST fallback for advanced custom fields unsupported by MCP search.
 `story_create.py` backs the launchers' `create-story`: read-only name
 resolution, exactly one `POST /stories`, then a full read-back compared with
 the request. It is the only REST write; it never retries, and its tests fake
-`shortcut_core.request`. `tool_payload` unwraps MCP text results for
+`shortcut_core.request`. Its `current_iteration` also backs the read-only
+`current-iteration` command and `--iteration current`. `tool_payload` unwraps MCP text results for
 `call-tool --json`. Use the `shortcut-sixfifty` launcher for user work.
 
 Keep the preflight API origin fixed and redirects disabled. Verify workspace

@@ -81,7 +81,7 @@ A cancelled network mutation can still complete remotely: inspect before retryin
 create-story --name NAME [--description TEXT | --description-file PATH]
              --type {feature,bug,chore} [--owner MENTION|me]... --team TEAM
              --state STATE [--custom-field 'Field Name=Value']...
-             [--epic ID|NAME] [--iteration ID|NAME] [--label NAME]... [--dry-run]
+             [--epic ID|NAME] [--iteration ID|NAME|current] [--label NAME]... [--dry-run]
 ```
 
 Use it instead of the MCP `stories-create`. That tool picks the team's first
@@ -94,7 +94,9 @@ check: `/groups` (Team name or mention name, archived teams excluded), the
 team's `default_workflow_id` and `/workflows/{id}` states, `/members` (mention
 name or full name, disabled members excluded; `me` is the token's user),
 `/custom-fields` (enabled fields and values; story-type restrictions enforced),
-`/epics`, `/iterations` (ID or name), and `/labels` (existing labels only).
+`/epics`, `/iterations` (ID or name, or `current`: the one iteration with status
+`started` whose `group_ids` include the resolved team; none or several is an
+error), and `/labels` (existing labels only).
 Matches are exact and case-insensitive, with a leading `@` ignored. A missing
 or ambiguous name fails before any write and lists the candidates. `--state`
 is required: there is no default state, and a team without a default workflow
@@ -120,6 +122,17 @@ default workflow "Engineering Workflow"; Engineering Support shares it).
 ...). "Engineering, creative period team MCPizza" is
 `--team Engineering --custom-field 'Creative Period Team=MCPizza'`.
 The MCP `stories-create` cannot set custom fields; `create-story` does.
+
+## current-iteration
+
+```bash
+python3 "$SC" current-iteration --team Engineering
+```
+
+Read-only. Resolves the team as `create-story` does, then returns
+`{id, name, team, start_date, end_date}` for its one `started` iteration from
+`/iterations`, or fails when there are none or several. Use the `id` as the
+`iteration` argument to `stories-update` when moving a story into active work.
 
 ## Custom-field search fallback
 

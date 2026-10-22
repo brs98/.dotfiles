@@ -46,11 +46,20 @@ CUSTOM_FIELDS = [
     {'id': 'field-sev', 'name': 'Severity', 'enabled': True, 'story_types': ['bug'],
      'values': [{'id': 'value-high', 'value': 'High', 'enabled': True}]},
 ]
+ITERATIONS = [
+    {'id': 2333, 'name': '2025', 'status': 'done', 'group_ids': [ENGINEERING]},
+    {'id': 2366, 'name': '2025', 'status': 'done', 'group_ids': []},
+    {'id': 6919, 'name': 'Week 10', 'status': 'started', 'group_ids': [ENGINEERING],
+     'start_date': '2026-03-02', 'end_date': '2026-03-08'},
+    {'id': 6920, 'name': 'Week 11', 'status': 'unstarted', 'group_ids': [ENGINEERING]},
+    {'id': 7001, 'name': 'Design Week 10', 'status': 'started', 'group_ids': ['team-design']},
+]
 
 
 class FakeShortcut:
-    def __init__(self, story_overrides=None, post_error=None, readback_error=None):
+    def __init__(self, story_overrides=None, post_error=None, readback_error=None, iterations=ITERATIONS):
         self.calls = []
+        self.iterations = iterations
         self.story_overrides = story_overrides or {}
         self.post_error = post_error
         self.readback_error = readback_error
@@ -71,7 +80,7 @@ class FakeShortcut:
         if method == 'GET' and path == '/epics':
             return [{'id': 7, 'name': 'Agent Skills'}, {'id': 8, 'name': 'Old', 'archived': True}]
         if method == 'GET' and path == '/iterations':
-            return [{'id': 2333, 'name': '2025'}, {'id': 2366, 'name': '2025'}, {'id': 6919, 'name': 'Week 10'}]
+            return self.iterations
         if method == 'GET' and path == '/labels?slim=true':
             return [{'id': 41, 'name': 'QA'}]
         if method == 'POST' and path == '/stories':
@@ -141,6 +150,27 @@ class StoryCreateTests(unittest.TestCase):
         self.assertEqual(body['custom_fields'], [{'field_id': 'field-cpt', 'value_id': 'value-pizza'}])
         self.assertEqual((body['epic_id'], body['iteration_id'], body['labels']), (7, 6919, [{'name': 'QA'}]))
         self.assertEqual(fake.calls[-1][:2], ('GET', '/stories/101'))
+
+    def test_current_iteration_is_the_teams_started_one(self):
+        fake = FakeShortcut()
+        result = self.run_create(fake, iteration='Current')
+        self.assertEqual(result['status'], 'created')
+        self.assertEqual(fake.writes()[0][2]['iteration_id'], 6919)
+        self.assertEqual(result['resolved']['iteration'], 'Week 10')
+
+    def test_current_iteration_never_guesses(self):
+        two = ITERATIONS + [{'id': 6921, 'name': 'Week 10b', 'status': 'started', 'group_ids': [ENGINEERING]}]
+        cases = [
+            (two, "Team 'Engineering' has more than one started iteration: 'Week 10' (6919), 'Week 10b' (6921)"),
+            ([i for i in ITERATIONS if i['id'] != 6919], "Team 'Engineering' has no started iteration"),
+        ]
+        for iterations, message in cases:
+            with self.subTest(message=message):
+                fake = FakeShortcut(iterations=iterations)
+                with self.assertRaises(SafeError) as raised:
+                    self.run_create(fake, iteration='current')
+                self.assertIn(message, str(raised.exception))
+                self.assertEqual(fake.writes(), [])
 
     def test_mismatch_reports_every_difference_and_does_not_retry(self):
         fake = FakeShortcut(story_overrides={
@@ -243,6 +273,15 @@ class LauncherCreateStoryTests(unittest.TestCase):
         with self.assertRaises(SafeError):
             self.run_launcher(wrong_workspace, [
                 'create-story', '--name', 'T', '--type', 'chore', '--team', 'Engineering', '--state', 'On Deck'])
+
+    def test_current_iteration_command_prints_id_and_dates(self):
+        fake = FakeShortcut()
+        code, out, _ = self.run_launcher(fake, ['current-iteration', '--team', '@engineering'])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)['result'], {
+            'id': 6919, 'name': 'Week 10', 'team': 'Engineering',
+            'start_date': '2026-03-02', 'end_date': '2026-03-08'})
+        self.assertEqual(fake.writes(), [])
 
     def test_state_is_required(self):
         with self.assertRaises(SystemExit), patch('sys.stderr', io.StringIO()):

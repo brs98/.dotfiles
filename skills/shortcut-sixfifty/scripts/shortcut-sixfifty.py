@@ -10,7 +10,7 @@ import warnings
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'shortcut-rest' / 'scripts'))
 from shortcut_core import (SafeError, identity, mcp_operation, private_directory, read_credentials, request,
                            search_custom_field, tool_payload)
-from story_create import STORY_TYPES, create_story
+from story_create import STORY_TYPES, create_story, current_iteration
 
 SLUG = 'sixfifty'
 CREDENTIALS = Path.home() / '.config/shortcut/workspaces/sixfifty/credentials.json'
@@ -49,6 +49,8 @@ def main():
     custom = sub.add_parser('search-custom-field', help='Match a custom field/value across active and archived stories')
     custom.add_argument('--field', required=True)
     custom.add_argument('--value', required=True)
+    current = sub.add_parser('current-iteration', help="Print a team's started iteration (ID, name, dates)")
+    current.add_argument('--team', required=True, help='Shortcut Team name or mention name')
     for name in ('describe-tool', 'call-tool'):
         cmd = sub.add_parser(name)
         cmd.add_argument('name')
@@ -67,7 +69,7 @@ def main():
     story.add_argument('--state', required=True, help="Workflow state in the team's default workflow")
     story.add_argument('--custom-field', action='append', default=[], metavar="'Field Name=Value'")
     story.add_argument('--epic', help='Epic ID or exact name')
-    story.add_argument('--iteration', help='Iteration ID or exact name')
+    story.add_argument('--iteration', help="Iteration ID, exact name, or 'current' for the team's started iteration")
     story.add_argument('--label', action='append', default=[], help='Existing label name; repeatable')
     story.add_argument('--dry-run', action='store_true', help='Resolve and print the payload without writing')
     args = parser.parse_args()
@@ -108,6 +110,8 @@ def main():
         result = {'status': 'token rotated'}
     elif args.command == 'search-custom-field':
         result = search_custom_field(token, args.field, args.value)
+    elif args.command == 'current-iteration':
+        result = current_iteration(token, args.team)
     elif args.command == 'create-story':
         result = create_story(token, member, spec, dry_run=args.dry_run)
         print(json.dumps({'workspace': workspace, 'result': result}, indent=2))
