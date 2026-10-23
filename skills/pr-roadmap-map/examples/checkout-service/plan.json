@@ -1,0 +1,216 @@
+{
+ "title": "Checkout Service Roadmap",
+ "eyebrow": "Storefront \u00b7 from the monolith to a checkout service",
+ "subtitle": "Checkout runs as its own service behind the storefront, with the old code path deleted.",
+ "repo": "example-org/storefront",
+ "baseBranch": "main",
+ "storyUrl": "https://tracker.example.com/story/{id}",
+ "storyPrefix": "st-",
+ "metaChecks": {
+  "label": "PR labels"
+ },
+ "discover": {
+  "author": "@me",
+  "state": "open",
+  "limit": 100,
+  "match": [
+   "st-1203",
+   "st-1204"
+  ]
+ },
+ "tracks": [
+  {
+   "id": "A",
+   "label": "Extract checkout"
+  },
+  {
+   "id": "B",
+   "label": "Order events"
+  },
+  {
+   "id": "C",
+   "label": "Rollout"
+  }
+ ],
+ "prLabels": {
+  "110": "service package",
+  "111": "cart API",
+  "112": "order API",
+  "115": "payment calls"
+ },
+ "goal": {
+  "title": "End state",
+  "what": "Checkout is served by its own service, publishes order events, and the monolith keeps no checkout code.",
+  "links": [
+   {
+    "label": "Design doc",
+    "href": "https://docs.example.com/checkout-service"
+   }
+  ]
+ },
+ "steps": [
+  {
+   "id": "a1",
+   "label": "Groundwork",
+   "title": "Checkout module boundary",
+   "track": "A",
+   "story": 1201,
+   "prs": [
+    101
+   ],
+   "what": "Checkout code calls the rest of the monolith only through one interface.",
+   "why": "The service can only be cut out along a boundary that already exists."
+  },
+  {
+   "id": "a2",
+   "label": "Groundwork",
+   "title": "Move cart pricing",
+   "track": "A",
+   "story": 1202,
+   "prs": [
+    104
+   ],
+   "deps": [
+    "a1"
+   ],
+   "what": "Cart pricing moves behind the checkout interface.",
+   "why": "Pricing is the largest dependency checkout has on the monolith."
+  },
+  {
+   "id": "x1",
+   "label": "Decision",
+   "title": "Tax stays in the monolith",
+   "track": "A",
+   "done": true,
+   "what": "Checkout asks the monolith for tax instead of owning it.",
+   "why": "Tax rules change with finance's release cycle, not checkout's."
+  },
+  {
+   "id": "a3",
+   "label": "Step 3",
+   "title": "Checkout service package",
+   "track": "A",
+   "story": 1203,
+   "prs": [
+    110,
+    111,
+    112
+   ],
+   "deps": [
+    "a2",
+    "x1"
+   ],
+   "what": "A new service with the cart and order APIs, deployed but not yet taking traffic.",
+   "why": "Everything after this routes traffic to it.",
+   "related": [
+    {
+     "story": 1290,
+     "label": "Follow-up: retry budget for the order API"
+    }
+   ]
+  },
+  {
+   "id": "a4",
+   "label": "Step 4",
+   "title": "Move payment calls",
+   "track": "A",
+   "story": 1204,
+   "prs": [
+    115
+   ],
+   "deps": [
+    "a3"
+   ],
+   "what": "The payment provider is called from the service, not the monolith.",
+   "why": "Payments are the last thing tying checkout to the monolith."
+  },
+  {
+   "id": "a5",
+   "label": "Step 5",
+   "title": "Delete the old checkout path",
+   "track": "A",
+   "story": 1205,
+   "deps": [
+    "a4",
+    "c2"
+   ],
+   "what": "Remove the monolith's checkout controllers and jobs.",
+   "why": "Two live paths drift; deleting one is the point of the project."
+  },
+  {
+   "id": "b1",
+   "label": "Groundwork",
+   "title": "Order events schema",
+   "track": "B",
+   "story": 1210,
+   "prs": [
+    102
+   ],
+   "what": "One versioned schema for order created, paid and refunded.",
+   "why": "Consumers need a contract before anything publishes."
+  },
+  {
+   "id": "b2",
+   "label": "Step 2",
+   "title": "Publish order events",
+   "track": "B",
+   "story": 1211,
+   "prs": [
+    108
+   ],
+   "deps": [
+    "b1"
+   ],
+   "what": "The order API publishes an event for every state change.",
+   "why": "Fulfillment and email stop reading the checkout tables."
+  },
+  {
+   "id": "b3",
+   "label": "Step 3",
+   "title": "Event replay tool",
+   "track": "B",
+   "story": 1212,
+   "open": true,
+   "deps": [
+    "b1"
+   ],
+   "what": "Replay a time range of order events to one consumer.",
+   "why": "A consumer that missed events can catch up without a database copy."
+  },
+  {
+   "id": "c0",
+   "label": "Prep",
+   "title": "Load test plan",
+   "track": "C",
+   "story": 1220,
+   "what": "Peak-day traffic profile and pass criteria for the service.",
+   "why": "Cutover needs a number to beat."
+  },
+  {
+   "id": "c1",
+   "label": "Step 1",
+   "title": "Shadow traffic",
+   "track": "C",
+   "story": 1221,
+   "deps": [
+    "a4",
+    "b2",
+    "c0"
+   ],
+   "what": "Mirror live checkout requests to the service and compare results.",
+   "why": "Find differences before customers do."
+  },
+  {
+   "id": "c2",
+   "label": "Step 2",
+   "title": "Cut over",
+   "track": "C",
+   "story": 1222,
+   "deps": [
+    "c1"
+   ],
+   "what": "Route checkout to the service behind a percentage flag.",
+   "why": "The flag makes rollback one setting."
+  }
+ ]
+}

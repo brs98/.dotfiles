@@ -1,0 +1,466 @@
+{
+ "101": {
+  "number": 101,
+  "title": "Route checkout through one module interface [st-1201]",
+  "url": "https://github.com/example-org/storefront/pull/101",
+  "state": "MERGED",
+  "isDraft": false,
+  "reviewDecision": "APPROVED",
+  "baseRefName": "main",
+  "headRefName": "alex/st-1201/checkout-boundary",
+  "mergedAt": "2026-10-02T17:20:00Z",
+  "author": {
+   "login": "dev-alex",
+   "name": "Alex Example",
+   "is_bot": false
+  },
+  "statusCheckRollup": [
+   {
+    "__typename": "CheckRun",
+    "name": "test",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9005"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "lint",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9006"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "typecheck",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9007"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "label",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "labels",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9008"
+   }
+  ]
+ },
+ "102": {
+  "number": 102,
+  "title": "Add versioned order event schema [st-1210]",
+  "url": "https://github.com/example-org/storefront/pull/102",
+  "state": "MERGED",
+  "isDraft": false,
+  "reviewDecision": "APPROVED",
+  "baseRefName": "main",
+  "headRefName": "sam/st-1210/order-events-schema",
+  "mergedAt": "2026-10-06T21:05:00Z",
+  "author": {
+   "login": "dev-sam",
+   "name": "Sam Example",
+   "is_bot": false
+  },
+  "statusCheckRollup": [
+   {
+    "__typename": "CheckRun",
+    "name": "test",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9009"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "lint",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9010"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "typecheck",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9011"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "label",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "labels",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9012"
+   }
+  ]
+ },
+ "104": {
+  "number": 104,
+  "title": "Move cart pricing behind the checkout interface [st-1202]",
+  "url": "https://github.com/example-org/storefront/pull/104",
+  "state": "MERGED",
+  "isDraft": false,
+  "reviewDecision": "APPROVED",
+  "baseRefName": "main",
+  "headRefName": "alex/st-1202/cart-pricing",
+  "mergedAt": "2026-10-09T16:40:00Z",
+  "author": {
+   "login": "dev-alex",
+   "name": "Alex Example",
+   "is_bot": false
+  },
+  "statusCheckRollup": [
+   {
+    "__typename": "CheckRun",
+    "name": "test",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9013"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "lint",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9014"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "typecheck",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9015"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "label",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "labels",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9016"
+   }
+  ]
+ },
+ "108": {
+  "number": 108,
+  "title": "Publish order events from the order API [st-1211]",
+  "url": "https://github.com/example-org/storefront/pull/108",
+  "state": "OPEN",
+  "isDraft": false,
+  "reviewDecision": "APPROVED",
+  "baseRefName": "main",
+  "headRefName": "sam/st-1211/publish-order-events",
+  "mergedAt": null,
+  "author": {
+   "login": "dev-sam",
+   "name": "Sam Example",
+   "is_bot": false
+  },
+  "statusCheckRollup": [
+   {
+    "__typename": "CheckRun",
+    "name": "test",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9017"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "lint",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9018"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "typecheck",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9019"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "label",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "labels",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9020"
+   }
+  ]
+ },
+ "110": {
+  "number": 110,
+  "title": "Scaffold the checkout service [st-1203]",
+  "url": "https://github.com/example-org/storefront/pull/110",
+  "state": "OPEN",
+  "isDraft": false,
+  "reviewDecision": "APPROVED",
+  "baseRefName": "main",
+  "headRefName": "alex/st-1203/service-package",
+  "mergedAt": null,
+  "author": {
+   "login": "dev-alex",
+   "name": "Alex Example",
+   "is_bot": false
+  },
+  "statusCheckRollup": [
+   {
+    "__typename": "CheckRun",
+    "name": "test",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9021"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "lint",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9022"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "typecheck",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9023"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "label",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "labels",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9024"
+   }
+  ]
+ },
+ "111": {
+  "number": 111,
+  "title": "Serve the cart API from the checkout service [st-1203]",
+  "url": "https://github.com/example-org/storefront/pull/111",
+  "state": "OPEN",
+  "isDraft": false,
+  "reviewDecision": "REVIEW_REQUIRED",
+  "baseRefName": "alex/st-1203/service-package",
+  "headRefName": "alex/st-1203/cart-api",
+  "mergedAt": null,
+  "author": {
+   "login": "dev-alex",
+   "name": "Alex Example",
+   "is_bot": false
+  },
+  "statusCheckRollup": [
+   {
+    "__typename": "CheckRun",
+    "name": "test",
+    "status": "IN_PROGRESS",
+    "conclusion": "",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "0001-01-01T00:00:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9025"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "lint",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9026"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "typecheck",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9027"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "label",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "labels",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9028"
+   }
+  ]
+ },
+ "112": {
+  "number": 112,
+  "title": "Serve the order API from the checkout service [st-1203]",
+  "url": "https://github.com/example-org/storefront/pull/112",
+  "state": "OPEN",
+  "isDraft": true,
+  "reviewDecision": "REVIEW_REQUIRED",
+  "baseRefName": "alex/st-1203/cart-api",
+  "headRefName": "alex/st-1203/order-api",
+  "mergedAt": null,
+  "author": {
+   "login": "dev-alex",
+   "name": "Alex Example",
+   "is_bot": false
+  },
+  "statusCheckRollup": [
+   {
+    "__typename": "CheckRun",
+    "name": "test",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9029"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "lint",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9030"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "typecheck",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9031"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "label",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "labels",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9032"
+   }
+  ]
+ },
+ "115": {
+  "number": 115,
+  "title": "Call the payment provider from the checkout service [st-1204]",
+  "url": "https://github.com/example-org/storefront/pull/115",
+  "state": "OPEN",
+  "isDraft": true,
+  "reviewDecision": "CHANGES_REQUESTED",
+  "baseRefName": "alex/st-1203/order-api",
+  "headRefName": "alex/st-1204/payment-calls",
+  "mergedAt": null,
+  "author": {
+   "login": "dev-alex",
+   "name": "Alex Example",
+   "is_bot": false
+  },
+  "statusCheckRollup": [
+   {
+    "__typename": "CheckRun",
+    "name": "test",
+    "status": "COMPLETED",
+    "conclusion": "FAILURE",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9033"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "lint",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9034"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "typecheck",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "ci",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9035"
+   },
+   {
+    "__typename": "CheckRun",
+    "name": "label",
+    "status": "COMPLETED",
+    "conclusion": "SUCCESS",
+    "workflowName": "labels",
+    "startedAt": "2026-10-20T15:00:00Z",
+    "completedAt": "2026-10-20T15:09:00Z",
+    "detailsUrl": "https://github.com/example-org/storefront/actions/runs/9036"
+   }
+  ]
+ }
+}

@@ -1,0 +1,780 @@
+<title>__ROADMAP_TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: header and data stamp, four computed summary cards, the "Ask the map" question bar, then a scrollable dependency map (lanes = tracks, left to right = order) beside an answer/detail panel; the PR stack rail runs full width below. Three step states and three PR states, each a hue paired with a shape; CI failure is a red ring, and blocked / ready to start are markers on top of the state. Blue accent marks what is being traced; violet marks stacked PRs. */
+:root {
+  --bg: #f2f4f7;
+  --surface: #ffffff;
+  --ink: #18202b;
+  --muted: #5a6474;
+  --line: #d6dbe3;
+  --lane: #e9ecf1;
+  --accent: #2f5fd0;
+  --accent-soft: #e2e9fa;
+  --merged: #1f7a4d;
+  --review: #2c5fbf;
+  --draft: #a86a12;
+  --fail: #c81e1e;
+  --todo: #6b7584;
+  --edge: #b9c0cc;
+  --stack: #7445c9;
+  --stack-soft: #efe8fb;
+  --shadow: 0 6px 24px rgba(24, 32, 43, 0.14);
+  --ui: "Figtree", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --surface: #19202a; --ink: #e6eaf0; --muted: #9aa4b4; --line: #2c3542; --lane: #161c25;
+    --accent: #86a8ff; --accent-soft: #1d2a47; --merged: #5fcf8f; --review: #86aef5;
+    --draft: #e8b25a; --fail: #ff7b7b; --todo: #a2acbb; --edge: #3d4757;
+    --stack: #b79cf5; --stack-soft: #261f3a; --shadow: 0 8px 28px rgba(0, 0, 0, 0.5); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #19202a; --ink: #e6eaf0; --muted: #9aa4b4; --line: #2c3542; --lane: #161c25;
+  --accent: #86a8ff; --accent-soft: #1d2a47; --merged: #5fcf8f; --review: #86aef5;
+  --draft: #e8b25a; --fail: #ff7b7b; --todo: #a2acbb; --edge: #3d4757;
+  --stack: #b79cf5; --stack-soft: #261f3a; --shadow: 0 8px 28px rgba(0, 0, 0, 0.5); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--ui); }
+a { color: var(--accent); }
+.page { max-width: 1520px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; display: grid; gap: 16px; }
+@media (max-width: 560px) { .page { padding-inline: 16px; } }
+header.top { display: grid; gap: 6px; }
+h1 { font: 800 clamp(1.9rem, 4vw, 2.6rem)/1.1 var(--ui); margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+header.top p { margin: 0; color: var(--muted); font-size: 1.02rem; max-width: 780px; }
+.eyebrow { font: 500 0.72rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.stamp { display: flex; flex-wrap: wrap; gap: 4px 12px; font: 500 0.78rem/1.3 var(--mono); color: var(--muted); }
+.stamp b { color: var(--ink); font-weight: 500; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--lane); padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.ic { display: inline-grid; place-items: center; flex: none; width: 14px; height: 14px; color: var(--c); }
+.ic svg { width: 100%; height: 100%; display: block; }
+.ic.sm { width: 12px; height: 12px; }
+.ic.lg { width: 16px; height: 16px; }
+.pipw { display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 4px; flex: none; }
+.pipw.cifail { box-shadow: 0 0 0 2px var(--fail); }
+
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.sum { all: unset; box-sizing: border-box; cursor: pointer; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 7px; align-content: start; min-width: 0; }
+.sum:hover { border-color: var(--accent); }
+.sum:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sum h3 { margin: 0; font: 500 0.68rem/1 var(--mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.sum .big { font: 800 1.35rem/1 var(--ui); font-variant-numeric: tabular-nums; }
+.sum .big small { font: 500 0.8rem/1 var(--ui); color: var(--muted); margin-left: 4px; }
+.sum .srow { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.8rem; color: var(--muted); }
+.sum .srow span { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+.sum.warn { border-color: color-mix(in srgb, var(--fail) 45%, var(--line)); }
+.bar { display: flex; height: 8px; border-radius: 3px; overflow: hidden; background: var(--lane); }
+.bar span { display: block; height: 100%; }
+
+.ask { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.ask .lbl { font: 500 0.72rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+button.q { font: 600 0.82rem/1 var(--ui); padding: 7px 10px 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+button.q b { font: 700 0.72rem/1 var(--mono); min-width: 20px; padding: 3px 5px; border-radius: 999px; background: var(--bg); text-align: center; font-variant-numeric: tabular-nums; }
+button.q[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+button.q[aria-pressed="true"] b { background: color-mix(in srgb, var(--surface) 25%, transparent); }
+button.q:hover { border-color: var(--accent); }
+button.q.alert b { color: var(--fail); }
+button.q[aria-pressed="true"].alert b { color: var(--surface); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 0.78rem; color: var(--muted); }
+.legend .lg { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.legend .lg > b { font: 500 0.64rem/1 var(--mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend .stackline { width: 20px; height: 0; border-top: 3px dashed var(--stack); display: inline-block; }
+.zoom { display: flex; gap: 6px; }
+.zoom button { font: 600 0.9rem/1 var(--mono); width: 34px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.zoom button.wide { width: auto; padding: 0 10px; font-size: 0.8rem; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.mapwrap { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: auto; min-width: 0; max-height: 76vh; overscroll-behavior: contain; }
+.sizer { position: relative; }
+.canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+svg.edges { position: absolute; left: 0; top: 0; overflow: visible; }
+.lane { position: absolute; left: 8px; border-radius: 10px; background: var(--lane); }
+.lane-label { position: absolute; font: 600 0.72rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+.node { position: absolute; display: grid; grid-template-rows: auto 1fr auto; gap: 4px; text-align: left; padding: 8px 10px 8px 12px;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-left: 5px solid var(--c); border-radius: 8px;
+  cursor: pointer; font: inherit; transition: opacity .15s, box-shadow .15s, border-color .15s; }
+.node .k { display: flex; align-items: center; gap: 6px; font: 500 0.68rem/1.2 var(--mono); color: var(--muted); white-space: nowrap; min-width: 0; }
+.node .k .sid { overflow: hidden; text-overflow: ellipsis; }
+.node .t { font: 600 0.9rem/1.25 var(--ui); display: flex; gap: 7px; align-items: flex-start; }
+.node .t .ic { margin-top: 2px; }
+.node .f { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.node .pips { display: flex; gap: 3px; align-items: center; min-width: 0; }
+.node .pips .none, .node .cnt { font: 500 0.68rem/1 var(--mono); color: var(--muted); white-space: nowrap; }
+.node .stk { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; color: var(--stack); font-weight: 700; }
+.node .stk svg { width: 10px; height: 10px; }
+.node.done { background: color-mix(in srgb, var(--merged) 5%, var(--surface)); }
+.mk { display: inline-flex; align-items: center; gap: 4px; font: 600 0.66rem/1 var(--mono); white-space: nowrap; }
+.mk.blocked { color: var(--fail); }
+.mk.ready { color: var(--merged); }
+.mkic { display: inline-grid; place-items: center; width: 12px; height: 12px; flex: none; }
+.mkic svg { width: 100%; height: 100%; }
+.node.goal { border: 2px solid var(--ink); border-left-width: 2px; align-content: center; text-align: center; justify-items: center; padding: 12px; grid-template-rows: auto auto auto; }
+.node .k .mk { margin-left: auto; }
+.node .k .mk + .stk { margin-left: 4px; }
+.node.goal .t { font-size: 1.05rem; font-weight: 800; }
+.node:hover { border-color: var(--accent); border-left-color: var(--c); }
+.node.sel { box-shadow: 0 0 0 3px var(--accent); }
+.node.up, .node.down, .node.mark { box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 3px var(--accent); }
+.node.peek { box-shadow: 0 0 0 3px var(--stack); }
+.node.dim { opacity: 0.3; }
+.node .badge { position: absolute; top: -9px; right: -9px; min-width: 20px; height: 20px; padding: 0 5px; display: grid; place-items: center; font: 700 0.66rem/1 var(--mono); border-radius: 999px; background: var(--accent); color: var(--surface); }
+path.e { fill: none; stroke: var(--edge); stroke-width: 1.6; transition: opacity .15s, stroke .15s; }
+path.e.stack { stroke: var(--stack); stroke-width: 3; stroke-dasharray: 6 4; }
+path.e.hot { stroke: var(--accent); stroke-width: 2.4; }
+path.e.stack.hot { stroke: var(--stack); stroke-width: 3.4; }
+path.e.dim { opacity: 0.18; }
+@media (prefers-reduced-motion: reduce) { .node, path.e { transition: none; } }
+
+aside.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 14px; align-content: start; position: sticky; top: env(safe-area-inset-top, 0px); min-width: 0; max-height: calc(100vh - 24px); overflow: auto; }
+@media (max-width: 1100px) { aside.panel { position: static; max-height: none; } }
+.panel h2 { margin: 0; font: 800 1.2rem/1.2 var(--ui); text-wrap: balance; }
+.panel h3 { margin: 0; font: 500 0.7rem/1 var(--mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.panel p { margin: 0; font-size: 0.92rem; }
+.panel .muted { color: var(--muted); }
+.panel section { display: grid; gap: 6px; min-width: 0; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 0.72rem/1 var(--mono); padding: 4px 8px 4px 6px; border-radius: 999px; border: 1px solid var(--c); color: var(--c); width: fit-content; white-space: nowrap; }
+.tag { display: inline-flex; align-items: center; gap: 5px; font: 500 0.7rem/1 var(--mono); padding: 4px 6px; border-radius: 5px; background: var(--bg); color: var(--ink); white-space: nowrap; }
+.tag.bad { color: var(--fail); background: color-mix(in srgb, var(--fail) 10%, var(--surface)); }
+.tag.warn { color: var(--draft); }
+.tag.good { color: var(--merged); }
+.tag.quiet { color: var(--muted); }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.track { font: 500 0.75rem/1 var(--mono); color: var(--muted); }
+.what { display: grid; gap: 4px; font-size: 0.9rem; }
+.what span { color: var(--muted); }
+a.sc { font: 700 0.8rem/1 var(--mono); text-decoration: none; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); width: fit-content; }
+a.sc:hover { border-color: var(--accent); }
+
+ol.chain { list-style: none; margin: 0; padding: 0; display: grid; }
+ol.chain li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; position: relative; padding-bottom: 12px; }
+ol.chain li:last-child { padding-bottom: 0; }
+ol.chain li::before { content: ""; position: absolute; left: 8px; top: 18px; bottom: -2px; width: 2px; background: var(--stack); opacity: 0.5; }
+ol.chain.flat li::before, ol.chain li:last-child::before { display: none; }
+ol.chain .rail { display: grid; justify-items: center; gap: 2px; position: relative; z-index: 1; }
+ol.chain .rail .pipw { background: var(--surface); width: 18px; height: 18px; }
+ol.chain .rail small { font: 700 0.58rem/1 var(--mono); color: var(--stack); background: var(--surface); }
+ol.chain .body { display: grid; gap: 3px; min-width: 0; }
+ol.chain li.focus .body { background: var(--stack-soft); border-radius: 6px; padding: 6px 8px; margin: -6px -8px 0 -6px; }
+.prline { display: flex; flex-wrap: wrap; gap: 4px 7px; align-items: center; }
+a.num { font: 700 0.84rem/1 var(--mono); text-decoration: none; }
+a.num:hover { text-decoration: underline; }
+.prtitle { font-size: 0.85rem; overflow-wrap: anywhere; }
+.prbase { font: 500 0.68rem/1.35 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.hop { all: unset; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--stack); font-weight: 600; padding: 6px 8px; border-radius: 6px; background: var(--stack-soft); }
+.hop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hop:hover { text-decoration: underline; }
+
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a { font: 500 0.82rem/1 var(--mono); color: var(--accent); text-decoration: none; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+.links a:hover { border-color: var(--accent); }
+.refs { display: flex; flex-wrap: wrap; gap: 6px; }
+.refs.col { flex-direction: column; align-items: stretch; }
+.rb { font: 500 0.8rem/1.2 var(--ui); padding: 5px 9px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; text-align: left; }
+.rb:hover { border-color: var(--accent); }
+.rb .aside { margin-left: auto; color: var(--muted); font: 500 0.72rem/1.2 var(--mono); padding-left: 8px; }
+.rb.done { color: var(--muted); }
+ul.check { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+ul.check li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; font-size: 0.86rem; padding: 5px 8px; border-radius: 6px; background: var(--bg); }
+ul.check .ln { font-family: var(--mono); font-size: 0.74rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+ul.check a, ul.check .nopr { font: 600 0.76rem/1 var(--mono); display: inline-flex; align-items: center; gap: 5px; text-decoration: none; white-space: nowrap; }
+ul.check .nopr { color: var(--muted); font-weight: 500; }
+.hint { font-size: 0.8rem; color: var(--muted); }
+
+.qlist { display: grid; gap: 6px; }
+.qlist button { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid transparent; }
+.qlist button:hover { border-color: var(--accent); }
+.qlist button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.qlist .qq { font-weight: 600; font-size: 0.88rem; }
+.qlist .qn { font: 700 0.8rem/1.4 var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.qlist .qn.alert { color: var(--fail); }
+.qlist .qa { grid-column: 1 / -1; font: 500 0.72rem/1.35 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.rows { display: grid; gap: 6px; }
+.arow { display: grid; gap: 4px; padding: 8px 10px; border-radius: 8px; background: var(--bg); min-width: 0; }
+.arow .top { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.arow .top .grow { flex: 1 1 auto; min-width: 0; font-size: 0.84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arow .tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.arow .on { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 0.78rem; color: var(--muted); }
+.stepbtn { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font: 600 0.78rem/1.2 var(--ui); color: var(--ink); padding: 2px 6px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); }
+.stepbtn:hover { border-color: var(--accent); }
+.stepbtn:focus-visible { outline: 2px solid var(--accent); }
+.prog { display: grid; gap: 6px; padding: 10px; border-radius: 8px; background: var(--bg); }
+.prog .bar { height: 10px; }
+.prog .top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; font-size: 0.84rem; }
+.prog .top b { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.stacks { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 16px; min-width: 0; }
+.stacks > .hd { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; justify-content: space-between; }
+.stacks h2 { margin: 0; font: 800 1.15rem/1.2 var(--ui); }
+.stacks .sub { font-size: 0.84rem; color: var(--muted); }
+.stackrow { display: grid; gap: 8px; min-width: 0; }
+.stackrow > h3 { margin: 0; font: 500 0.7rem/1.3 var(--mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.stackrow > h3 .bar { width: 160px; height: 8px; }
+.rail-scroll { overflow-x: auto; padding-bottom: 6px; }
+.rail-track { display: flex; align-items: stretch; width: max-content; padding: 2px; }
+.trunk { display: grid; place-items: center; font: 700 0.75rem/1 var(--mono); color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 0 10px; align-self: end; height: 74px; }
+.seg { display: grid; gap: 6px; align-content: start; padding: 0 4px; }
+.seg + .seg { border-left: 1px dashed color-mix(in srgb, var(--stack) 45%, var(--line)); margin-left: 4px; padding-left: 8px; }
+.seghead { all: unset; cursor: pointer; display: flex; align-items: center; gap: 6px; font: 600 0.78rem/1.2 var(--ui); color: var(--ink); padding: 3px 6px; border-radius: 6px; white-space: nowrap; }
+.seghead:hover { background: var(--bg); }
+.seghead:focus-visible { outline: 2px solid var(--accent); }
+.seghead small { font: 500 0.7rem/1 var(--mono); color: var(--muted); }
+.chips { display: flex; align-items: center; }
+.link { width: 18px; height: 2px; background: var(--stack); position: relative; flex: none; opacity: 0.7; }
+.link::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 6px solid var(--stack); border-right: 0; }
+a.prchip { display: grid; gap: 4px; width: 142px; height: 74px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); border-top: 4px solid var(--c); background: var(--surface); color: var(--ink); text-decoration: none; align-content: start; }
+a.prchip:hover { border-color: var(--accent); border-top-color: var(--c); box-shadow: var(--shadow); }
+a.prchip.next { box-shadow: 0 0 0 2px var(--accent); }
+a.prchip .n { font: 700 0.8rem/1 var(--mono); display: flex; align-items: center; gap: 5px; }
+a.prchip .ci { margin-left: auto; font: 700 0.74rem/1 var(--mono); }
+.ci.pass { color: var(--merged); }
+.ci.fail { color: var(--fail); }
+.ci.pending, .ci.none { color: var(--muted); }
+a.prchip .s { font-size: 0.8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+a.prchip .st { font: 500 0.66rem/1 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+a.prchip .st.bad { color: var(--fail); }
+.solo { display: flex; flex-wrap: wrap; gap: 10px; }
+.landed { display: flex; flex-wrap: wrap; gap: 6px; }
+.landed a { display: inline-flex; align-items: center; gap: 6px; font: 500 0.76rem/1 var(--mono); color: var(--ink); text-decoration: none; padding: 6px 8px; border-radius: 6px; background: var(--bg); border: 1px solid transparent; }
+.landed a:hover { border-color: var(--accent); }
+.landed a small { color: var(--muted); font-family: var(--ui); font-size: 0.76rem; }
+
+#tip { position: fixed; z-index: 20; width: 360px; max-width: calc(100vw - 24px); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 10px 12px; display: grid; gap: 5px; pointer-events: none; font-size: 0.82rem; }
+#tip .tt { font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 6px; }
+#tip .tr { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 0.72rem; }
+#tip .tr .l { white-space: nowrap; }
+#tip .tr .x { margin-left: auto; color: var(--muted); text-align: right; }
+#tip .tr .x.bad { color: var(--fail); }
+#tip .foot { font-size: 0.74rem; color: var(--muted); }
+</style>
+
+<main class="page">
+  <header class="top">
+    <span class="eyebrow" id="eyebrow"></span>
+    <h1 id="title"></h1>
+    <p id="subtitle"></p>
+    <div class="stamp" id="stamp"></div>
+  </header>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="ask" id="ask" role="group" aria-label="Ask the map"></div>
+
+  <div class="toolbar">
+    <div class="legend" id="legend"></div>
+    <div class="zoom" aria-label="Zoom">
+      <button id="zoom-out" aria-label="Zoom out">−</button>
+      <button id="zoom-in" aria-label="Zoom in">+</button>
+      <button id="zoom-fit" class="wide">Fit</button>
+      <button id="zoom-reset" class="wide">100%</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="mapwrap" id="mapwrap"><div class="sizer" id="sizer"><div class="canvas" id="canvas"><svg class="edges" id="edges" aria-hidden="true"></svg></div></div></div>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+
+  <section class="stacks" id="stacks" aria-labelledby="stacks-h"></section>
+</main>
+<div id="tip" hidden></div>
+
+<script type="application/json" id="roadmap-data">__ROADMAP_DATA__</script>
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById('roadmap-data').textContent);
+  const M = D.meta, PRS = D.prs, A = D.answers;
+  const P = (n) => PRS[String(n)];
+  const STEPS = D.steps;
+  const byId = Object.fromEntries(STEPS.map((s) => [s.id, s]));
+  const STACKS = Object.fromEntries(D.stacks.map((s) => [s.id, s]));
+  const TRACK = Object.fromEntries(D.tracks.map((t) => [t.id, t]));
+  const GH = (n) => P(n) ? P(n).url : `https://github.com/${M.repo}/pull/${n}`;
+  const SCURL = (id) => (M.storyUrl || '').replace('{id}', id);
+  const SCID = (id) => `${M.storyPrefix || '#'}${id}`;
+  const DONE = new Set(['done']);
+
+  const sw = 'style="stroke:var(--surface)"';
+  const ICON = {
+    merged: `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.6 8.3l2.2 2.2 4.6-4.8" fill="none" ${sw} stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    open: `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="8" cy="8" r="2.5" fill="currentColor"/></svg>`,
+    draft: `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-dasharray="3.1 2.3"/></svg>`,
+    closed: `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+    todo: `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2"/></svg>`,
+    progress: `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>`,
+    goal: `<svg viewBox="0 0 16 16"><path d="M3.5 15V1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 2h9l-2.2 3.2L13 8.4H4z" fill="currentColor"/></svg>`,
+  };
+  const STEP = {
+    done:     { label: 'Done',        c: 'var(--merged)', icon: 'merged' },
+    progress: { label: 'In progress', c: 'var(--review)', icon: 'progress' },
+    todo:     { label: 'Not started', c: 'var(--todo)',   icon: 'todo' },
+    goal:     { label: 'Goal',        c: 'var(--ink)',    icon: 'goal' },
+  };
+  const MARK_ICON = {
+    blocked: '<svg viewBox="0 0 16 16"><rect x="2.5" y="7" width="11" height="8" rx="2" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+    ready: '<svg viewBox="0 0 16 16"><path d="M4 2.5l9 5.5-9 5.5z" fill="currentColor"/></svg>',
+  };
+  const MARK = { blocked: 'blocked', ready: 'ready to start' };
+  const marker = (s, text = true) => s.marker ? `<span class="mk ${s.marker}" title="${s.marker === 'blocked' ? esc('Waits on ' + s.waitingOn.map((x) => byId[x].title).join(', ')) : 'Every step it waits on is done'}"><span class="mkic" aria-hidden="true">${MARK_ICON[s.marker]}</span>${text ? MARK[s.marker] : ''}</span>` : '';
+  const PRK = {
+    merged:   { label: 'Merged',            c: 'var(--merged)' },
+    open:     { label: 'Open',              c: 'var(--review)' },
+    draft:    { label: 'Draft',             c: 'var(--draft)' },
+    closed:   { label: 'Closed',            c: 'var(--todo)' },
+  };
+  const CI = { pass: ['✓', 'CI passing'], fail: ['✗', 'CI failing'], pending: ['…', 'CI running'], none: ['–', 'CI not run'] };
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const rich = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/(^|[^\w/&])#(\d{2,6})\b/g, (m, pre, n) => `${pre}<a href="${GH(n)}" target="_blank" rel="noopener">#${n}</a>`);
+  const fmtDay = (iso) => iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+  const tail = (b) => b.split('/').slice(-1)[0];
+  const icon = (name, c, cls = '') => `<span class="ic ${cls}" style="--c:${c}" aria-hidden="true">${ICON[name]}</span>`;
+  const stepIcon = (s, cls = '') => icon(STEP[s.status].icon, STEP[s.status].c, cls);
+  const prIcon = (p, cls = '') => icon(p.kind, PRK[p.kind].c, cls);
+  const isOpen = (p) => p.state === 'open';
+  const pipw = (p) => `<span class="pipw${isOpen(p) && p.ci === 'fail' ? ' cifail' : ''}">${prIcon(p, 'sm')}</span>`;
+  const ciSpan = (p) => isOpen(p) ? `<span class="ci ${p.ci}" title="${esc(CI[p.ci][1])}">${CI[p.ci][0]}</span>` : '';
+  const blockerTags = (p) => p.blockers.map((b) => `<span class="tag ${b.k === 'ci' && p.ci === 'fail' ? 'bad' : b.k === 'check' ? 'bad' : b.k === 'draft' ? 'warn' : 'quiet'}">${esc(b.t)}</span>`).join('');
+  const prLabel = (p) => p.kind === 'open' && p.review === 'approved' ? 'Open · approved' : p.kind === 'open' && p.review === 'changes_requested' ? 'Open · changes requested' : PRK[p.kind].label;
+  const prPill = (p) => `<span class="pill" style="--c:${PRK[p.kind].c}">${prIcon(p, 'sm')}${esc(prLabel(p))}</span>`;
+  const stepPill = (s) => `<span class="pill" style="--c:${STEP[s.status].c}">${stepIcon(s, 'sm')}${STEP[s.status].label}</span>`;
+  const stepBtn = (id, extra = '') => { const s = byId[id]; return `<button class="stepbtn" data-go="${id}"${extra}>${stepIcon(s, 'sm')}${esc(s.title)}</button>`; };
+
+  // ---------- header ----------
+  document.getElementById('eyebrow').textContent = M.eyebrow || '';
+  document.getElementById('title').textContent = M.title || 'PR Roadmap';
+  document.getElementById('subtitle').textContent = M.subtitle || '';
+  const asOf = D.asOf ? new Date(D.asOf).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) : 'unknown';
+  document.getElementById('stamp').innerHTML = `<span>PR data as of <b>${esc(asOf)}</b></span><span>${esc(M.repo)} · snapshot</span>`;
+
+  const steps = STEPS.filter((s) => s.id !== 'end');
+  const tracked = D.tracked.map(P);
+  const openPrs = tracked.filter(isOpen);
+  const count = (arr, f) => arr.reduce((m, x) => { const k = f(x); m[k] = (m[k] || 0) + 1; return m; }, {});
+  const prCounts = count(openPrs, (p) => p.kind);
+  const doneSteps = steps.filter((s) => DONE.has(s.status)).length;
+
+  // ---------- questions (all answers come from the build) ----------
+  const prList = (ns) => ns.map((n) => `#${n}`).join(' ');
+  const QS = [
+    { id: 'next', label: 'Ready to land', q: 'What is ready to land?', n: A.next.length,
+      preview: () => A.next.length ? prList(A.next) : (A.front.length ? `none · front of line: ${A.front.map((n) => `#${n} (${P(n).blockers.map((b) => b.t).join(', ')})`).join('; ')}` : 'none'),
+      steps: () => [...A.next, ...A.front].map((n) => P(n).step) },
+    { id: 'stacks', label: 'Stack progress', q: 'How far has each stack gotten?', n: D.stacks.length, countLabel: (D.stacks.map((s) => `${s.merged}/${s.total}`).join(' · ') || '0'),
+      preview: () => D.stacks.map((s) => `#${s.prs[0]}…#${s.tip}: ${s.merged}/${s.total} merged, next #${s.next}`).join('; ') || 'no stacks',
+      steps: () => D.stacks.flatMap((s) => s.segments.map((g) => g.step)) },
+    { id: 'blocked', label: 'Blocked', q: 'What is blocked, and on what?', n: A.blocked.length,
+      preview: () => A.blocked.slice(0, 3).map((b) => `${byId[b.step].title} ← ${b.on.map((x) => byId[x].title).join(', ')}`).join('; ') + (A.blocked.length > 3 ? ` +${A.blocked.length - 3}` : ''),
+      steps: () => A.blocked.map((b) => b.step) },
+    { id: 'ci', label: 'CI failing', q: 'Which PRs are failing CI or checks?', n: A.ciFail.length, alert: A.ciFail.length > 0,
+      preview: () => `failing ${prList(A.ciFail) || 'none'} · running or not run ${prList(A.ciPending) || 'none'}${A.checks.length ? ` · checks ${prList(A.checks)}` : ''}`,
+      steps: () => [...A.ciFail, ...A.ciPending, ...A.checks].map((n) => P(n).step) },
+    { id: 'drafts', label: 'Drafts', q: 'Which PRs are still drafts?', n: A.drafts.length,
+      preview: () => prList(A.drafts) || 'none', steps: () => A.drafts.map((n) => P(n).step) },
+    { id: 'review', label: 'Awaiting review', q: 'Which PRs are waiting on a review?', n: A.review.length,
+      preview: () => prList(A.review) || 'none', steps: () => A.review.map((n) => P(n).step) },
+    { id: 'start', label: 'Can start now', q: 'What can start now?', n: A.start.length,
+      preview: () => A.start.map((i) => byId[i].title).join(', ') || 'nothing', steps: () => A.start },
+    { id: 'soon', label: 'After open PRs merge', q: 'What starts once the open PRs merge?', n: A.soon.length,
+      preview: () => A.soon.map((i) => byId[i].title).join(', ') || 'nothing more', steps: () => A.soon },
+    { id: 'chain', label: 'Longest chain', q: 'What is the longest chain to the goal?', n: Math.max(0, A.chain.length - 1),
+      preview: () => A.chain.map((i) => byId[i].title).join(' → '), steps: () => A.chain },
+  ];
+  const QBY = Object.fromEntries(QS.map((q) => [q.id, q]));
+  document.getElementById('ask').innerHTML = `<span class="lbl">Ask the map</span>${QS.map((q) => `<button class="q${q.alert ? ' alert' : ''}" data-q="${q.id}" aria-pressed="false">${esc(q.label)}<b>${esc(q.countLabel || q.n)}</b></button>`).join('')}`;
+
+  // ---------- summary ----------
+  const firstStack = D.stacks[0];
+  document.getElementById('summary').innerHTML = `
+    <button class="sum" data-q="chain"><h3>Steps done</h3><div class="big">${doneSteps}<small>of ${steps.length}</small></div>
+      <div class="bar" role="img" aria-label="${doneSteps} of ${steps.length} steps done">${['done', 'progress', 'todo'].map((k) => { const c = steps.filter((s) => s.status === k).length; return c ? `<span style="width:${(c / steps.length) * 100}%;background:${STEP[k].c}"></span>` : ''; }).join('')}</div></button>
+    <button class="sum" data-q="review"><h3>Open PRs</h3><div class="big">${openPrs.length}<small>${tracked.length - openPrs.length} merged or closed</small></div>
+      <div class="srow">${['open', 'draft'].filter((k) => prCounts[k]).map((k) => `<span>${icon(k, PRK[k].c, 'sm')}${prCounts[k]} ${PRK[k].label.toLowerCase()}</span>`).join('')}<span>${openPrs.filter((p) => p.review === 'approved').length} approved</span></div></button>
+    <button class="sum${A.ciFail.length ? ' warn' : ''}" data-q="ci"><h3>CI on open PRs</h3><div class="big">${openPrs.filter((p) => p.ci === 'pass').length}<small>passing of ${openPrs.length}</small></div>
+      <div class="srow"><span class="ci fail">✗ ${A.ciFail.length} failing</span><span>… ${openPrs.filter((p) => p.ci === 'pending').length} running</span><span>– ${openPrs.filter((p) => p.ci === 'none').length} not run</span></div></button>
+    <button class="sum" data-q="${firstStack ? 'stacks' : 'next'}"><h3>${firstStack ? 'Stack' : 'Ready to land'}</h3>${firstStack
+      ? `<div class="big">${firstStack.merged}<small>of ${firstStack.total} merged · next #${firstStack.next ?? '—'}</small></div><div class="bar">${firstStack.prs.map((n) => `<span style="width:${100 / firstStack.total}%;background:${PRK[P(n).kind].c};border-right:1px solid var(--surface)"></span>`).join('')}</div>`
+      : `<div class="big">${A.next.length}</div>`}</button>`;
+
+  // ---------- legend ----------
+
+  document.getElementById('legend').innerHTML = `
+    <div class="lg"><b>Step</b>${['done', 'progress', 'todo'].map((k) => `<span>${icon(STEP[k].icon, STEP[k].c, 'sm')}${STEP[k].label}</span>`).join('')}<span class="mk blocked" style="font:inherit"><span class="mkic">${MARK_ICON.blocked}</span>Blocked</span><span class="mk ready" style="font:inherit"><span class="mkic">${MARK_ICON.ready}</span>Ready to start</span></div>
+    <div class="lg"><b>PR</b>${['merged', 'open', 'draft'].map((k) => `<span>${icon(k, PRK[k].c, 'sm')}${PRK[k].label}</span>`).join('')}<span><span class="pipw cifail">${icon('open', 'var(--review)', 'sm')}</span>CI failing</span><span><i class="stackline"></i>Stacked</span></div>`;
+
+  // ---------- map ----------
+  const NW = 220, NH = 96, CW = 258, RH = 134, LX = 22, TOP = 40, ROWS = D.rows, COLS = D.cols;
+  const W = LX * 2 + (COLS - 1) * CW + NW;
+  const H = TOP + ROWS * RH;
+  const END_H = 150;
+  const geo = (s) => s.status === 'goal'
+    ? { x: LX + s.col * CW, y: TOP + ((ROWS - 1) * RH + NH) / 2 - END_H / 2, w: NW, h: END_H }
+    : { x: LX + s.col * CW, y: TOP + s.row * RH, w: NW, h: NH };
+  const canvas = document.getElementById('canvas');
+  const sizer = document.getElementById('sizer');
+  const svg = document.getElementById('edges');
+  const panel = document.getElementById('panel');
+  const wrap = document.getElementById('mapwrap');
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+
+  D.tracks.forEach((t) => {
+    const top = TOP + t.row * RH - 28;
+    const band = document.createElement('div');
+    band.className = 'lane';
+    Object.assign(band.style, { top: top + 'px', height: ((t.rows - 1) * RH + NH + 36) + 'px', width: ((COLS - 2) * CW + NW + 28) + 'px' });
+    canvas.insertBefore(band, svg);
+    const label = document.createElement('div');
+    label.className = 'lane-label';
+    label.textContent = t.label;
+    Object.assign(label.style, { top: top + 9 + 'px', left: LX + 'px' });
+    canvas.insertBefore(label, svg);
+  });
+
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  svg.innerHTML = `<defs>
+    <marker id="arr" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L8,4 L0,8 z" style="fill:var(--edge)"/></marker>
+    <marker id="arr-hot" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L8,4 L0,8 z" style="fill:var(--accent)"/></marker>
+    <marker id="arr-stack" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L8,4 L0,8 z" style="fill:var(--stack)"/></marker>
+  </defs>`;
+  // Arrows never cross a box: vertical runs use the gaps between columns, horizontal runs the gaps
+  // between rows. Edges sharing a gap are spread a few pixels apart so each stays visible.
+  const colGapX = (c) => LX + c * CW + NW + (CW - NW) / 2;
+  const rowGapY = (r) => TOP + r * RH + NH + (RH - NH) / 2;
+  const used = {};
+  const spread = (key) => { used[key] = (used[key] || 0) + 1; const k = used[key] - 1; return (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 5; };
+  const rounded = (raw, r = 8) => {
+    const pts = raw.filter((p, i) => i === 0 || p[0] !== raw[i - 1][0] || p[1] !== raw[i - 1][1]);
+    let d = `M${pts[0][0]},${pts[0][1]}`;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [px, py] = pts[i - 1], [cx, cy] = pts[i], [nx, ny] = pts[i + 1];
+      const d1 = Math.hypot(cx - px, cy - py), d2 = Math.hypot(nx - cx, ny - cy);
+      const rr = Math.min(r, d1 / 2, d2 / 2);
+      d += ` L${cx + ((px - cx) / d1) * rr},${cy + ((py - cy) / d1) * rr} Q${cx},${cy} ${cx + ((nx - cx) / d2) * rr},${cy + ((ny - cy) / d2) * rr}`;
+    }
+    const last = pts[pts.length - 1];
+    return d + ` L${last[0]},${last[1]}`;
+  };
+  const route = (s, t) => {
+    const a = geo(s), b = geo(t);
+    const x1 = a.x + a.w, y1 = a.y + a.h / 2, x2 = b.x, y2 = b.y + b.h / 2;
+    const sc = s.col, tc = t.col, sr = s.row;
+    if (tc === sc + 1) {
+      if (y1 === y2) return [[x1, y1], [x2, y2]];
+      const xg = colGapX(sc) + spread('v' + sc);
+      return [[x1, y1], [xg, y1], [xg, y2], [x2, y2]];
+    }
+    let hr;
+    if (y2 > y1) hr = sr;
+    else if (y2 < y1) hr = sr - 1;
+    else hr = sr < ROWS - 1 ? sr : sr - 1;
+    const yc = rowGapY(hr) + spread('h' + hr);
+    const xa = colGapX(sc) + spread('v' + sc);
+    const xb = colGapX(tc - 1) + spread('v' + (tc - 1));
+    return [[x1, y1], [xa, y1], [xa, yc], [xb, yc], [xb, y2], [x2, y2]];
+  };
+  const stackEdges = new Set(D.stackEdges);
+  const edgeEls = [];
+  STEPS.forEach((t) => t.deps.forEach((sId) => {
+    const p = document.createElementNS(SVGNS, 'path');
+    const isStack = stackEdges.has(sId + '>' + t.id);
+    p.setAttribute('d', rounded(route(byId[sId], t)));
+    p.setAttribute('class', 'e' + (isStack ? ' stack' : ''));
+    p.setAttribute('marker-end', isStack ? 'url(#arr-stack)' : 'url(#arr)');
+    svg.appendChild(p);
+    edgeEls.push({ from: sId, to: t.id, el: p, stack: isStack });
+  }));
+
+  const STACK_ICON = '<svg viewBox="0 0 10 10" aria-hidden="true"><rect x="0" y="0" width="10" height="2.4" rx="1" fill="currentColor"/><rect x="0" y="3.8" width="10" height="2.4" rx="1" fill="currentColor"/><rect x="0" y="7.6" width="10" height="2.4" rx="1" fill="currentColor"/></svg>';
+  const stackLabel = (st) => st.lo === st.hi ? `${st.lo}/${st.total}` : `${st.lo}–${st.hi}/${st.total}`;
+  const nodeEls = {};
+  STEPS.forEach((s) => {
+    const g = geo(s);
+    const b = document.createElement('button');
+    b.className = `node ${s.status}`;
+    b.id = 'node-' + s.id;
+    b.style.setProperty('--c', STEP[s.status].c);
+    Object.assign(b.style, { left: g.x + 'px', top: g.y + 'px', width: g.w + 'px', height: g.h + 'px' });
+    if (s.id === 'end') {
+      b.innerHTML = `<span class="k" style="justify-content:center">${esc(s.label)}</span><span class="t">${stepIcon(s)}<span>${esc(s.title)}</span></span><span class="cnt">${s.openUpstream.length} steps to go</span>`;
+    } else {
+      const pips = s.prs.length > 10 ? `${s.prs.slice(0, 9).map((n) => pipw(P(n))).join('')}<span class="cnt">+${s.prs.length - 9}</span>` : s.prs.map((n) => pipw(P(n))).join('');
+      b.innerHTML = `
+        <span class="k"><span class="sid">${esc(s.label)}${s.story ? ' · ' + esc(SCID(s.story)) : ''}</span>${s.prs.length && s.marker ? marker(s, false) : ''}${s.stack ? `<span class="stk" title="PRs ${s.stack.lo} to ${s.stack.hi} of a ${s.stack.total}-PR stack">${STACK_ICON}${stackLabel(s.stack)}</span>` : ''}</span>
+        <span class="t">${stepIcon(s)}<span>${esc(s.title)}</span></span>
+        <span class="f"><span class="pips">${s.prs.length ? pips : `<span class="none">${s.status === 'done' ? 'done, no PR' : s.status === 'progress' ? 'no PR yet' : ''}</span>`}</span>${s.prs.length ? `<span class="cnt" title="${s.merged} of ${s.prs.length} merged">${s.merged}/${s.prs.length}${s.prs.length > 5 ? '' : ' merged'}</span>` : marker(s)}</span>`;
+    }
+    b.setAttribute('aria-label', `${s.title}, ${STEP[s.status].label}${s.story ? ', story ' + SCID(s.story) : ''}${s.prs.length ? `, ${s.prs.length} PRs: ` + s.prs.map((n) => `#${n} ${PRK[P(n).kind].label}`).join(', ') : ''}`);
+    b.addEventListener('click', () => select(state.selected === s.id ? null : s.id));
+    canvas.appendChild(b);
+    nodeEls[s.id] = b;
+  });
+
+  // ---------- hover card ----------
+  const tip = document.getElementById('tip');
+  const canHover = matchMedia('(hover: hover)').matches;
+  function showTip(s, el) {
+    if (!canHover) return;
+    tip.innerHTML = `<div class="tt">${stepIcon(s, 'sm')}${esc(s.title)}</div>
+      <div class="tr">${esc(STEP[s.status].label)}${s.marker ? ' · ' + MARK[s.marker] : ''}${s.story ? ' · ' + esc(SCID(s.story)) : ''}<span class="x">${s.waitingOn.length ? 'waits on ' + s.waitingOn.map((x) => esc(byId[x].title)).join(', ') : ''}</span></div>
+      ${s.prs.map((n) => { const p = P(n); return `<div class="tr">${prIcon(p, 'sm')}<span class="l">#${n} ${esc(p.label)}</span><span class="x${isOpen(p) && p.ci === 'fail' ? ' bad' : ''}">${isOpen(p) ? (p.blockers.length ? esc(p.blockers.map((b) => b.t).join(', ')) : 'ready to land') : 'merged ' + esc(fmtDay(p.mergedAt))}</span></div>`; }).join('')}
+      <div class="foot">Click for links and the full chain.</div>`;
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.min(Math.max(12, r.left), innerWidth - tw - 12) + 'px';
+    let y = r.bottom + 8;
+    if (y + th > innerHeight - 8) y = Math.max(8, r.top - th - 8);
+    tip.style.top = y + 'px';
+  }
+  const hideTip = () => { tip.hidden = true; };
+  STEPS.forEach((s) => {
+    const el = nodeEls[s.id];
+    el.addEventListener('mouseenter', () => showTip(s, el));
+    el.addEventListener('mouseleave', hideTip);
+    el.addEventListener('focus', () => { if (el.matches(':focus-visible')) showTip(s, el); });
+    el.addEventListener('blur', hideTip);
+  });
+  wrap.addEventListener('scroll', hideTip, { passive: true });
+  addEventListener('scroll', hideTip, { passive: true });
+
+  // ---------- tracing ----------
+  const walk = (id, key, seen = new Set()) => { byId[id][key].forEach((x) => { if (!seen.has(x)) { seen.add(x); walk(x, key, seen); } }); return seen; };
+  const state = { selected: null, q: null, scale: 1, focusPr: null };
+
+  function paint(marked, hotEdges) {
+    const any = marked.size > 0;
+    STEPS.forEach((s) => {
+      const el = nodeEls[s.id];
+      el.classList.remove('sel', 'up', 'down', 'mark', 'dim');
+      el.setAttribute('aria-pressed', String(state.selected === s.id));
+      const badge = el.querySelector('.badge');
+      if (badge) badge.remove();
+      if (!any) return;
+      const m = marked.get(s.id);
+      if (m) el.classList.add(m.cls); else el.classList.add('dim');
+      if (m && m.badge) { const x = document.createElement('span'); x.className = 'badge'; x.textContent = m.badge; el.appendChild(x); }
+    });
+    edgeEls.forEach((e) => {
+      e.el.classList.remove('hot', 'dim');
+      e.el.setAttribute('marker-end', e.stack ? 'url(#arr-stack)' : 'url(#arr)');
+      if (!any) return;
+      const hot = hotEdges.has(e.from + '>' + e.to);
+      e.el.classList.add(hot ? 'hot' : 'dim');
+      if (hot) { if (!e.stack) e.el.setAttribute('marker-end', 'url(#arr-hot)'); svg.appendChild(e.el); }
+    });
+  }
+  const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function revealNode(id) {
+    const el = nodeEls[id];
+    const r = el.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+    if (r.left < w.left || r.right > w.right || r.top < w.top || r.bottom > w.bottom) {
+      const g = geo(byId[id]);
+      wrap.scrollTo({ left: Math.max(0, (g.x + g.w / 2) * state.scale - wrap.clientWidth / 2), top: Math.max(0, (g.y + g.h / 2) * state.scale - wrap.clientHeight / 2), behavior: reduced() ? 'auto' : 'smooth' });
+    }
+  }
+  const setHash = (h) => { try { history.replaceState(null, '', h ? '#' + h : location.pathname); } catch (e) {} };
+  function syncAsk() { document.querySelectorAll('#ask [data-q]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.q === state.q))); }
+
+  function select(id, focusPr = null) {
+    state.selected = id; state.q = null; state.focusPr = focusPr;
+    syncAsk(); hideTip(); setHash(id);
+    if (!id) { paint(new Map(), new Set()); renderOverview(); return; }
+    const up = walk(id, 'deps'), down = walk(id, 'unlocks');
+    const marked = new Map([[id, { cls: 'sel' }]]);
+    up.forEach((x) => marked.set(x, { cls: 'up' }));
+    down.forEach((x) => marked.set(x, { cls: 'down' }));
+    const hot = new Set();
+    edgeEls.forEach((e) => {
+      const inUp = (up.has(e.from) || e.from === id) && (up.has(e.to) || e.to === id);
+      const inDown = (down.has(e.to) || e.to === id) && (down.has(e.from) || e.from === id);
+      if (inUp || inDown) hot.add(e.from + '>' + e.to);
+    });
+    paint(marked, hot);
+    renderStep(byId[id]);
+    revealNode(id);
+  }
+
+  function ask(qid) {
+    state.q = state.q === qid ? null : qid; state.selected = null;
+    syncAsk(); hideTip(); setHash(state.q ? 'q-' + state.q : null);
+    if (!state.q) { paint(new Map(), new Set()); renderOverview(); return; }
+    const q = QBY[state.q];
+    const marked = new Map(), hot = new Set();
+    if (q.id === 'chain') {
+      A.chain.forEach((id, i) => marked.set(id, { cls: 'mark', badge: String(i + 1) }));
+      A.chain.slice(1).forEach((id, i) => hot.add(A.chain[i] + '>' + id));
+    } else if (q.id === 'blocked') {
+      A.blocked.forEach((b) => { marked.set(b.step, { cls: 'mark' }); b.on.forEach((x) => { if (!marked.has(x)) marked.set(x, { cls: 'up' }); hot.add(x + '>' + b.step); }); });
+    } else {
+      const c = count(q.steps(), (x) => x);
+      Object.entries(c).forEach(([id, k]) => marked.set(id, { cls: 'mark', badge: ['drafts', 'review', 'ci', 'next'].includes(q.id) ? String(k) : '' }));
+    }
+    paint(marked, hot);
+    renderAnswer(q);
+  }
+  document.addEventListener('click', (e) => {
+    const qb = e.target.closest('[data-q]');
+    if (qb) { ask(qb.dataset.q); if (qb.closest('.summary') && matchMedia('(max-width: 1100px)').matches) panel.scrollIntoView({ block: 'start', behavior: reduced() ? 'auto' : 'smooth' }); return; }
+    const g = e.target.closest('[data-go]');
+    if (g) { select(g.dataset.go, g.dataset.pr ? Number(g.dataset.pr) : null); if (g.closest('#stacks')) { const r = wrap.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight) wrap.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' }); } return; }
+    if (e.target.closest('[data-clear]')) select(null);
+  });
+
+  // ---------- panel: answers ----------
+  const prRow = (n) => {
+    const p = P(n);
+    return `<div class="arow"><div class="top"><a class="num" href="${GH(n)}" target="_blank" rel="noopener">#${n}</a>${prIcon(p, 'sm')}<span class="grow">${esc(p.label)}</span>${ciSpan(p)}</div>
+      <div class="on">${stepBtn(p.step, ` data-pr="${n}"`)}${p.stack ? `<span>stack ${p.pos}/${STACKS[p.stack].total}</span>` : ''}</div>
+      ${p.blockers.length ? `<div class="tags">${blockerTags(p)}</div>` : (isOpen(p) ? '<div class="tags"><span class="tag good">✓ ready to land</span></div>' : '')}
+      ${p.ci === 'fail' && isOpen(p) ? `<div class="prbase" style="color:var(--fail)">${esc(p.ciFailed.join(', '))}</div>` : ''}</div>`;
+  };
+  const stepRow = (id, i = null) => { const s = byId[id]; return `<button class="rb" data-go="${id}">${i !== null ? `<b style="font-family:var(--mono)">${i}</b>` : ''}${stepIcon(s, 'sm')}${esc(s.title)}<span class="aside">${esc(s.label)}</span></button>`; };
+  const stackProg = (st) => `<div class="prog"><div class="top"><span>#${st.prs[0]} → #${st.tip} · ${st.segments.length} step${st.segments.length === 1 ? '' : 's'}</span><b>${st.merged}/${st.total} merged</b></div>
+    <div class="bar">${st.prs.map((n) => `<span title="#${n} ${esc(PRK[P(n).kind].label)}" style="width:${100 / st.total}%;background:${PRK[P(n).kind].c};border-right:1px solid var(--surface)"></span>`).join('')}</div>
+    <div class="on">${st.segments.map((g) => `${stepBtn(g.step)}<span>${g.prs.filter((n) => P(n).kind === 'merged').length}/${g.prs.length}</span>`).join('')}</div>
+    ${st.next ? `<div class="on">Next in line: <a class="num" href="${GH(st.next)}" target="_blank" rel="noopener">#${st.next}</a>${blockerTags(P(st.next)) || '<span class="tag good">✓ ready to land</span>'}</div>` : '<div class="on">All merged.</div>'}</div>`;
+
+  function renderAnswer(q) {
+    let body = '';
+    if (q.id === 'next') {
+      body = `<section><h3>Ready now</h3>${A.next.length ? `<div class="rows">${A.next.map(prRow).join('')}</div>` : '<p class="muted">Nothing is approved, green and on a merged base.</p>'}</section>
+        ${A.front.length ? `<section><h3>Front of line, still blocked</h3><div class="rows">${A.front.map(prRow).join('')}</div></section>` : ''}`;
+    } else if (q.id === 'stacks') {
+      body = D.stacks.map(stackProg).join('') || '<p class="muted">No stacked PRs.</p>';
+    } else if (q.id === 'blocked') {
+      body = `<div class="rows">${A.blocked.map((b) => `<div class="arow"><div class="top">${stepBtn(b.step)}</div><div class="on">waits on ${b.on.map((x) => stepBtn(x)).join('')}</div></div>`).join('')}</div>`;
+    } else if (q.id === 'ci') {
+      body = `<section><h3>CI failing · ${A.ciFail.length}</h3>${A.ciFail.length ? `<div class="rows">${A.ciFail.map(prRow).join('')}</div>` : '<p class="muted">None.</p>'}</section>
+        <section><h3>CI running or not run · ${A.ciPending.length}</h3>${A.ciPending.length ? `<div class="rows">${A.ciPending.map(prRow).join('')}</div>` : '<p class="muted">None.</p>'}</section>
+        ${A.checks.length ? `<section><h3>Other checks failing · ${A.checks.length}</h3><div class="rows">${A.checks.map(prRow).join('')}</div></section>` : ''}`;
+    } else if (q.id === 'drafts') {
+      body = `<div class="rows">${A.drafts.map(prRow).join('')}</div>`;
+    } else if (q.id === 'review') {
+      body = A.review.length ? `<div class="rows">${A.review.map(prRow).join('')}</div>` : '<p class="muted">None.</p>';
+    } else {
+      const list = q.id === 'start' ? A.start : q.id === 'soon' ? A.soon : A.chain;
+      body = list.length ? `<div class="refs col">${list.map((id, i) => stepRow(id, q.id === 'chain' ? i + 1 : null)).join('')}</div>` : '<p class="muted">Nothing.</p>';
+    }
+    panel.innerHTML = `<h2>${esc(q.q)}</h2>${body}<p><button class="rb" data-clear>All questions</button></p>`;
+    panel.scrollTop = 0;
+  }
+
+  function renderOverview() {
+    panel.innerHTML = `<h2>Ask the map</h2>
+      <div class="qlist">${QS.map((q) => `<button data-q="${q.id}"><span class="qq">${esc(q.q)}</span><span class="qn${q.alert ? ' alert' : ''}">${esc(q.countLabel || q.n)}</span><span class="qa">${esc(q.preview())}</span></button>`).join('')}</div>
+      ${D.untracked.length ? `<section><h3>Open PRs the plan does not track</h3><div class="rows">${D.untracked.map((u) => `<div class="arow"><div class="top"><a class="num" href="${GH(u.number)}" target="_blank" rel="noopener">#${u.number}</a><span class="grow">${esc(u.title)}</span></div><div class="on">${esc(u.why)}</div></div>`).join('')}</div></section>` : ''}
+      <p class="hint">Click a step on the map to trace what it waits on and unlocks.</p>`;
+  }
+
+  // ---------- panel: step ----------
+  function prChain(s) {
+    if (!s.prs.length) return '';
+    const first = P(s.prs[0]), last = P(s.prs[s.prs.length - 1]);
+    const before = first.parent && P(first.parent).step !== s.id ? first.parent : null;
+    const after = last.children.find((x) => P(x).step !== s.id);
+    const linked = s.prs.length > 1 && s.prs.slice(1).every((n, i) => P(n).stack && P(n).stack === P(s.prs[i]).stack);
+    const hop = (n, dir) => `<button class="hop" data-go="${P(n).step}" data-pr="${n}">${dir === 'up' ? '↑ Stacked on' : '↓ Continues in'} #${n} · ${esc(byId[P(n).step].title)}</button>`;
+    return `<section><h3>${s.stack ? `PRs ${s.stack.lo === s.stack.hi ? s.stack.lo : `${s.stack.lo}–${s.stack.hi}`} of a ${s.stack.total}-PR stack, base first` : `PR${s.prs.length === 1 ? '' : 's'}`} · ${s.merged}/${s.prs.length} merged</h3>
+      ${before ? hop(before, 'up') : ''}
+      <ol class="chain${linked ? '' : ' flat'}">${s.prs.map((n) => {
+        const p = P(n);
+        const base = p.state === 'merged' ? `merged ${fmtDay(p.mergedAt)} into ${esc(p.base)}` : p.parent ? `base #${p.parent} (${esc(tail(p.base))})` : `base ${esc(p.base)}`;
+        return `<li class="${state.focusPr === n ? 'focus' : ''}"><span class="rail">${pipw(p)}${p.pos ? `<small>${p.pos}</small>` : ''}</span>
+          <div class="body"><div class="prline"><a class="num" href="${GH(n)}" target="_blank" rel="noopener">#${n}</a>${prPill(p)}${ciSpan(p)}${!p.blockers.length && isOpen(p) ? '<span class="tag good">✓ ready to land</span>' : ''}</div>
+            <div class="prtitle">${esc(p.title)}</div>
+            ${p.blockers.length ? `<div class="prline">${blockerTags(p)}</div>` : ''}
+            <div class="prbase">${base}</div>
+            ${isOpen(p) && p.ci === 'fail' ? `<div class="prbase" style="color:var(--fail)">${esc(p.ciFailed.join(', '))}</div>` : ''}</div></li>`;
+      }).join('')}</ol>
+      ${after ? hop(after, 'down') : ''}</section>`;
+  }
+
+  function renderStep(s) {
+    const parts = s.parts.length ? `<section><h3>Parts</h3><ul class="check">${s.parts.map((c) => {
+      const p = c.pr ? P(c.pr) : null;
+      return `<li><span>${esc(c.label)}</span><span class="ln">${esc(c.size || '')}</span>${p ? `<a href="${GH(c.pr)}" target="_blank" rel="noopener" title="${esc(PRK[p.kind].label)}">${pipw(p)}#${c.pr}</a>` : `<span class="nopr">${esc(c.note || 'no PR')}</span>`}</li>`;
+    }).join('')}</ul></section>` : '';
+    const related = s.related.length ? `<section><h3>Related</h3><div class="rows">${s.related.map((r) => {
+      const p = r.pr ? P(r.pr) : null;
+      return `<div class="arow"><div class="top">${p ? `<a class="num" href="${GH(r.pr)}" target="_blank" rel="noopener">#${r.pr}</a>${prIcon(p, 'sm')}<span class="tag quiet">${esc(PRK[p.kind].label)} · ${esc(p.author)}</span>` : ''}${r.story ? `<a class="num" href="${esc(SCURL(r.story))}" target="_blank" rel="noopener">${esc(SCID(r.story))}</a>` : ''}</div>${r.label ? `<div class="prbase">${esc(r.label)}</div>` : ''}</div>`;
+    }).join('')}</div></section>` : '';
+    const depBtn = (id) => `<button class="rb${DONE.has(byId[id].status) ? ' done' : ''}" data-go="${id}">${stepIcon(byId[id], 'sm')}${esc(byId[id].title)}</button>`;
+    panel.innerHTML = `
+      <div class="meta">${stepPill(s)}<span class="track">${s.track ? esc(TRACK[s.track].label) : 'Goal'}${s.label ? ' · ' + esc(s.label) : ''}</span></div>
+      <h2>${esc(s.title)}</h2>
+      ${s.story ? `<a class="sc" href="${esc(SCURL(s.story))}" target="_blank" rel="noopener">${esc(SCID(s.story))}</a>` : ''}
+      ${s.what || s.why ? `<div class="what">${s.what ? `<div>${rich(s.what)}</div>` : ''}${s.why ? `<span>${rich(s.why)}</span>` : ''}</div>` : ''}
+      ${prChain(s)}
+      ${parts}
+      <section><h3>Waits on · ${s.waitingOn.length} unfinished${s.openUpstream.length > s.waitingOn.length ? `, ${s.openUpstream.length} upstream` : ''}</h3>${s.deps.length ? `<div class="refs">${s.deps.map(depBtn).join('')}</div>` : '<p class="muted">Nothing.</p>'}</section>
+      <section><h3>Unlocks</h3>${s.unlocks.length ? `<div class="refs">${s.unlocks.map(depBtn).join('')}</div>` : '<p class="muted">Nothing after this.</p>'}</section>
+      ${related}
+      ${s.links.length ? `<section><h3>Links</h3><div class="links">${s.links.map((l) => `<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join('')}</div></section>` : ''}
+      <p><button class="rb" data-clear>All questions</button></p>`;
+    panel.scrollTop = 0;
+    if (state.focusPr) { const f = panel.querySelector('li.focus'); if (f) f.scrollIntoView({ block: 'nearest' }); }
+  }
+
+  // ---------- stack rail ----------
+  const chip = (n, next) => {
+    const p = P(n);
+    const bl = p.blockers.filter((b) => b.k !== 'base');
+    return `<a class="prchip${next ? ' next' : ''}" href="${GH(n)}" target="_blank" rel="noopener" data-pr="${n}" style="--c:${PRK[p.kind].c}"
+      title="${esc(`#${n} ${p.title}\n${PRK[p.kind].label}${isOpen(p) ? ' · ' + CI[p.ci][1] : ''}\nbase: ${p.base}\nhead: ${p.head}`)}">
+      <span class="n">${prIcon(p, 'sm')}#${n}${ciSpan(p)}</span>
+      <span class="s">${esc(p.label)}</span>
+      <span class="st${bl.some((b) => b.k === 'ci' && p.ci === 'fail' || b.k === 'check') ? ' bad' : ''}">${isOpen(p) ? (next && !bl.length ? 'next · ready' : (next ? 'next · ' : '') + esc(bl.map((b) => b.t).join(', ') || prLabel(p))) : 'merged ' + esc(fmtDay(p.mergedAt))}</span></a>`;
+  };
+  const segHead = (id, k) => { const s = byId[id]; return `<button class="seghead" data-go="${id}">${stepIcon(s, 'sm')}${esc(s.label ? s.label + ' · ' : '')}${esc(s.title)}<small>${k} PR${k === 1 ? '' : 's'}</small></button>`; };
+  const inStack = new Set(D.stacks.flatMap((s) => s.prs));
+  const solo = tracked.filter((p) => isOpen(p) && !inStack.has(p.n));
+  const landed = tracked.filter((p) => p.kind === 'merged' && !inStack.has(p.n)).sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt)));
+  document.getElementById('stacks').innerHTML = `
+    <div class="hd"><h2 id="stacks-h">PR stacks</h2><span class="sub">Base on the left, tip on the right; each PR's base branch is the PR before it.</span></div>
+    ${D.stacks.map((st) => `<div class="stackrow"><h3>Stack · ${st.merged}/${st.total} merged · ${st.drafts} drafts<span class="bar">${st.prs.map((n) => `<span style="width:${100 / st.total}%;background:${PRK[P(n).kind].c};border-right:1px solid var(--surface)"></span>`).join('')}</span></h3>
+      <div class="rail-scroll"><div class="rail-track"><div class="trunk">${esc(M.baseBranch || 'main')}</div>
+        ${st.segments.map((g) => `<div class="seg">${segHead(g.step, g.prs.length)}<div class="chips">${g.prs.map((n) => `<span class="link" aria-hidden="true"></span>${chip(n, n === st.next)}`).join('')}</div></div>`).join('')}
+      </div></div></div>`).join('')}
+    ${solo.length ? `<div class="stackrow"><h3>Open alone on ${esc(M.baseBranch || 'main')}</h3><div class="solo">${solo.map((p) => `<div class="seg" style="padding:0">${segHead(p.step, 1)}${chip(p.n, false)}</div>`).join('')}</div></div>` : ''}
+    ${landed.length ? `<div class="stackrow"><h3>Merged outside a stack · ${landed.length}</h3><div class="landed">${landed.map((p) => `<a href="${GH(p.n)}" target="_blank" rel="noopener" data-pr="${p.n}" title="${esc(p.title)}">${prIcon(p, 'sm')}#${p.n}<small>${esc(p.label)} · ${esc(fmtDay(p.mergedAt))}</small></a>`).join('')}</div></div>` : ''}`;
+  const stacksEl = document.getElementById('stacks');
+  stacksEl.addEventListener('mouseover', (e) => {
+    const a = e.target.closest('[data-pr]');
+    STEPS.forEach((s) => nodeEls[s.id].classList.remove('peek'));
+    if (a && P(a.dataset.pr) && P(a.dataset.pr).step) nodeEls[P(a.dataset.pr).step].classList.add('peek');
+  });
+  stacksEl.addEventListener('mouseleave', () => STEPS.forEach((s) => nodeEls[s.id].classList.remove('peek')));
+
+  // ---------- zoom ----------
+  function applyScale() { canvas.style.transform = `scale(${state.scale})`; sizer.style.width = W * state.scale + 'px'; sizer.style.height = H * state.scale + 'px'; }
+  const clamp = (v) => Math.min(1.4, Math.max(0.3, v));
+  document.getElementById('zoom-in').addEventListener('click', () => { state.scale = clamp(state.scale + 0.1); applyScale(); });
+  document.getElementById('zoom-out').addEventListener('click', () => { state.scale = clamp(state.scale - 0.1); applyScale(); });
+  document.getElementById('zoom-fit').addEventListener('click', () => { state.scale = clamp((wrap.clientWidth - 4) / W); applyScale(); });
+  document.getElementById('zoom-reset').addEventListener('click', () => { state.scale = 1; applyScale(); });
+  applyScale();
+
+  const hash = location.hash.replace('#', '');
+  if (byId[hash]) select(hash);
+  else if (hash.startsWith('q-') && QBY[hash.slice(2)]) ask(hash.slice(2));
+  else {
+    renderOverview();
+    const frontier = byId[A.chain[0]];
+    if (frontier) wrap.scrollLeft = Math.max(0, geo(frontier).x - CW * 1.2);
+  }
+})();
+</script>
