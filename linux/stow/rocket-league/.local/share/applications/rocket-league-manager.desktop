@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Rocket League Manager (hidden)
+Comment=Internal maintenance commands for existing Rocket League launchers
+Exec=/home/brandon/.local/bin/rocket-league doctor
+NoDisplay=true
+Hidden=true
+Icon=applications-games
+Terminal=false
+Categories=Game;
+Keywords=Rocket;League;BakkesMod;Repair;Heroic;

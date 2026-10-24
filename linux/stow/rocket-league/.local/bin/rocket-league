@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if (( $# == 0 )); then
+  set -- play --online
+fi
+exec python3 "${XDG_DATA_HOME:-$HOME/.local/share}/rocket-league/manager.py" "$@"

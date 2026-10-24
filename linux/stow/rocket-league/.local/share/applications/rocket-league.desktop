@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Rocket League
+GenericName=Car Soccer Game
+Comment=Update and launch Rocket League through Heroic
+Exec=/home/brandon/.local/bin/rocket-league play --online
+Icon=/home/brandon/.local/share/icons/hicolor/256x256/apps/rocket-league.png
+Terminal=false
+Categories=Game;
+Keywords=Rocket;League;RL;Epic;Heroic;
+StartupNotify=true
+StartupWMClass=RocketLeague.exe

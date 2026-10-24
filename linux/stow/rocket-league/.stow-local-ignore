@@ -1,0 +1,5 @@
+^/README\.md$
+^/tests
+^/\.gitignore$
+__pycache__
+\.pyc$

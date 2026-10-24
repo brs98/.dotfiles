@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Rocket League Workshop Maps
+GenericName=Car Soccer Game
+Comment=Pick, install, and play rings maps with a native Omarchy menu
+Exec=/home/brandon/.local/bin/rocket-league-workshop-maps
+Icon=/home/brandon/.local/share/icons/hicolor/256x256/apps/rocket-league.png
+Terminal=false
+Categories=Game;
+Keywords=Rocket;League;RL;BakkesMod;Rings;Workshop;Maps;Offline;Heroic;
+StartupNotify=true
+StartupWMClass=RocketLeague.exe

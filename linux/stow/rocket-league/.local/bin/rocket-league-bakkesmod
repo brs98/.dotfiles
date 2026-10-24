@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Keep existing workshop integrations on the same repair/compatibility path.
+exec "${HOME}/.local/bin/rocket-league" play "$@"
