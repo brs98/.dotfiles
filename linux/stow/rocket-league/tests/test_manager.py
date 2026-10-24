@@ -492,12 +492,66 @@ elif 'update' in sys.argv:
             m.Manager(online=True).play(online=True)
         self.assertEqual(self.underpass.read_text(), 'original underpass')
 
-    def test_watcher_restores_after_session_ends(self):
+    def swap_id(self):
+        return json.loads((self.state / 'rocket-league/underpass.json').read_text())['time']
+
+    def test_watcher_restores_only_after_the_session_settles(self):
         self.play_underpass()
-        states = iter([['rocketleague.ex'], ['rocketleague.ex'], [], []])
-        with patch.object(m, 'running', side_effect=lambda: next(states, [])), patch.object(m.time, 'sleep'):
-            self.assertTrue(self.manager.restore_after_game(appear=60, poll=0))
+        # A brief gap (Launcher.exe handing off to the game) must not trigger a restore.
+        states = iter([['rocketleague.ex'], [], ['rocketleague.ex'], [], [], []])
+        seen = []
+        def running():
+            value = next(states, [])
+            seen.append(self.underpass.read_text())
+            return value
+        with patch.object(m, 'running', side_effect=running), patch.object(m.time, 'sleep'):
+            self.assertTrue(self.manager.restore_after_game(self.swap_id(), appear=60, poll=0))
+        self.assertEqual(seen[:4], ['workshop map'] * 4)
         self.assertEqual(self.underpass.read_text(), 'original underpass')
+
+    def test_stale_watcher_never_undoes_a_newer_swap(self):
+        self.play_underpass()
+        self.assertFalse(self.manager.restore_underpass('an-earlier-swap'))
+        self.assertEqual(self.underpass.read_text(), 'workshop map')
+
+    def test_missing_backup_keeps_swap_record_and_reports(self):
+        self.play_underpass()
+        (self.state / 'rocket-league/underpass' / m.UNDERPASS).unlink()
+        with self.assertRaisesRegex(m.Problem, 'Verify'):
+            self.manager.restore_underpass()
+        self.assertTrue((self.state / 'rocket-league/underpass.json').exists())
+        self.assertTrue(self.manager.inspect()['underpass_swapped'])
+
+    def test_launch_does_not_hold_the_lock_while_heroic_runs(self):
+        def heroic(args, **kwargs):
+            if args[0] == str(self.heroic):
+                with m.Manager().lock():
+                    pass
+            return m.subprocess.CompletedProcess(args, 0, stdout='')
+        for online in (True, False):
+            with patch.object(m.subprocess, 'run', side_effect=heroic):
+                m.Manager(online=online).play(online=online)
+
+    def test_interrupted_bakkesmod_update_is_retried(self):
+        self.supported('game-v1', trainer='229')
+        real_atomic = m.atomic
+        def fail_on_dll(path, content):
+            if path.name == 'bakkesmod.dll' and path.parent.name == 'dll' and self.mod in path.parents:
+                raise OSError('disk full')
+            real_atomic(path, content)
+        with patch.object(m, 'atomic', side_effect=fail_on_dll), patch.object(m.urllib.request, 'urlopen', return_value=self.bakkesmod_zip()):
+            self.manager.prepare_offline()
+        self.assertEqual((self.mod / 'version.txt').read_text(), '228')
+
+    def test_failed_live_check_uses_fresh_cache(self):
+        self.release.stop()
+        cached = {'checked': m.now(), 'builds': ['game-v1'], 'trainer': '228', 'injector': '32'}
+        self.write(self.state / 'rocket-league/release.json', json.dumps(cached))
+        with patch.object(m.urllib.request, 'urlopen', side_effect=OSError('offline')):
+            release, source = self.manager.release(refresh=True)
+        self.assertEqual(release['builds'], ['game-v1'])
+        self.assertIn('live check failed', source)
+        self.release.start()
 
     def test_workshop_records_working_pairing_after_map_loads(self):
         def script(args, env):

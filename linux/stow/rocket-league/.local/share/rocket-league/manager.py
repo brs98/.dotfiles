@@ -265,15 +265,17 @@ class Manager:
 
     def release(self, refresh=False, offline=False):
         cache = self.state / "release.json"
-        value = None
+        value = fresh = None
         if cache.exists():
             try:
                 value = read_json(cache)
                 if not (isinstance(value.get("builds"), list) and value["builds"] and all(isinstance(v, str) and v for v in value["builds"]) and isinstance(value.get("trainer"), str) and value["trainer"].isdigit() and isinstance(value.get("injector"), str) and value["injector"].isdigit()):
                     raise ValueError()
                 age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(value["checked"])).total_seconds()
-                if not refresh and 0 <= age < 21600:
-                    return value, "cached (under 6 hours old)"
+                if 0 <= age < 21600:
+                    fresh = value
+                    if not refresh:
+                        return value, "cached (under 6 hours old)"
             except (Problem, KeyError, ValueError, TypeError):
                 value = None
         if offline:
@@ -291,6 +293,8 @@ class Manager:
             atomic(cache, encoded(value))
             return value, "live"
         except (OSError, ValueError, KeyError, TypeError, urllib.error.URLError):
+            if fresh:
+                return fresh, "cached (live check failed)"
             return None, "unavailable; compatibility could not be checked"
 
     def desired(self):
@@ -449,24 +453,22 @@ class Manager:
             raise Problem("Heroic rejected the launch request. Open Heroic to check sign-in and game updates.")
 
     def play(self, online=False, unverified=False):
-        self.ready_to_launch()
-        if online:
+        # Prepare under the lock, then launch without it: Heroic may block for the whole session.
+        with self.lock():
+            self.ready_to_launch()
             self.restore_underpass()
-            launcher = self.game / "Binaries/Win64/Launcher.exe"
-            if not launcher.is_file():
-                raise Problem("Rocket League's official launcher is missing. Repair game files in Heroic.")
-            self.record("launch-request", mode="online")
-            self.launch(launcher)
-            print("Online launch requested through Heroic.")
-            return
-        self.restore_underpass()
-        report = self.repair()
-        if not report["known_working"] and report["compatibility"] != "supported by official updater" and not unverified:
-            raise Problem(f"{report['compatibility']}. Run rocket-league doctor. To deliberately test offline: rocket-league play --try-unverified")
-        atomic(self.state / "last-launch.json", encoded({"time": now(), "versions": report["versions"]}))
-        self.record("launch-request", mode="offline")
-        self.launch(self.batch)
-        print("Launch requested. After verifying BakkesMod works in offline practice, use Mark Working.")
+            if online:
+                launcher = self.game / "Binaries/Win64/Launcher.exe"
+                if not launcher.is_file():
+                    raise Problem("Rocket League's official launcher is missing. Repair game files in Heroic.")
+            else:
+                report = self.repair()
+                if not report["known_working"] and report["compatibility"] != "supported by official updater" and not unverified:
+                    raise Problem(f"{report['compatibility']}. Run rocket-league doctor. To deliberately test offline: rocket-league play --try-unverified")
+                atomic(self.state / "last-launch.json", encoded({"time": now(), "versions": report["versions"]}))
+            self.record("launch-request", mode="online" if online else "offline")
+        self.launch(launcher if online else self.batch)
+        print("Online launch requested through Heroic." if online else "Launch requested. After verifying BakkesMod works in offline practice, use Mark Working.")
 
     def legendary(self):
         """Heroic's bundled legendary, run against Heroic's own config so both agree on the install."""
@@ -492,13 +494,18 @@ class Manager:
         previous = self.version
         notice = notify("Updating Rocket League", "BakkesMod supports the new patch; installing it before launch")
         # Legendary's log carries only progress; read it live and never store it.
-        process = subprocess.Popen(command + ["-y", "update", "Sugar"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, env=env)
+        process = subprocess.Popen(command + ["-y", "update", "Sugar"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, errors="replace", env=env)
         shown = 0.0
-        for line in process.stderr:
-            match = LEGENDARY_PROGRESS.search(line)
-            if match and time.monotonic() - shown >= 3:
-                shown = time.monotonic()
-                notice = notify("Updating Rocket League", f"{float(match[1]):.0f}% · {match[2]} remaining", notice)
+        try:
+            for line in process.stderr:
+                match = LEGENDARY_PROGRESS.search(line)
+                if match and time.monotonic() - shown >= 3:
+                    shown = time.monotonic()
+                    notice = notify("Updating Rocket League", f"{float(match[1]):.0f}% · {match[2]} remaining", notice)
+        except BaseException:
+            process.terminate()
+            process.wait()
+            raise
         if process.wait():
             raise Problem("The Rocket League update failed. Open Heroic to check sign-in and free disk space.")
         self.installed()
@@ -519,7 +526,8 @@ class Manager:
             archive = zipfile.ZipFile(io.BytesIO(payload))
         except zipfile.BadZipFile:
             raise Problem("The BakkesMod download is not a valid archive.") from None
-        members = [info for info in archive.infolist() if not info.is_dir()]
+        # version.txt goes last, so an interrupted copy still looks outdated and is retried.
+        members = sorted((info for info in archive.infolist() if not info.is_dir()), key=lambda info: info.filename == "version.txt")
         for info in members:
             parts = Path(info.filename).parts
             if info.filename.startswith("/") or "\\" in info.filename or ".." in parts or not parts:
@@ -557,7 +565,7 @@ class Manager:
             if latest and latest != self.version and latest in release["builds"]:
                 try:
                     self.update_game(latest)
-                except (Problem, OSError) as error:
+                except (Problem, OSError, ValueError) as error:
                     notify("Rocket League update failed", str(error))
         if release and self.version in release["builds"] and small_text(self.mod / "version.txt") != release["trainer"]:
             try:
@@ -567,11 +575,12 @@ class Manager:
         supported = release is not None and self.version in release["builds"] and small_text(self.mod / "version.txt") == release["trainer"]
         if supported or self.known(self.snapshot())[0]:
             return "bakkesmod"
-        notify("BakkesMod isn't ready for this patch yet", "Loading the map through Underpass instead. In game choose Free Play → Underpass.")
+        reason = "BakkesMod isn't ready for this patch yet" if release else "Couldn't check BakkesMod compatibility"
+        notify(reason, "Loading the map through Underpass instead. In game choose Free Play → Underpass.")
         self.record("workshop-fallback", version=self.version)
         return "underpass"
 
-    def restore_underpass(self):
+    def restore_underpass(self, swap_id=None):
         """Put the real Underpass back if a workshop map still occupies it."""
         pointer = self.state / "underpass.json"
         if not pointer.exists():
@@ -579,9 +588,13 @@ class Manager:
         if game_active():
             raise Problem("Rocket League is still using the Underpass workshop map. Close it first.")
         swap = read_json(pointer)
+        if swap_id is not None and swap.get("time") != swap_id:
+            return False
         original = self.state / "underpass" / UNDERPASS
         # A game update or file verification may have replaced the map already; keep that newer file.
-        if digest(self.underpass) == swap.get("map") and digest(original) == swap.get("original"):
+        if digest(self.underpass) == swap.get("map"):
+            if digest(original) != swap.get("original"):
+                raise Problem("The original Underpass backup is missing. Verify Rocket League's files in Heroic before playing online.")
             atomic_copy(original, self.underpass)
         original.unlink(missing_ok=True)
         pointer.unlink()
@@ -592,39 +605,45 @@ class Manager:
         source = Path(map_path)
         if not source.is_file() or source.suffix.lower() not in (".udk", ".upk"):
             raise Problem("The selected workshop map file is missing.")
-        self.ready_to_launch()
-        self.restore_underpass()
-        if not self.underpass.is_file():
-            raise Problem("Rocket League's Underpass map is missing. Verify the game files in Heroic.")
-        report = self.repair()
-        if report["errors"]:
-            raise Problem("\n".join(report["errors"]))
-        original = self.state / "underpass" / UNDERPASS
-        atomic_copy(self.underpass, original)
-        atomic(self.state / "underpass.json", encoded({"time": now(), "original": digest(original), "map": digest(source)}))
-        atomic_copy(source, self.underpass)
-        self.record("underpass-swap", version=self.version)
+        with self.lock():
+            self.ready_to_launch()
+            self.restore_underpass()
+            if not self.underpass.is_file():
+                raise Problem("Rocket League's Underpass map is missing. Verify the game files in Heroic.")
+            report = self.repair()
+            if report["errors"]:
+                raise Problem("\n".join(report["errors"]))
+            original = self.state / "underpass" / UNDERPASS
+            atomic_copy(self.underpass, original)
+            swap_id = now()
+            atomic(self.state / "underpass.json", encoded({"time": swap_id, "original": digest(original), "map": digest(source)}))
+            atomic_copy(source, self.underpass)
+            self.record("underpass-swap", version=self.version)
         # Restore after the session even if Heroic keeps this process waiting or never returns.
-        subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "restore-underpass", "--after-game"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "restore-underpass", "--after-game", "--swap", swap_id], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         try:
             self.launch(self.plain_batch)
         except Problem:
-            self.restore_underpass()
+            with self.lock():
+                self.restore_underpass(swap_id)
             raise
         print("Launch requested. Choose Free Play → Underpass to play the workshop map.")
 
-    def restore_after_game(self, appear=600, poll=5, give_up=86400):
+    def restore_after_game(self, swap_id=None, appear=600, poll=5, give_up=86400, settle=3):
         deadline = time.monotonic() + appear
         while time.monotonic() < deadline and not game_active():
             time.sleep(poll)
         deadline = time.monotonic() + give_up
+        absent = 0
         while time.monotonic() < deadline:
-            if not game_active():
+            # Launcher.exe hands off to the game, and a crash may be relaunched; wait for a settled exit.
+            absent = 0 if game_active() else absent + 1
+            if absent >= settle:
                 try:
                     with self.lock():
-                        return self.restore_underpass()
+                        return self.restore_underpass(swap_id)
                 except Problem:
-                    pass
+                    absent = 0
             time.sleep(poll)
         return False
 
@@ -647,8 +666,11 @@ class Manager:
         if status == 0 and loaded.exists():
             loaded.unlink()
             # A map loaded over RCON proves this exact pairing injects; remember it.
-            with contextlib.suppress(Problem), self.lock():
-                self.mark(True)
+            try:
+                with self.lock():
+                    self.mark(True)
+            except Problem as error:
+                self.record("mark-working-skipped", reason=str(error))
         return status
 
     def mark(self, confirmed):
@@ -683,12 +705,19 @@ def main():
     underpass.add_argument("map")
     restore = sub.add_parser("restore-underpass", help="Put the original Underpass map back")
     restore.add_argument("--after-game", action="store_true", help="Wait for the current Rocket League session to end first")
+    restore.add_argument("--swap", help=argparse.SUPPRESS)
     args = parser.parse_args()
     manager = Manager(online=args.command == "play" and args.online)
     if args.command == "workshop":
         return manager.workshop()
     if args.command == "restore-underpass" and args.after_game:
-        manager.restore_after_game()
+        manager.restore_after_game(args.swap)
+        return 0
+    if args.command == "play":
+        manager.play(args.online, args.try_unverified)
+        return 0
+    if args.command == "underpass":
+        manager.play_underpass(args.map)
         return 0
     if args.command == "doctor":
         report = manager.inspect(refresh=not args.offline, offline=args.offline)
@@ -699,12 +728,8 @@ def main():
             manager.show(manager.repair())
         elif args.command == "undo-repair":
             manager.undo()
-        elif args.command == "play":
-            manager.play(args.online, args.try_unverified)
         elif args.command == "mark-working":
             manager.mark(args.confirmed)
-        elif args.command == "underpass":
-            manager.play_underpass(args.map)
         elif args.command == "restore-underpass":
             print("Restored the original Underpass map." if manager.restore_underpass() else "Underpass is already original.")
     return 0
