@@ -2,7 +2,7 @@
 
 Use your existing **Rocket League** launcher for normal online play and your existing `rocket-league-bakkesmod` launcher for offline BakkesMod play. There is no manager menu.
 
-Both launch paths go through the manager's quiet preflight. Heroic owns Rocket League updates; the normal launcher opens Heroic, which checks the game before launch. The BakkesMod path refreshes the version metadata and checks official compatibility before starting the existing offline launcher. The offline helper sets a 15-second injection delay so Rocket League can initialize under Proton before BakkesMod attaches. The BakkesMod injector may show its own confirmation dialog when it has an update.
+Both launch paths go through the manager's quiet preflight. The normal launcher opens Heroic, which checks the game before launch. **RL - Workshop Maps** keeps itself launchable on its own; see *Workshop Maps updates itself* below. The BakkesMod path refreshes the version metadata and checks official compatibility before starting the existing offline launcher. The offline helper sets a 15-second injection delay so Rocket League can initialize under Proton before BakkesMod attaches. The BakkesMod injector may show its own confirmation dialog when it has an update.
 
 ## Commands
 
@@ -16,22 +16,30 @@ Both launch paths go through the manager's quiet preflight. Heroic owns Rocket L
 | `rocket-league play` | Repair, check compatibility and request offline BakkesMod launch through Heroic. |
 | `rocket-league play --online` | Request launch through the official game launcher, without the BakkesMod helper. |
 | `rocket-league play --try-unverified` | Explicitly test offline when the pairing cannot be verified. Leaves injector safe mode unchanged. |
-| `rocket-league workshop` | Open existing workshop maps with paths discovered from Heroic. |
+| `rocket-league workshop` | Update the game and BakkesMod when needed, then open workshop maps (falls back to Underpass when BakkesMod lags a patch). |
+| `rocket-league underpass <map>` | Launch offline without BakkesMod with `<map>` copied over Underpass; restored automatically after the session. |
+| `rocket-league restore-underpass` | Put the original Underpass back now (`--after-game` waits for the running session to end). |
 | `rocket-league mark-working --confirmed` | After personally testing BakkesMod, record the versions/hashes from that launch. |
 | `rocket-league undo-repair` | Restore only the last integration repair, refusing to overwrite subsequent edits. |
 
 The existing Rocket League desktop entry launches through `rocket-league play --online`. The existing `rocket-league-bakkesmod` and `rocket-league-workshop-maps` commands route through the preflight and repair logic. The separate manager desktop entry is hidden.
 
-## After an update
+## Workshop Maps updates itself
 
-1. Launch Rocket League normally online to let Heroic check and apply its game update.
-2. Launch offline with BakkesMod. The wrapper repairs the game-version metadata and checks the current supported build list before launch.
-3. If the injector reports an update, accept its official update prompt and launch offline again if the game started before the update completed.
-4. Run `rocket-league mark-working --confirmed` after verifying BakkesMod in offline practice.
+Opening **RL - Workshop Maps** with Rocket League closed runs these steps before the map menu:
+
+1. Fetch the BakkesMod updater feed.
+2. If BakkesMod supports a newer Epic build than the installed one, update the game with Heroic's bundled `legendary` (against Heroic's own config, so Heroic sees the new version). A notification shows progress. It never updates the game past the build BakkesMod supports, so an installed build BakkesMod still supports remains playable while BakkesMod catches up.
+3. If BakkesMod itself is behind the feed, install the official `bakkesmod.zip` from BakkesMod's GitHub release (HTTPS; the feed's own link is plain HTTP). It refuses the archive if its `version.txt` does not match the feed or it contains unsafe paths. Existing `cfg/` files, `data/*.cfg` (RCON allowlist, cameras), `bakkesmod.log` and the injector's `injectorversion.txt` are kept; replaced files are backed up under `bakkesmod-backups/` (last two kept).
+4. Launch with BakkesMod and load the map over RCON. A successful map load records the exact pairing as working, as `mark-working --confirmed` would.
+
+If the game is already on a patch BakkesMod does not support yet (for example, an online launch installed it), or an update fails, the launcher falls back to **Underpass**: it copies the chosen map over `Labs_Underpass_P.upk`, launches offline with `-noeac` and without the injector, and tells you to choose **Free Play → Underpass**. The original file is kept in the state directory and restored when the session ends. Every online and offline launch through this manager also restores it first, and a game update or verify that already replaced the file is left alone. RL - Main/Alt (`rocket-league-account`) does not go through this manager; after an interrupted Underpass session (e.g. a reboot mid-game), run `rocket-league restore-underpass` before playing online.
+
+The injector's own update prompt still appears when only the injector is out of date; that alone never blocks a launch.
 
 Official support means the updater lists this game build and installed mod/injector versions. It does not prove Wine injection succeeds. A confirmed record includes the game and mod hashes and selected runner identity; changing any tracked component invalidates that record. An older confirmed pairing can remain usable even after the current upstream support list moves on.
 
-Compatibility source: https://updater.bakkesmod.com/updater/0 . Read `gameinfo.egsbuildids`, `update_info.trainer_version`, and **`injector.newinjectorversion`** (not the legacy injectorversion field). Network failures produce an unknown result, never an invented compatible result. No downloads occur during `doctor` other than this public metadata request.
+Compatibility source: https://updater.bakkesmod.com/updater/0 . Read `gameinfo.egsbuildids`, `update_info.trainer_version`, and **`injector.newinjectorversion`** (not the legacy injectorversion field). Network failures produce an unknown result, never an invented compatible result; Workshop Maps then uses a confirmed working pairing if one matches, otherwise Underpass. No downloads occur during `doctor` other than this public metadata request; game and BakkesMod downloads happen only from Workshop Maps.
 
 ## State and limits
 
@@ -39,10 +47,12 @@ State lives in `$XDG_STATE_HOME/rocket-league` (default `~/.local/state/rocket-l
 
 - `release.json`: selected public compatibility fields and check time.
 - `working.json`, `last-launch.json`: local version/hash records, no Epic credentials.
-- `repairs/`: copies of the two managed integration files before repair.
+- `repairs/`: copies of the managed integration files (two launch helpers, version metadata) before repair.
+- `bakkesmod-backups/`: mod files replaced by the last two automatic BakkesMod updates.
+- `underpass.json`, `underpass/`: the original Underpass map while a workshop map occupies it.
 - `history.jsonl`: actions, timestamps and backup paths; no Heroic launch output.
 
-**Working records and repair backups do not preserve or roll back game builds, Proton, the Wine prefix, plugins or mod binaries.** Heroic owns game downloads, and the BakkesMod injector owns its update prompts; this wrapper does not replace their update mechanisms. Updating Heroic itself remains part of the normal Omarchy/system package update. Preserve a complete known-working offline installation separately before replacing its binaries. This package neither creates nor restores full installation snapshots.
+**Working records and repair backups do not preserve or roll back game builds, Proton or the Wine prefix.** Game updates go through Heroic's legendary and Heroic's install record; BakkesMod updates use the official release archive. Updating Heroic itself remains part of the normal Omarchy/system package update. Preserve a complete known-working offline installation separately before replacing its binaries. This package neither creates nor restores full installation snapshots.
 
 Heroic paths come from its Sugar game settings and installed manifest under `$XDG_CONFIG_HOME/heroic`. BakkesMod's Windows user directory is discovered; Wine user symlink aliases are deduplicated. Explicit `ROCKET_LEAGUE_DIR` or `ROCKET_LEAGUE_PREFIX` overrides must match Heroic. The workshop implementation receives those discovered paths. If the game launcher rejects a request, it cancels the map-control wait and reports failure immediately. When launching a stopped game, the wrapper automatically terminates a leftover BakkesMod tray process from this Wine prefix and waits up to five seconds for it to exit. It verifies the process owner and mapped injector executable, leaves other or unverifiable processes untouched, and refuses cleanup while a game or launcher is running. If the injector does not exit, quit its tray app manually and retry. Let any BakkesMod update finish before relaunching. `HEROIC_BIN` overrides executable discovery when needed.
 

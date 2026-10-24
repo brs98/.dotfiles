@@ -14,6 +14,10 @@ data_dir="${XDG_DATA_HOME:-$HOME/.local/share}/rocket-league"
 catalog="$data_dir/rings-maps.tsv"
 rcon_client="$data_dir/bakkes-rcon.js"
 game_launcher="${ROCKET_LEAGUE_BAKKES_LAUNCHER:-$HOME/.local/bin/rocket-league-bakkesmod}"
+# The manager picks underpass when BakkesMod does not support the installed patch yet.
+mode="${ROCKET_LEAGUE_WORKSHOP_MODE:-bakkesmod}"
+underpass_launcher="${ROCKET_LEAGUE_UNDERPASS_LAUNCHER:-$HOME/.local/bin/rocket-league}"
+loaded_marker="${ROCKET_LEAGUE_MAP_LOADED:-}"
 texture_restart_marker="$maps_dir/.workshop-textures-restart-required"
 download_tmp=""
 install_tmp=""
@@ -65,10 +69,20 @@ for command in omarchy-menu-select curl bsdtar deno find sort jq; do
 done
 
 [[ -r $catalog ]] || fail "Missing rings-map catalog: $catalog"
-[[ -r $rcon_client ]] || fail "Missing BakkesMod control client: $rcon_client"
-[[ -r $rcon_config ]] || fail "BakkesMod's configuration is missing."
-[[ -r $rcon_allowlist && -w $rcon_allowlist ]] || fail "BakkesMod's RCON allowlist is unavailable."
-[[ -x $game_launcher ]] || fail "The Rocket League BakkesMod launcher is missing."
+case "$mode" in
+  bakkesmod)
+    [[ -r $rcon_client ]] || fail "Missing BakkesMod control client: $rcon_client"
+    [[ -r $rcon_config ]] || fail "BakkesMod's configuration is missing."
+    [[ -r $rcon_allowlist && -w $rcon_allowlist ]] || fail "BakkesMod's RCON allowlist is unavailable."
+    [[ -x $game_launcher ]] || fail "The Rocket League BakkesMod launcher is missing."
+    ;;
+  underpass)
+    [[ -x $underpass_launcher ]] || fail "The Rocket League launcher is missing."
+    ;;
+  *)
+    fail "Unsupported workshop mode: $mode"
+    ;;
+esac
 [[ -d $cooked_dir && -w $cooked_dir ]] || fail "Rocket League's map-data folder is unavailable."
 mkdir -p "$maps_dir" || fail "Could not create the workshop-map folder."
 
@@ -262,11 +276,17 @@ if [[ -f $texture_restart_marker ]]; then
   rm -f -- "$texture_restart_marker"
 fi
 
+title=$(pretty_map_name "$selected_map")
+if [[ $mode == underpass ]]; then
+  [[ $game_running == false ]] || fail "Close Rocket League, then choose the map again."
+  notify "Starting Rocket League" "$title is in Underpass: choose Free Play → Underpass"
+  exec "$underpass_launcher" underpass "$selected_map"
+fi
+
 if ! grep -qxF 'load_workshop' "$rcon_allowlist"; then
   printf '\nload_workshop\n' >> "$rcon_allowlist" ||
     fail "Could not allow the BakkesMod workshop command."
 fi
-title=$(pretty_map_name "$selected_map")
 if ! pgrep -f 'RocketLeague\.exe' >/dev/null 2>&1; then
   notify "Starting Rocket League" "Loading $title when BakkesMod is ready"
   "$game_launcher" &
@@ -299,5 +319,6 @@ if ! wait "$rcon_pid"; then
   fail "Could not send the map to BakkesMod."
 fi
 rcon_pid=""
+[[ -z $loaded_marker ]] || : > "$loaded_marker"
 
 notify "Loading workshop map" "$title"

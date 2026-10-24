@@ -6,8 +6,10 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+import unittest.mock
 from unittest.mock import patch
 import urllib.parse
+import zipfile
 
 SOURCE = Path(__file__).resolve().parents[1] / '.local/share/rocket-league/manager.py'
 spec = importlib.util.spec_from_file_location('manager', SOURCE)
@@ -41,6 +43,11 @@ class ManagerTests(unittest.TestCase):
         self.write(self.mod / 'injectorversion.txt', '32')
         self.write(self.mod / 'dll/bakkesmod.dll', 'mod-dll')
         self.write(self.data / 'rocket-league/run_with_bakkesmod.bat', '@echo off\nLauncher.exe -noeac\n')
+        self.write(self.data / 'rocket-league/run_without_bakkesmod.bat', '@echo off\nLauncher.exe -noeac\n')
+        self.underpass = self.game / 'TAGame/CookedPCConsole/Labs_Underpass_P.upk'
+        self.write(self.underpass, 'original underpass')
+        self.write(self.mod / 'cfg/config.cfg', 'rcon_password "user-secret"\n')
+        self.write(self.mod / 'data/rcon_commands.cfg', 'load_workshop\n')
         self.manifest = self.config / 'heroic/legendaryConfig/legendary/installed.json'
         self.write(self.manifest, json.dumps({'Sugar': {'version': 'game-v1', 'install_path': str(self.game), 'unrelated': 'DO_NOT_COPY'}}))
         self.write(self.config / 'heroic/GamesConfig/Sugar.json', json.dumps({'Sugar': {'winePrefix': str(self.prefix), 'wineVersion': {'bin': str(self.runner), 'name': 'latest'}, 'enviromentOptions': [{'value': 'DO_NOT_COPY'}]}}))
@@ -52,8 +59,11 @@ class ManagerTests(unittest.TestCase):
         self.running.start()
         self.addCleanup(self.running.stop)
         self.release = patch.object(m.Manager, 'release', return_value=({'builds': ['game-v1'], 'trainer': '228', 'injector': '32'}, 'live'))
-        self.release.start()
+        self.release_mock = self.release.start()
         self.addCleanup(self.release.stop)
+        self.notify = patch.object(m, 'notify', return_value=None)
+        self.notify.start()
+        self.addCleanup(self.notify.stop)
         self.output = contextlib.redirect_stdout(io.StringIO())
         self.output.__enter__()
         self.addCleanup(self.output.__exit__, None, None, None)
@@ -131,6 +141,7 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(env['ROCKET_LEAGUE_DIR'], str(self.game))
         self.assertEqual(env['ROCKET_LEAGUE_PREFIX'], str(self.prefix))
         self.assertEqual(env['BAKKESMOD_DIR'], str(self.mod))
+        self.assertEqual(env['ROCKET_LEAGUE_WORKSHOP_MODE'], 'bakkesmod')
 
     def test_workshop_refuses_online_game_before_starting_script(self):
         with patch.object(m, 'running', return_value=['rocketleague_ea']):
@@ -335,6 +346,174 @@ class ManagerTests(unittest.TestCase):
             release, source = self.manager.release(offline=True)
         fetch.assert_not_called()
         self.assertIsNone(release)
+
+    # --- Automatic updates and the Underpass fallback ---
+
+    def fake_legendary(self, latest, update_to=None, update_status=0):
+        script = Path(self.temp.name) / 'legendary'
+        self.write(script, f"""#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+if 'info' in sys.argv:
+    print(json.dumps({{'game': {{'version': {latest!r}}}}}))
+elif 'update' in sys.argv:
+    print('[DLManager] INFO: = Progress: 50.00% (1/2), Running for 00:00:01, ETA: 00:00:01', file=sys.stderr)
+    manifest = Path(os.environ['LEGENDARY_CONFIG_PATH']) / 'installed.json'
+    value = json.loads(manifest.read_text())
+    if {update_to!r}:
+        value['Sugar']['version'] = {update_to!r}
+        manifest.write_text(json.dumps(value))
+    sys.exit({update_status})
+""")
+        script.chmod(0o755)
+        os.environ['LEGENDARY_BIN'] = str(script)
+
+    def supported(self, *builds, trainer='228'):
+        self.release_mock.return_value = ({'builds': list(builds), 'trainer': trainer, 'injector': '32'}, 'live')
+
+    def test_game_updates_when_bakkesmod_supports_the_new_build(self):
+        self.supported('game-v2')
+        self.fake_legendary('game-v2', update_to='game-v2')
+        self.assertEqual(self.manager.prepare_offline(), 'bakkesmod')
+        self.assertEqual(self.manager.version, 'game-v2')
+        self.assertIn('"game-update"', (self.state / 'rocket-league/history.jsonl').read_text())
+
+    def test_game_is_not_updated_past_what_bakkesmod_supports(self):
+        self.supported('game-v1')
+        self.fake_legendary('game-v2', update_to='game-v2')
+        self.assertEqual(self.manager.prepare_offline(), 'bakkesmod')
+        self.assertEqual(self.manager.version, 'game-v1')
+
+    def test_unsupported_patch_falls_back_to_underpass(self):
+        self.supported('game-v0')
+        self.fake_legendary('game-v1')
+        self.assertEqual(self.manager.prepare_offline(), 'underpass')
+
+    def test_failed_game_update_falls_back_to_underpass(self):
+        self.supported('game-v2')
+        self.fake_legendary('game-v2', update_status=1)
+        self.assertEqual(self.manager.prepare_offline(), 'underpass')
+        m.notify.assert_any_call('Rocket League update failed', unittest.mock.ANY)
+
+    def test_unreachable_feed_uses_known_working_pairing_or_underpass(self):
+        self.supported('game-v1')
+        self.manager.repair()
+        atomic_versions = {'versions': self.manager.snapshot()}
+        self.write(self.state / 'rocket-league/working.json', json.dumps(atomic_versions))
+        with patch.object(m.Manager, 'release', return_value=(None, 'unavailable')):
+            self.assertEqual(self.manager.prepare_offline(), 'bakkesmod')
+            (self.state / 'rocket-league/working.json').unlink()
+            self.assertEqual(self.manager.prepare_offline(), 'underpass')
+
+    def bakkesmod_zip(self, version='229', extra=None):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w') as archive:
+            files = {'version.txt': version, 'injectorversion.txt': '14', 'dll/bakkesmod.dll': 'new-dll',
+                     'cfg/config.cfg': 'rcon_password "default"\n', 'cfg/new_default.cfg': 'new',
+                     'data/rcon_commands.cfg': 'ws_inventory\n', 'plugins/NewPlugin.dll': 'plugin'}
+            files.update(extra or {})
+            for name, text in files.items():
+                archive.writestr(name, text)
+        return contextlib.nullcontext(io.BytesIO(buffer.getvalue()))
+
+    def test_bakkesmod_update_replaces_mod_files_but_keeps_user_settings(self):
+        self.supported('game-v1', trainer='229')
+        with patch.object(m.urllib.request, 'urlopen', return_value=self.bakkesmod_zip()) as fetch:
+            self.assertEqual(self.manager.prepare_offline(), 'bakkesmod')
+        self.assertTrue(fetch.call_args.args[0].full_url.startswith('https://github.com/'))
+        self.assertEqual((self.mod / 'version.txt').read_text(), '229')
+        self.assertEqual((self.mod / 'dll/bakkesmod.dll').read_text(), 'new-dll')
+        self.assertEqual((self.mod / 'plugins/NewPlugin.dll').read_text(), 'plugin')
+        self.assertEqual((self.mod / 'cfg/new_default.cfg').read_text(), 'new')
+        self.assertEqual((self.mod / 'cfg/config.cfg').read_text(), 'rcon_password "user-secret"\n')
+        self.assertEqual((self.mod / 'data/rcon_commands.cfg').read_text(), 'load_workshop\n')
+        self.assertEqual((self.mod / 'injectorversion.txt').read_text(), '32')
+        backups = list((self.state / 'rocket-league/bakkesmod-backups').glob('*/dll/bakkesmod.dll'))
+        self.assertEqual([path.read_text() for path in backups], ['mod-dll'])
+
+    def test_bakkesmod_update_rejects_wrong_release_and_unsafe_paths(self):
+        self.supported('game-v1', trainer='229')
+        for archive in (self.bakkesmod_zip(version='228'), self.bakkesmod_zip(extra={'../escape.dll': 'x'})):
+            with self.subTest():
+                with patch.object(m.urllib.request, 'urlopen', return_value=archive):
+                    self.assertEqual(self.manager.prepare_offline(), 'underpass')
+                self.assertEqual((self.mod / 'dll/bakkesmod.dll').read_text(), 'mod-dll')
+                self.assertFalse((self.mod.parent / 'escape.dll').exists())
+
+    def test_injector_update_alone_does_not_block_offline_launch(self):
+        self.release_mock.return_value = ({'builds': ['game-v1'], 'trainer': '228', 'injector': '33'}, 'live')
+        report = self.manager.inspect()
+        self.assertEqual(report['compatibility'], 'supported by official updater')
+        self.assertTrue(report['injector_update'])
+
+    def play_underpass(self, status=0):
+        map_file = Path(self.temp.name) / 'maps/Rings.udk'
+        self.write(map_file, 'workshop map')
+        heroic = m.subprocess.CompletedProcess([], status, stdout='')
+        with patch.object(m.subprocess, 'Popen') as watcher, patch.object(m.subprocess, 'run', return_value=heroic) as launch:
+            if status:
+                with self.assertRaises(m.Problem):
+                    self.manager.play_underpass(str(map_file))
+            else:
+                self.manager.play_underpass(str(map_file))
+        self.assertIn('restore-underpass', watcher.call_args.args[0])
+        return launch
+
+    def test_underpass_swaps_map_launches_without_injector_and_restores(self):
+        launch = self.play_underpass()
+        self.assertEqual(self.underpass.read_text(), 'workshop map')
+        self.assertTrue(launch.call_args.args[0][2].endswith('&altExe=' + str(self.manager.plain_batch)))
+        self.assertTrue(self.manager.plain_batch.is_file())
+        self.assertTrue(self.manager.restore_underpass())
+        self.assertEqual(self.underpass.read_text(), 'original underpass')
+        self.assertFalse(self.manager.restore_underpass())
+
+    def test_rejected_underpass_launch_restores_immediately(self):
+        self.play_underpass(status=1)
+        self.assertEqual(self.underpass.read_text(), 'original underpass')
+        self.assertFalse((self.state / 'rocket-league/underpass.json').exists())
+
+    def test_restore_keeps_a_newer_game_file(self):
+        self.play_underpass()
+        self.underpass.write_text('patched underpass')
+        self.manager.restore_underpass()
+        self.assertEqual(self.underpass.read_text(), 'patched underpass')
+
+    def test_restore_waits_while_game_runs(self):
+        self.play_underpass()
+        with patch.object(m, 'running', return_value=['rocketleague.ex']):
+            with self.assertRaises(m.Problem):
+                self.manager.restore_underpass()
+        self.assertEqual(self.underpass.read_text(), 'workshop map')
+
+    def test_online_launch_restores_underpass_first(self):
+        self.play_underpass()
+        with patch.object(m.subprocess, 'run', return_value=m.subprocess.CompletedProcess([], 0, stdout='')):
+            m.Manager(online=True).play(online=True)
+        self.assertEqual(self.underpass.read_text(), 'original underpass')
+
+    def test_watcher_restores_after_session_ends(self):
+        self.play_underpass()
+        states = iter([['rocketleague.ex'], ['rocketleague.ex'], [], []])
+        with patch.object(m, 'running', side_effect=lambda: next(states, [])), patch.object(m.time, 'sleep'):
+            self.assertTrue(self.manager.restore_after_game(appear=60, poll=0))
+        self.assertEqual(self.underpass.read_text(), 'original underpass')
+
+    def test_workshop_records_working_pairing_after_map_loads(self):
+        def script(args, env):
+            self.write(self.state / 'rocket-league/last-launch.json', json.dumps({'versions': self.manager.snapshot()}))
+            Path(env['ROCKET_LEAGUE_MAP_LOADED']).touch()
+            return 0
+        self.manager.repair()
+        with patch.object(m.subprocess, 'call', side_effect=script):
+            self.assertEqual(self.manager.workshop(), 0)
+        self.assertTrue(self.manager.inspect()['known_working'])
+
+    def test_cancelled_menu_does_not_record_working_pairing(self):
+        self.manager.repair()
+        with patch.object(m.subprocess, 'call', return_value=0):
+            self.manager.workshop()
+        self.assertFalse((self.state / 'rocket-league/working.json').exists())
 
 
 class ProcessTests(unittest.TestCase):

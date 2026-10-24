@@ -102,6 +102,35 @@ class WorkshopTests(unittest.TestCase):
         self.assertNotEqual(status, 0)
         self.assertIn('Could not send the map to BakkesMod', error)
 
+    def test_rcon_success_signals_map_loaded(self):
+        marker = self.root / 'loaded'
+        self.env['ROCKET_LEAGUE_MAP_LOADED'] = str(marker)
+        self.command('launcher', 'exit 0')
+        self.command('deno', 'exit 0')
+        status, _, _ = self.run_workshop()
+        self.assertEqual(status, 0)
+        self.assertTrue(marker.exists())
+
+    def test_underpass_mode_hands_map_to_manager_without_bakkesmod(self):
+        record = self.root / 'underpass-args'
+        self.env.update(ROCKET_LEAGUE_WORKSHOP_MODE='underpass', ROCKET_LEAGUE_UNDERPASS_LAUNCHER=str(self.bin / 'rl'),
+                        ROCKET_LEAGUE_MAP_LOADED=str(self.root / 'loaded'), BAKKESMOD_DIR=str(self.root / 'missing'))
+        self.command('rl', f'printf "%s\\n" "$@" > {record}')
+        self.command('launcher', 'exit 99')
+        self.command('deno', 'exit 99')
+        status, _, error = self.run_workshop()
+        self.assertEqual(status, 0, error)
+        self.assertEqual(record.read_text().split('\n')[:2], ['underpass', str(self.root / 'maps/TestMap.udk')])
+        self.assertFalse((self.root / 'loaded').exists())
+
+    def test_underpass_mode_refuses_while_game_runs(self):
+        self.env.update(ROCKET_LEAGUE_WORKSHOP_MODE='underpass', ROCKET_LEAGUE_UNDERPASS_LAUNCHER=str(self.bin / 'rl'))
+        self.command('rl', 'exit 0')
+        self.command('pgrep', "[[ $2 == 'RocketLeague\\.exe' ]]")
+        status, _, error = self.run_workshop()
+        self.assertNotEqual(status, 0)
+        self.assertIn('Close Rocket League', error)
+
 
 if __name__ == '__main__':
     unittest.main()

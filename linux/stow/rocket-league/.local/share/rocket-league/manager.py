@@ -1,24 +1,32 @@
 #!/usr/bin/env python3
-"""Manage the Heroic/BakkesMod integration without owning either updater."""
+"""Manage the Heroic/BakkesMod integration and keep offline workshop play launchable."""
 import argparse
 import contextlib
 import datetime as dt
 import fcntl
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
+import re
 import select
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 
 FEED = "https://updater.bakkesmod.com/updater/0"
+# The updater feed's own download_url is plain HTTP; the same release is published on GitHub.
+BAKKESMOD_ZIP = "https://github.com/bakkesmodorg/BakkesModInjectorCpp/releases/latest/download/bakkesmod.zip"
+UNDERPASS = "Labs_Underpass_P.upk"
+LEGENDARY_PROGRESS = re.compile(r"Progress: ([0-9.]+)%.*ETA: ([0-9:]+)")
 TEXTURES = "EditorLandscapeResources EditorMaterials EditorMeshes EditorResources EngineDebugMaterials EngineMaterials EngineResources MapTemplateIndex MapTemplates NodeBuddies Engine_MI_Shaders EngineVolumetrics EngineBuildings mods".split()
 
 
@@ -68,6 +76,37 @@ def now():
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
 
+def atomic_copy(source, path):
+    # Maps can be hundreds of MB, so copy through a sibling file instead of memory.
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=".rocket-league-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream, source.open("rb") as origin:
+            shutil.copyfileobj(origin, stream, 1 << 20)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(name, 0o644)
+        os.replace(name, path)
+    finally:
+        Path(name).unlink(missing_ok=True)
+
+
+def notify(title, body="", replace=None):
+    """Show a desktop notification; returns an id that later calls can replace."""
+    if not shutil.which("notify-send"):
+        return None
+    args = ["notify-send", "--app-name=Rocket League", "--print-id"]
+    if replace:
+        args.append(f"--replace-id={replace}")
+    result = subprocess.run(args + [title, body], capture_output=True, text=True)
+    return result.stdout.strip() or replace
+
+
+def preserved(name):
+    # BakkesMod's zip ships default settings; never replace the user's, or the injector's own record.
+    return name in ("bakkesmod.log", "injectorversion.txt") or name.startswith("cfg/") or (name.startswith("data/") and name.endswith(".cfg"))
+
+
 def running():
     # Read names and lifecycle state only; command lines may contain Epic authentication.
     names = []
@@ -83,6 +122,10 @@ def running():
         if name.startswith(("rocketleague", "bakkesmod")) or name == "launcher.exe":
             names.append(name)
     return sorted(set(names))
+
+
+def game_active():
+    return any(name.startswith("rocketleague") or name == "launcher.exe" for name in running())
 
 
 def stop_idle_injectors(prefix):
@@ -123,14 +166,12 @@ class Manager:
         self.heroic_config = Path(os.environ.get("XDG_CONFIG_HOME", home / ".config")) / "heroic"
         self.heroic = Path(os.environ.get("HEROIC_BIN") or shutil.which("heroic") or "/opt/Heroic/heroic")
         self.manifest = self.heroic_config / "legendaryConfig/legendary/installed.json"
-        installed = read_json(self.manifest).get("Sugar", {})
+        installed = self.installed()
         settings = read_json(self.heroic_config / "GamesConfig/Sugar.json").get("Sugar", {})
-        if not isinstance(installed, dict) or not isinstance(settings, dict):
+        if not isinstance(settings, dict):
             raise Problem("Rocket League's Heroic settings are invalid.")
-        self.version = installed.get("version")
-        if not isinstance(self.version, str) or not self.version.strip():
-            raise Problem("Heroic's Rocket League version is missing.")
         self.game = self.path(installed.get("install_path"), "game install")
+        self.underpass = self.game / "TAGame/CookedPCConsole" / UNDERPASS
         self.prefix = self.path(settings.get("winePrefix"), "Wine prefix")
         for key, actual in (("ROCKET_LEAGUE_DIR", self.game), ("ROCKET_LEAGUE_PREFIX", self.prefix)):
             if os.environ.get(key) and Path(os.environ[key]).resolve() != actual.resolve():
@@ -149,7 +190,19 @@ class Manager:
         self.injector = self.prefix / "drive_c/Program Files/BakkesMod/BakkesMod.exe"
         self.batch = self.game / "run_with_bakkesmod.bat"
         self.template = self.data / "run_with_bakkesmod.bat"
+        self.plain_batch = self.game / "run_without_bakkesmod.bat"
+        self.plain_template = self.data / "run_without_bakkesmod.bat"
         self.mirror = self.windows_user / ".config/legendary/installed.json"
+
+    def installed(self):
+        """Read Heroic's install record; also refreshes self.version after a game update."""
+        installed = read_json(self.manifest).get("Sugar", {})
+        if not isinstance(installed, dict):
+            raise Problem("Rocket League's Heroic settings are invalid.")
+        self.version = installed.get("version")
+        if not isinstance(self.version, str) or not self.version.strip():
+            raise Problem("Heroic's Rocket League version is missing.")
+        return installed
 
     @staticmethod
     def path(value, label):
@@ -241,20 +294,20 @@ class Manager:
             return None, "unavailable; compatibility could not be checked"
 
     def desired(self):
-        return [(self.batch, self.template.read_bytes()), (self.mirror, encoded({"Sugar": {"version": self.version}}))]
+        return [(self.batch, self.template.read_bytes()), (self.plain_batch, self.plain_template.read_bytes()), (self.mirror, encoded({"Sugar": {"version": self.version}}))]
 
     def inspect(self, refresh=False, offline=False):
         versions = self.snapshot()
         known, changes = self.known(versions)
         errors = []
-        for label, path in (("Heroic", self.heroic), ("Runner", self.runner), ("Game", self.game / "Binaries/Win64/RocketLeague.exe"), ("Game launcher", self.game / "Binaries/Win64/Launcher.exe"), ("BakkesMod injector", self.injector), ("BakkesMod DLL", self.mod / "dll/bakkesmod.dll"), ("Batch template", self.template)):
+        for label, path in (("Heroic", self.heroic), ("Runner", self.runner), ("Game", self.game / "Binaries/Win64/RocketLeague.exe"), ("Game launcher", self.game / "Binaries/Win64/Launcher.exe"), ("BakkesMod injector", self.injector), ("BakkesMod DLL", self.mod / "dll/bakkesmod.dll"), ("Batch template", self.template), ("Plain batch template", self.plain_template)):
             if not path.is_file():
                 errors.append(f"Missing {label}: {path}")
         for label, path in (("Heroic", self.heroic), ("Runner", self.runner)):
             if path.is_file() and not os.access(path, os.X_OK):
                 errors.append(f"{label} is not executable: {path}")
         repairs = []
-        if self.template.is_file():
+        if self.template.is_file() and self.plain_template.is_file():
             for path, content in self.desired():
                 if not path.is_file() or path.read_bytes() != content:
                     repairs.append(str(path))
@@ -263,12 +316,14 @@ class Manager:
             compatibility = "unknown"
         elif self.version not in release["builds"]:
             compatibility = "not listed by current BakkesMod release"
-        elif versions["BakkesMod"] != release["trainer"] or versions["Injector"] != release["injector"]:
+        elif versions["BakkesMod"] != release["trainer"]:
             compatibility = "BakkesMod update needed"
         else:
             compatibility = "supported by official updater"
+        # The injector offers its own update prompt when it starts, so it never blocks a launch.
+        injector_update = release is not None and versions["Injector"] != release["injector"]
         missing_textures = [name + ".upk" for name in TEXTURES if not (self.game / "TAGame/CookedPCConsole" / (name + ".upk")).is_file()]
-        return {"versions": versions, "known_working": known, "changes": changes, "compatibility": compatibility, "compatibility_source": source, "release": release, "errors": errors, "repairs": repairs, "missing_workshop_textures": missing_textures, "running": running()}
+        return {"versions": versions, "known_working": known, "changes": changes, "compatibility": compatibility, "compatibility_source": source, "release": release, "errors": errors, "repairs": repairs, "injector_update": injector_update, "underpass_swapped": (self.state / "underpass.json").exists(), "missing_workshop_textures": missing_textures, "running": running()}
 
     @staticmethod
     def show(report):
@@ -288,7 +343,11 @@ class Manager:
         if report["missing_workshop_textures"]:
             print(f"Workshop: {len(report['missing_workshop_textures'])} texture files missing; the Workshop Maps launcher can install them.")
         if report["compatibility"] == "BakkesMod update needed":
-            print("Open Heroic → Rocket League → Run EXE on Prefix → BakkesMod.exe, let it update, close its tray app, then run doctor again.")
+            print("The Workshop Maps launcher installs the BakkesMod update automatically.")
+        if report["injector_update"]:
+            print("The BakkesMod injector will offer its own update when it starts; accept it.")
+        if report["underpass_swapped"]:
+            print("Underpass currently holds a workshop map; it is restored when Rocket League closes.")
         elif report["compatibility"] != "supported by official updater" and not report["known_working"]:
             print("Offline mod play is unverified. Online play remains separate; do not force injection or disable injector safe mode.")
         if report["running"]:
@@ -346,7 +405,7 @@ class Manager:
             raise Problem("No repair to undo.")
         backup = Path(read_json(pointer)["backup"])
         entries = read_json(backup / "manifest.json")["entries"]
-        allowed = {str(self.batch), str(self.mirror)}
+        allowed = {str(self.batch), str(self.plain_batch), str(self.mirror)}
         for entry in entries:
             target = Path(entry["path"])
             if str(target) not in allowed or target.is_symlink() or digest(target) != entry["after"]:
@@ -370,7 +429,7 @@ class Manager:
         self.record("undo-repair", backup=str(backup))
         print("Restored the integration files from before the last repair. Game/mod binaries were not changed.")
 
-    def play(self, online=False, unverified=False):
+    def ready_to_launch(self):
         processes = running()
         if any(not name.startswith("bakkesmod") for name in processes):
             raise Problem("Rocket League or its launcher is still running. Wait for it to close before relaunching.")
@@ -379,38 +438,218 @@ class Manager:
         self.stopped()
         if not self.heroic.is_file() or not os.access(self.heroic, os.X_OK):
             raise Problem("Heroic is missing or not executable.")
-        args = {"appName": "Sugar", "runner": "legendary", "gui": "false"}
-        if online:
-            launcher = self.game / "Binaries/Win64/Launcher.exe"
-            if not launcher.is_file():
-                raise Problem("Rocket League's official launcher is missing. Repair game files in Heroic.")
-            args["altExe"] = str(launcher)
-        if not online:
-            report = self.repair()
-            if not report["known_working"] and report["compatibility"] != "supported by official updater" and not unverified:
-                raise Problem(f"{report['compatibility']}. Run rocket-league doctor. To deliberately test offline: rocket-league play --try-unverified")
-            args["altExe"] = str(self.batch)
-            atomic(self.state / "last-launch.json", encoded({"time": now(), "versions": report["versions"]}))
-        self.record("launch-request", mode="online" if online else "offline")
+
+    def launch(self, alt_exe):
         # Heroic owns authentication. Never capture or persist its launch output.
         # Heroic's protocol handler expects altExe as a raw path in the query.
         # Its legacy handler does not reliably decode percent-encoded paths.
-        query = urllib.parse.urlencode({key: value for key, value in args.items() if key != "altExe"})
-        if "altExe" in args:
-            query += "&altExe=" + args["altExe"]
+        query = urllib.parse.urlencode({"appName": "Sugar", "runner": "legendary", "gui": "false"}) + "&altExe=" + str(alt_exe)
         result = subprocess.run([str(self.heroic), "--no-gui", "heroic://launch?" + query], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if result.returncode:
             raise Problem("Heroic rejected the launch request. Open Heroic to check sign-in and game updates.")
-        print("Launch requested. After verifying BakkesMod works in offline practice, use Mark Working." if not online else "Online launch requested through Heroic.")
+
+    def play(self, online=False, unverified=False):
+        self.ready_to_launch()
+        if online:
+            self.restore_underpass()
+            launcher = self.game / "Binaries/Win64/Launcher.exe"
+            if not launcher.is_file():
+                raise Problem("Rocket League's official launcher is missing. Repair game files in Heroic.")
+            self.record("launch-request", mode="online")
+            self.launch(launcher)
+            print("Online launch requested through Heroic.")
+            return
+        self.restore_underpass()
+        report = self.repair()
+        if not report["known_working"] and report["compatibility"] != "supported by official updater" and not unverified:
+            raise Problem(f"{report['compatibility']}. Run rocket-league doctor. To deliberately test offline: rocket-league play --try-unverified")
+        atomic(self.state / "last-launch.json", encoded({"time": now(), "versions": report["versions"]}))
+        self.record("launch-request", mode="offline")
+        self.launch(self.batch)
+        print("Launch requested. After verifying BakkesMod works in offline practice, use Mark Working.")
+
+    def legendary(self):
+        """Heroic's bundled legendary, run against Heroic's own config so both agree on the install."""
+        configured = None
+        with contextlib.suppress(Problem):
+            configured = read_json(self.heroic_config / "config.json").get("defaultSettings", {}).get("altLegendaryBin")
+        for candidate in (os.environ.get("LEGENDARY_BIN"), configured, self.heroic.resolve().parent / "resources/app.asar.unpacked/build/bin/x64/linux/legendary", shutil.which("legendary")):
+            if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
+                return [str(candidate)], dict(os.environ, LEGENDARY_CONFIG_PATH=str(self.manifest.parent))
+        raise Problem("Heroic's legendary helper is missing. Update Rocket League from Heroic.")
+
+    def latest_game_version(self):
+        try:
+            command, env = self.legendary()
+            result = subprocess.run(command + ["info", "Sugar", "--json"], capture_output=True, text=True, env=env, timeout=120)
+            version = json.loads(result.stdout)["game"]["version"] if result.returncode == 0 else None
+        except (Problem, OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired):
+            return None
+        return version if isinstance(version, str) and version.strip() else None
+
+    def update_game(self, target):
+        command, env = self.legendary()
+        previous = self.version
+        notice = notify("Updating Rocket League", "BakkesMod supports the new patch; installing it before launch")
+        # Legendary's log carries only progress; read it live and never store it.
+        process = subprocess.Popen(command + ["-y", "update", "Sugar"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, env=env)
+        shown = 0.0
+        for line in process.stderr:
+            match = LEGENDARY_PROGRESS.search(line)
+            if match and time.monotonic() - shown >= 3:
+                shown = time.monotonic()
+                notice = notify("Updating Rocket League", f"{float(match[1]):.0f}% · {match[2]} remaining", notice)
+        if process.wait():
+            raise Problem("The Rocket League update failed. Open Heroic to check sign-in and free disk space.")
+        self.installed()
+        if self.version != target:
+            raise Problem(f"Rocket League updated to {self.version}, not the BakkesMod-supported {target}.")
+        self.record("game-update", previous=previous, version=self.version)
+        notify("Rocket League updated", self.version, notice)
+
+    def update_bakkesmod(self, trainer):
+        previous = small_text(self.mod / "version.txt")
+        notice = notify("Updating BakkesMod", f"{previous} → {trainer}")
+        request = urllib.request.Request(BAKKESMOD_ZIP, headers={"User-Agent": "RocketLeagueManager/1.0"})
+        with urllib.request.urlopen(request, timeout=60) as response:
+            payload = response.read(100_000_001)
+        if len(payload) > 100_000_000:
+            raise Problem("The BakkesMod download is unexpectedly large.")
+        try:
+            archive = zipfile.ZipFile(io.BytesIO(payload))
+        except zipfile.BadZipFile:
+            raise Problem("The BakkesMod download is not a valid archive.") from None
+        members = [info for info in archive.infolist() if not info.is_dir()]
+        for info in members:
+            parts = Path(info.filename).parts
+            if info.filename.startswith("/") or "\\" in info.filename or ".." in parts or not parts:
+                raise Problem("The BakkesMod download contains an unsafe path.")
+        if archive.read("version.txt").decode().strip() != trainer:
+            raise Problem(f"BakkesMod's GitHub release is not {trainer} yet. Try again shortly.")
+        backup = self.state / "bakkesmod-backups" / dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+        replaced = 0
+        for info in members:
+            target = self.mod / info.filename
+            if preserved(info.filename) and target.exists():
+                continue
+            if target.is_symlink():
+                raise Problem(f"Refusing to replace a symlink: {target}")
+            if target.is_file():
+                atomic(backup / info.filename, target.read_bytes())
+            atomic(target, archive.read(info))
+            target.chmod(0o644)
+            replaced += 1
+        # Keep the two most recent backups; they are copies of mod files, not game builds.
+        for old in sorted((self.state / "bakkesmod-backups").glob("*"))[:-2]:
+            shutil.rmtree(old, ignore_errors=True)
+        self.record("bakkesmod-update", previous=previous, version=trainer, files=replaced, backup=str(backup))
+        notify("BakkesMod updated", trainer, notice)
+
+    def prepare_offline(self):
+        """Bring the game and BakkesMod to a supported pairing; return the workshop mode to use."""
+        processes = running()
+        if processes:
+            stop_idle_injectors(self.prefix)
+        self.stopped()
+        release, _ = self.release(refresh=True)
+        if release and self.version not in release["builds"]:
+            latest = self.latest_game_version()
+            if latest and latest != self.version and latest in release["builds"]:
+                try:
+                    self.update_game(latest)
+                except (Problem, OSError) as error:
+                    notify("Rocket League update failed", str(error))
+        if release and self.version in release["builds"] and small_text(self.mod / "version.txt") != release["trainer"]:
+            try:
+                self.update_bakkesmod(release["trainer"])
+            except (Problem, OSError, ValueError, KeyError, urllib.error.URLError) as error:
+                notify("BakkesMod update failed", str(error))
+        supported = release is not None and self.version in release["builds"] and small_text(self.mod / "version.txt") == release["trainer"]
+        if supported or self.known(self.snapshot())[0]:
+            return "bakkesmod"
+        notify("BakkesMod isn't ready for this patch yet", "Loading the map through Underpass instead. In game choose Free Play → Underpass.")
+        self.record("workshop-fallback", version=self.version)
+        return "underpass"
+
+    def restore_underpass(self):
+        """Put the real Underpass back if a workshop map still occupies it."""
+        pointer = self.state / "underpass.json"
+        if not pointer.exists():
+            return False
+        if game_active():
+            raise Problem("Rocket League is still using the Underpass workshop map. Close it first.")
+        swap = read_json(pointer)
+        original = self.state / "underpass" / UNDERPASS
+        # A game update or file verification may have replaced the map already; keep that newer file.
+        if digest(self.underpass) == swap.get("map") and digest(original) == swap.get("original"):
+            atomic_copy(original, self.underpass)
+        original.unlink(missing_ok=True)
+        pointer.unlink()
+        self.record("underpass-restore")
+        return True
+
+    def play_underpass(self, map_path):
+        source = Path(map_path)
+        if not source.is_file() or source.suffix.lower() not in (".udk", ".upk"):
+            raise Problem("The selected workshop map file is missing.")
+        self.ready_to_launch()
+        self.restore_underpass()
+        if not self.underpass.is_file():
+            raise Problem("Rocket League's Underpass map is missing. Verify the game files in Heroic.")
+        report = self.repair()
+        if report["errors"]:
+            raise Problem("\n".join(report["errors"]))
+        original = self.state / "underpass" / UNDERPASS
+        atomic_copy(self.underpass, original)
+        atomic(self.state / "underpass.json", encoded({"time": now(), "original": digest(original), "map": digest(source)}))
+        atomic_copy(source, self.underpass)
+        self.record("underpass-swap", version=self.version)
+        # Restore after the session even if Heroic keeps this process waiting or never returns.
+        subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "restore-underpass", "--after-game"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        try:
+            self.launch(self.plain_batch)
+        except Problem:
+            self.restore_underpass()
+            raise
+        print("Launch requested. Choose Free Play → Underpass to play the workshop map.")
+
+    def restore_after_game(self, appear=600, poll=5, give_up=86400):
+        deadline = time.monotonic() + appear
+        while time.monotonic() < deadline and not game_active():
+            time.sleep(poll)
+        deadline = time.monotonic() + give_up
+        while time.monotonic() < deadline:
+            if not game_active():
+                try:
+                    with self.lock():
+                        return self.restore_underpass()
+                except Problem:
+                    pass
+            time.sleep(poll)
+        return False
 
     def workshop(self):
-        report = self.inspect()
-        if not report["known_working"] and report["compatibility"] != "supported by official updater":
-            raise Problem("Use Repair & Launch Offline to test this combination before opening workshop maps.")
-        if any(name.startswith("rocketleague_ea") for name in running()):
+        processes = running()
+        if any(name.startswith("rocketleague_ea") for name in processes):
             raise Problem("Close online Rocket League before opening workshop maps.")
-        env = dict(os.environ, ROCKET_LEAGUE_DIR=str(self.game), ROCKET_LEAGUE_PREFIX=str(self.prefix), BAKKESMOD_DIR=str(self.mod))
-        return subprocess.call(["bash", str(self.data / "workshop-maps.sh")], env=env)
+        if any(name.startswith("rocketleague") for name in processes):
+            if (self.state / "underpass.json").exists():
+                raise Problem("Rocket League is running with an Underpass workshop map. Close it, then choose the next map.")
+            mode = "bakkesmod"
+        else:
+            with self.lock():
+                self.restore_underpass()
+                mode = self.prepare_offline()
+        loaded = self.state / "map-loaded"
+        loaded.unlink(missing_ok=True)
+        env = dict(os.environ, ROCKET_LEAGUE_DIR=str(self.game), ROCKET_LEAGUE_PREFIX=str(self.prefix), BAKKESMOD_DIR=str(self.mod), ROCKET_LEAGUE_WORKSHOP_MODE=mode, ROCKET_LEAGUE_MAP_LOADED=str(loaded))
+        status = subprocess.call(["bash", str(self.data / "workshop-maps.sh")], env=env)
+        if status == 0 and loaded.exists():
+            loaded.unlink()
+            # A map loaded over RCON proves this exact pairing injects; remember it.
+            with contextlib.suppress(Problem), self.lock():
+                self.mark(True)
+        return status
 
     def mark(self, confirmed):
         if not confirmed:
@@ -439,11 +678,18 @@ def main():
     play.add_argument("--try-unverified", action="store_true", help="Explicitly try offline when compatibility is unknown")
     mark = sub.add_parser("mark-working", help="Record a successfully tested combination (not a game backup)")
     mark.add_argument("--confirmed", action="store_true")
-    sub.add_parser("workshop", help="Open workshop maps using the discovered Heroic paths")
+    sub.add_parser("workshop", help="Open workshop maps, updating the game and BakkesMod as needed")
+    underpass = sub.add_parser("underpass", help="Launch offline without BakkesMod with a workshop map in place of Underpass")
+    underpass.add_argument("map")
+    restore = sub.add_parser("restore-underpass", help="Put the original Underpass map back")
+    restore.add_argument("--after-game", action="store_true", help="Wait for the current Rocket League session to end first")
     args = parser.parse_args()
     manager = Manager(online=args.command == "play" and args.online)
     if args.command == "workshop":
         return manager.workshop()
+    if args.command == "restore-underpass" and args.after_game:
+        manager.restore_after_game()
+        return 0
     if args.command == "doctor":
         report = manager.inspect(refresh=not args.offline, offline=args.offline)
         print(json.dumps(report, indent=2)) if args.json else manager.show(report)
@@ -457,6 +703,10 @@ def main():
             manager.play(args.online, args.try_unverified)
         elif args.command == "mark-working":
             manager.mark(args.confirmed)
+        elif args.command == "underpass":
+            manager.play_underpass(args.map)
+        elif args.command == "restore-underpass":
+            print("Restored the original Underpass map." if manager.restore_underpass() else "Underpass is already original.")
     return 0
 
 
