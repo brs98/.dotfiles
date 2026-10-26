@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <style>
-/* Layout: header and data stamp, an optional "What changes" before/after section from the plan, four computed summary cards, the "Ask the map" question bar, then a scrollable dependency map (lanes = tracks, left to right = order) beside an answer/detail panel; the PR stack rail runs full width below. Three step states and three PR states, each a hue paired with a shape; CI failure is a red ring, and blocked / ready to start are markers on top of the state. Blue accent marks what is being traced; violet marks stacked PRs. */
+/* Layout: header and data stamp, four plain-language summary cards, an optional "What changes" section from the plan (end state, with today's state behind a toggle), then a scrollable dependency map (lanes = tracks, left to right = order) beside an answer/detail panel that lists the questions with non-zero answers. Three step states and three PR states, each a hue paired with a shape; CI failure is a red ring, and blocked / ready to start are markers on top of the state. Blue accent marks what is being traced; violet marks stacked PRs. */
 :root {
   --bg: #f2f4f7;
   --surface: #ffffff;
@@ -67,6 +67,9 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .sum h3 { margin: 0; font: 500 0.68rem/1 var(--mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
 .sum .big { font: 800 1.35rem/1 var(--ui); font-variant-numeric: tabular-nums; }
 .sum .big small { font: 500 0.8rem/1 var(--ui); color: var(--muted); margin-left: 4px; }
+.sum .lead { font: 600 1rem/1.3 var(--ui); display: flex; gap: 6px; align-items: center; min-width: 0; }
+.sum .lead b { font-family: var(--mono); font-weight: 600; }
+.sum[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .sum .srow { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.8rem; color: var(--muted); }
 .sum .srow span { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .sum.warn { border-color: color-mix(in srgb, var(--fail) 45%, var(--line)); }
@@ -80,13 +83,15 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .changes .chg { display: grid; gap: 3px; align-content: start; min-width: 0; padding-left: 10px; border-left: 3px solid var(--line); }
 .changes .chg h3 { margin: 0 0 2px; font: 600 0.92rem/1.3 var(--ui); }
 .changes .chg p { margin: 0; font-size: 0.86rem; line-height: 1.45; }
-.changes .chg .was { color: var(--muted); }
+.changes .chg .was { color: var(--muted); display: none; }
+.changes.compare .chg .was { display: block; }
+.changes .cmp { display: inline-flex; gap: 6px; align-items: center; margin-top: 10px; font-size: 0.8rem; color: var(--muted); cursor: pointer; }
 .changes .chg b { font: 500 0.66rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; margin-right: 6px; }
-.changes .chg .now b { color: var(--merged); }
+.zero { font-size: 0.84rem; }
+.linkish { all: unset; cursor: pointer; color: var(--accent); }
+.linkish:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .changes ul { margin: 14px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 0.86rem; color: var(--muted); }
 
-.ask { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
-.ask .lbl { font: 500 0.72rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
 button.q { font: 600 0.82rem/1 var(--ui); padding: 7px 10px 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
 button.q b { font: 700 0.72rem/1 var(--mono); min-width: 20px; padding: 3px 5px; border-radius: 999px; background: var(--bg); text-align: center; font-variant-numeric: tabular-nums; }
 button.q[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
@@ -226,41 +231,9 @@ ul.check .nopr { color: var(--muted); font-weight: 500; }
 .prog .top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; font-size: 0.84rem; }
 .prog .top b { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
-.stacks { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 16px; min-width: 0; }
-.stacks > .hd { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; justify-content: space-between; }
-.stacks h2 { margin: 0; font: 800 1.15rem/1.2 var(--ui); }
-.stacks .sub { font-size: 0.84rem; color: var(--muted); }
-.stackrow { display: grid; gap: 8px; min-width: 0; }
-.stackrow > h3 { margin: 0; font: 500 0.7rem/1.3 var(--mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
-.stackrow > h3 .bar { width: 160px; height: 8px; }
-.rail-scroll { overflow-x: auto; padding-bottom: 6px; }
-.rail-track { display: flex; align-items: stretch; width: max-content; padding: 2px; }
-.trunk { display: grid; place-items: center; font: 700 0.75rem/1 var(--mono); color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 0 10px; align-self: end; height: 74px; }
-.seg { display: grid; gap: 6px; align-content: start; padding: 0 4px; }
-.seg + .seg { border-left: 1px dashed color-mix(in srgb, var(--stack) 45%, var(--line)); margin-left: 4px; padding-left: 8px; }
-.seghead { all: unset; cursor: pointer; display: flex; align-items: center; gap: 6px; font: 600 0.78rem/1.2 var(--ui); color: var(--ink); padding: 3px 6px; border-radius: 6px; white-space: nowrap; }
-.seghead:hover { background: var(--bg); }
-.seghead:focus-visible { outline: 2px solid var(--accent); }
-.seghead small { font: 500 0.7rem/1 var(--mono); color: var(--muted); }
-.chips { display: flex; align-items: center; }
-.link { width: 18px; height: 2px; background: var(--stack); position: relative; flex: none; opacity: 0.7; }
-.link::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 6px solid var(--stack); border-right: 0; }
-a.prchip { display: grid; gap: 4px; width: 142px; height: 74px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); border-top: 4px solid var(--c); background: var(--surface); color: var(--ink); text-decoration: none; align-content: start; }
-a.prchip:hover { border-color: var(--accent); border-top-color: var(--c); box-shadow: var(--shadow); }
-a.prchip.next { box-shadow: 0 0 0 2px var(--accent); }
-a.prchip .n { font: 700 0.8rem/1 var(--mono); display: flex; align-items: center; gap: 5px; }
-a.prchip .ci { margin-left: auto; font: 700 0.74rem/1 var(--mono); }
 .ci.pass { color: var(--merged); }
 .ci.fail { color: var(--fail); }
 .ci.pending, .ci.none { color: var(--muted); }
-a.prchip .s { font-size: 0.8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-a.prchip .st { font: 500 0.66rem/1 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-a.prchip .st.bad { color: var(--fail); }
-.solo { display: flex; flex-wrap: wrap; gap: 10px; }
-.landed { display: flex; flex-wrap: wrap; gap: 6px; }
-.landed a { display: inline-flex; align-items: center; gap: 6px; font: 500 0.76rem/1 var(--mono); color: var(--ink); text-decoration: none; padding: 6px 8px; border-radius: 6px; background: var(--bg); border: 1px solid transparent; }
-.landed a:hover { border-color: var(--accent); }
-.landed a small { color: var(--muted); font-family: var(--ui); font-size: 0.76rem; }
 
 #tip { position: fixed; z-index: 20; width: 360px; max-width: calc(100vw - 24px); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 10px 12px; display: grid; gap: 5px; pointer-events: none; font-size: 0.82rem; }
 #tip .tt { font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 6px; }
@@ -279,11 +252,10 @@ a.prchip .st.bad { color: var(--fail); }
     <div class="stamp" id="stamp"></div>
   </header>
 
-  <details class="changes" id="changes" open hidden></details>
-
   <div class="summary" id="summary"></div>
 
-  <div class="ask" id="ask" role="group" aria-label="Ask the map"></div>
+  <details class="changes" id="changes" hidden></details>
+
 
   <div class="toolbar">
     <div class="legend" id="legend"></div>
@@ -300,7 +272,6 @@ a.prchip .st.bad { color: var(--fail); }
     <aside class="panel" id="panel" aria-live="polite"></aside>
   </div>
 
-  <section class="stacks" id="stacks" aria-labelledby="stacks-h"></section>
 </main>
 <div id="tip" hidden></div>
 
@@ -375,9 +346,15 @@ a.prchip .st.bad { color: var(--fail); }
   const CH = D.changes || [], NOTES = D.notes || [];
   if (CH.length || NOTES.length) {
     const box = document.getElementById('changes');
-    box.innerHTML = `<summary>What changes${CH.length ? ` · ${CH.length} areas` : ''}</summary>
-      ${CH.length ? `<div class="grid">${CH.map((c) => `<div class="chg"><h3>${rich(c.area)}</h3><p class="was"><b>Before</b>${rich(c.before)}</p><p class="now"><b>After</b>${rich(c.after)}</p></div>`).join('')}</div>` : ''}
+    box.innerHTML = `<summary>What changes when this is done${CH.length ? ` · ${CH.length} areas` : ''}</summary>
+      ${CH.length ? `<label class="cmp"><input type="checkbox" id="cmp"> Compare with today</label>
+      <div class="grid">${CH.map((c) => `<div class="chg"><h3>${rich(c.area)}</h3><p class="now">${rich(c.after)}</p><p class="was"><b>Today</b>${rich(c.before)}</p></div>`).join('')}</div>` : ''}
       ${NOTES.length ? `<ul>${NOTES.map((n) => `<li>${rich(n)}</li>`).join('')}</ul>` : ''}`;
+    box.open = !matchMedia('(max-width: 700px)').matches;
+    try { const saved = localStorage.getItem('roadmap-changes-open'); if (saved !== null) box.open = saved === '1'; } catch (e) {}
+    box.addEventListener('toggle', () => { try { localStorage.setItem('roadmap-changes-open', box.open ? '1' : '0'); } catch (e) {} });
+    const cmp = box.querySelector('#cmp');
+    if (cmp) cmp.addEventListener('change', () => box.classList.toggle('compare', cmp.checked));
     box.hidden = false;
   }
 
@@ -415,20 +392,29 @@ a.prchip .st.bad { color: var(--fail); }
       preview: () => A.chain.map((i) => byId[i].title).join(' → '), steps: () => A.chain },
   ];
   const QBY = Object.fromEntries(QS.map((q) => [q.id, q]));
-  document.getElementById('ask').innerHTML = `<span class="lbl">Ask the map</span>${QS.map((q) => `<button class="q${q.alert ? ' alert' : ''}" data-q="${q.id}" aria-pressed="false">${esc(q.label)}<b>${esc(q.countLabel || q.n)}</b></button>`).join('')}`;
 
   // ---------- summary ----------
   const firstStack = D.stacks[0];
+  const lead = A.next.length ? P(A.next[0]) : (A.front.length ? P(A.front[0]) : null);
+  const leadWhy = lead ? (lead.blockers.length ? lead.blockers.map((b) => b.t).join(', ') : 'ready to land') : '';
+  const moreLead = (A.next.length || A.front.length) - 1;
+  const att = [
+    A.ciFail.length ? `<span class="ci fail">✗ ${A.ciFail.length} failing CI</span>` : '',
+    A.review.length ? `<span>${A.review.length} awaiting review</span>` : '',
+    A.drafts.length ? `<span>${A.drafts.length} draft${A.drafts.length === 1 ? '' : 's'}</span>` : '',
+    A.ciPending.length ? `<span>${A.ciPending.length} CI running</span>` : '',
+  ].filter(Boolean);
   document.getElementById('summary').innerHTML = `
-    <button class="sum" data-q="chain"><h3>Steps done</h3><div class="big">${doneSteps}<small>of ${steps.length}</small></div>
-      <div class="bar" role="img" aria-label="${doneSteps} of ${steps.length} steps done">${['done', 'progress', 'todo'].map((k) => { const c = steps.filter((s) => s.status === k).length; return c ? `<span style="width:${(c / steps.length) * 100}%;background:${STEP[k].c}"></span>` : ''; }).join('')}</div></button>
-    <button class="sum" data-q="review"><h3>Open PRs</h3><div class="big">${openPrs.length}<small>${tracked.length - openPrs.length} merged or closed</small></div>
-      <div class="srow">${['open', 'draft'].filter((k) => prCounts[k]).map((k) => `<span>${icon(k, PRK[k].c, 'sm')}${prCounts[k]} ${PRK[k].label.toLowerCase()}</span>`).join('')}<span>${openPrs.filter((p) => p.review === 'approved').length} approved</span></div></button>
-    <button class="sum${A.ciFail.length ? ' warn' : ''}" data-q="ci"><h3>CI on open PRs</h3><div class="big">${openPrs.filter((p) => p.ci === 'pass').length}<small>passing of ${openPrs.length}</small></div>
-      <div class="srow"><span class="ci fail">✗ ${A.ciFail.length} failing</span><span>… ${openPrs.filter((p) => p.ci === 'pending').length} running</span><span>– ${openPrs.filter((p) => p.ci === 'none').length} not run</span></div></button>
-    <button class="sum" data-q="${firstStack ? 'stacks' : 'next'}"><h3>${firstStack ? 'Stack' : 'Ready to land'}</h3>${firstStack
-      ? `<div class="big">${firstStack.merged}<small>of ${firstStack.total} merged · next #${firstStack.next ?? '—'}</small></div><div class="bar">${firstStack.prs.map((n) => `<span style="width:${100 / firstStack.total}%;background:${PRK[P(n).kind].c};border-right:1px solid var(--surface)"></span>`).join('')}</div>`
-      : `<div class="big">${A.next.length}</div>`}</button>`;
+    <button class="sum" data-q="${firstStack ? 'stacks' : 'chain'}" aria-pressed="false"><h3>Progress</h3><div class="big">${doneSteps}<small>of ${steps.length} steps done</small></div>
+      <div class="bar" role="img" aria-label="${doneSteps} of ${steps.length} steps done">${['done', 'progress', 'todo'].map((k) => { const c = steps.filter((s) => s.status === k).length; return c ? `<span style="width:${(c / steps.length) * 100}%;background:${STEP[k].c}"></span>` : ''; }).join('')}</div>
+      ${firstStack ? `<div class="srow"><span>${firstStack.merged} of ${firstStack.total} PRs in the main stack merged</span></div>` : ''}</button>
+    <button class="sum" data-q="next" aria-pressed="false"><h3>Next up</h3>${lead
+      ? `<div class="lead">${prIcon(lead, 'sm')}<b>#${lead.n}</b> ${esc(lead.label)}</div><div class="srow"><span${lead.blockers.length ? '' : ' class="ci pass"'}>${esc(leadWhy)}</span>${moreLead > 0 ? `<span>+${moreLead} more</span>` : ''}</div>`
+      : '<div class="lead muted">Nothing open</div>'}</button>
+    <button class="sum${A.ciFail.length ? ' warn' : ''}" data-q="${A.ciFail.length ? 'ci' : 'review'}" aria-pressed="false"><h3>Open PRs</h3><div class="big">${openPrs.length}<small>open</small></div>
+      <div class="srow">${att.join('') || '<span>Nothing</span>'}</div></button>
+    <button class="sum" data-q="blocked" aria-pressed="false"><h3>Blocked</h3><div class="big">${A.blocked.length}<small>step${A.blocked.length === 1 ? '' : 's'} waiting on others</small></div>
+      <div class="srow"><span>${A.start.length ? `${A.start.length} can start now` : 'nothing can start yet'}</span></div></button>`;
 
   // ---------- legend ----------
 
@@ -610,7 +596,7 @@ a.prchip .st.bad { color: var(--fail); }
     }
   }
   const setHash = (h) => { try { history.replaceState(null, '', h ? '#' + h : location.pathname); } catch (e) {} };
-  function syncAsk() { document.querySelectorAll('#ask [data-q]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.q === state.q))); }
+  function syncAsk() { document.querySelectorAll('.summary [data-q]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.q === state.q))); }
 
   function select(id, focusPr = null) {
     state.selected = id; state.q = null; state.focusPr = focusPr;
@@ -653,7 +639,7 @@ a.prchip .st.bad { color: var(--fail); }
     const qb = e.target.closest('[data-q]');
     if (qb) { ask(qb.dataset.q); if (qb.closest('.summary') && matchMedia('(max-width: 1100px)').matches) panel.scrollIntoView({ block: 'start', behavior: reduced() ? 'auto' : 'smooth' }); return; }
     const g = e.target.closest('[data-go]');
-    if (g) { select(g.dataset.go, g.dataset.pr ? Number(g.dataset.pr) : null); if (g.closest('#stacks')) { const r = wrap.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight) wrap.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' }); } return; }
+    if (g) { select(g.dataset.go, g.dataset.pr ? Number(g.dataset.pr) : null); return; }
     if (e.target.closest('[data-clear]')) select(null);
   });
 
@@ -698,7 +684,8 @@ a.prchip .st.bad { color: var(--fail); }
 
   function renderOverview() {
     panel.innerHTML = `<h2>Ask the map</h2>
-      <div class="qlist">${QS.map((q) => `<button data-q="${q.id}"><span class="qq">${esc(q.q)}</span><span class="qn${q.alert ? ' alert' : ''}">${esc(q.countLabel || q.n)}</span><span class="qa">${esc(q.preview())}</span></button>`).join('')}</div>
+      <div class="qlist">${QS.filter((q) => q.n).map((q) => `<button data-q="${q.id}"><span class="qq">${esc(q.q)}</span><span class="qn${q.alert ? ' alert' : ''}">${esc(q.countLabel || q.n)}</span><span class="qa">${esc(q.preview())}</span></button>`).join('')}</div>
+      ${QS.some((q) => !q.n) ? `<p class="muted zero">None right now: ${QS.filter((q) => !q.n).map((q) => `<button class="linkish" data-q="${q.id}">${esc(q.label.toLowerCase())}</button>`).join(', ')}</p>` : ''}
       ${D.untracked.length ? `<section><h3>Open PRs the plan does not track</h3><div class="rows">${D.untracked.map((u) => `<div class="arow"><div class="top"><a class="num" href="${GH(u.number)}" target="_blank" rel="noopener">#${u.number}</a><span class="grow">${esc(u.title)}</span></div><div class="on">${esc(u.why)}</div></div>`).join('')}</div></section>` : ''}
       <p class="hint">Click a step on the map to trace what it waits on and unlocks.</p>`;
   }
@@ -751,36 +738,6 @@ a.prchip .st.bad { color: var(--fail); }
     panel.scrollTop = 0;
     if (state.focusPr) { const f = panel.querySelector('li.focus'); if (f) f.scrollIntoView({ block: 'nearest' }); }
   }
-
-  // ---------- stack rail ----------
-  const chip = (n, next) => {
-    const p = P(n);
-    const bl = p.blockers.filter((b) => b.k !== 'base');
-    return `<a class="prchip${next ? ' next' : ''}" href="${GH(n)}" target="_blank" rel="noopener" data-pr="${n}" style="--c:${PRK[p.kind].c}"
-      title="${esc(`#${n} ${p.title}\n${PRK[p.kind].label}${isOpen(p) ? ' · ' + CI[p.ci][1] : ''}\nbase: ${p.base}\nhead: ${p.head}`)}">
-      <span class="n">${prIcon(p, 'sm')}#${n}${ciSpan(p)}</span>
-      <span class="s">${esc(p.label)}</span>
-      <span class="st${bl.some((b) => b.k === 'ci' && p.ci === 'fail' || b.k === 'check') ? ' bad' : ''}">${isOpen(p) ? (next && !bl.length ? 'next · ready' : (next ? 'next · ' : '') + esc(bl.map((b) => b.t).join(', ') || prLabel(p))) : 'merged ' + esc(fmtDay(p.mergedAt))}</span></a>`;
-  };
-  const segHead = (id, k) => { const s = byId[id]; return `<button class="seghead" data-go="${id}">${stepIcon(s, 'sm')}${esc(s.label ? s.label + ' · ' : '')}${esc(s.title)}<small>${k} PR${k === 1 ? '' : 's'}</small></button>`; };
-  const inStack = new Set(D.stacks.flatMap((s) => s.prs));
-  const solo = tracked.filter((p) => isOpen(p) && !inStack.has(p.n));
-  const landed = tracked.filter((p) => p.kind === 'merged' && !inStack.has(p.n)).sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt)));
-  document.getElementById('stacks').innerHTML = `
-    <div class="hd"><h2 id="stacks-h">PR stacks</h2><span class="sub">Base on the left, tip on the right; each PR's base branch is the PR before it.</span></div>
-    ${D.stacks.map((st) => `<div class="stackrow"><h3>Stack · ${st.merged}/${st.total} merged · ${st.drafts} drafts<span class="bar">${st.prs.map((n) => `<span style="width:${100 / st.total}%;background:${PRK[P(n).kind].c};border-right:1px solid var(--surface)"></span>`).join('')}</span></h3>
-      <div class="rail-scroll"><div class="rail-track"><div class="trunk">${esc(M.baseBranch || 'main')}</div>
-        ${st.segments.map((g) => `<div class="seg">${segHead(g.step, g.prs.length)}<div class="chips">${g.prs.map((n) => `<span class="link" aria-hidden="true"></span>${chip(n, n === st.next)}`).join('')}</div></div>`).join('')}
-      </div></div></div>`).join('')}
-    ${solo.length ? `<div class="stackrow"><h3>Open alone on ${esc(M.baseBranch || 'main')}</h3><div class="solo">${solo.map((p) => `<div class="seg" style="padding:0">${segHead(p.step, 1)}${chip(p.n, false)}</div>`).join('')}</div></div>` : ''}
-    ${landed.length ? `<div class="stackrow"><h3>Merged outside a stack · ${landed.length}</h3><div class="landed">${landed.map((p) => `<a href="${GH(p.n)}" target="_blank" rel="noopener" data-pr="${p.n}" title="${esc(p.title)}">${prIcon(p, 'sm')}#${p.n}<small>${esc(p.label)} · ${esc(fmtDay(p.mergedAt))}</small></a>`).join('')}</div></div>` : ''}`;
-  const stacksEl = document.getElementById('stacks');
-  stacksEl.addEventListener('mouseover', (e) => {
-    const a = e.target.closest('[data-pr]');
-    STEPS.forEach((s) => nodeEls[s.id].classList.remove('peek'));
-    if (a && P(a.dataset.pr) && P(a.dataset.pr).step) nodeEls[P(a.dataset.pr).step].classList.add('peek');
-  });
-  stacksEl.addEventListener('mouseleave', () => STEPS.forEach((s) => nodeEls[s.id].classList.remove('peek')));
 
   // ---------- zoom ----------
   function applyScale() { canvas.style.transform = `scale(${state.scale})`; sizer.style.width = W * state.scale + 'px'; sizer.style.height = H * state.scale + 'px'; }
