@@ -212,5 +212,25 @@
    "what": "Route checkout to the service behind a percentage flag.",
    "why": "The flag makes rollback one setting."
   }
+ ],
+ "changes": [
+  {
+   "area": "Where checkout runs",
+   "before": "Controllers and jobs inside the monolith.",
+   "after": "Its own service with the cart and order APIs."
+  },
+  {
+   "area": "Payments",
+   "before": "The monolith calls the payment provider.",
+   "after": "The service calls it; the monolith never sees card data."
+  },
+  {
+   "area": "Downstream consumers",
+   "before": "Fulfillment and email read the checkout tables.",
+   "after": "They consume versioned order events, with a replay tool to catch up."
+  }
+ ],
+ "notes": [
+  "Tax stays in the monolith; checkout asks for it."
  ]
 }

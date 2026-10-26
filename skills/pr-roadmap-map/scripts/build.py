@@ -94,6 +94,11 @@ def load_plan(plan):
                             "settled without a PR, or `open: true` for one with more work planned")
         if s.get('done') and s.get('open'):
             raise PlanError(f"step {s['id']} cannot be both done and open")
+    for c in plan.get('changes', []):
+        if not all(isinstance(c.get(k), str) and c[k].strip() for k in ('area', 'before', 'after')):
+            raise PlanError(f'each change needs a non-empty area, before and after: {c}')
+    if not all(isinstance(n, str) and n.strip() for n in plan.get('notes', [])):
+        raise PlanError('notes must be non-empty strings')
     for d in plan.get('goal', {}).get('deps', []):
         if d not in by_id:
             raise PlanError(f'goal depends on unknown step {d}')
@@ -360,6 +365,8 @@ def build_model(plan, data_dir):
         p['label'] = labels.get(str(n)) or re.sub(r'\s*\[[^\]]+\]\s*$', '', p['title'])
     return {
         'meta': {k: plan.get(k) for k in ('title', 'eyebrow', 'subtitle', 'repo', 'baseBranch', 'storyUrl', 'storyPrefix')},
+        'changes': plan.get('changes', []),
+        'notes': plan.get('notes', []),
         'asOf': fetch.get('fetchedAt'), 'untracked': fetch.get('untracked', []),
         'tracks': tracks, 'rows': total_rows, 'cols': end_col + 1,
         'steps': steps, 'prs': {str(k): v for k, v in prs.items()}, 'tracked': tracked,

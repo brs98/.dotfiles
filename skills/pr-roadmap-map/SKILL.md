@@ -53,6 +53,8 @@ To refresh, run steps 2 to 4 (and 6) again. Nothing else changes.
   "discover": { "author": "@me", "state": "open", "limit": 100, "match": ["st-1203"] },
   "tracks": [ { "id": "A", "label": "Extract checkout" } ],               // lanes, top to bottom
   "prLabels": { "110": "service package" },                    // optional short PR names for chips
+  "changes": [ { "area": "Payments", "before": "One line.", "after": "One line." } ],   // optional "What changes" section
+  "notes": [ "One line." ],                 // optional bullets under it
   "goal": { "title": "End state", "deps": ["a5"], "what": "One line.", "links": [ { "label": "", "href": "" } ] },
   "steps": [
     {
@@ -74,6 +76,8 @@ To refresh, run steps 2 to 4 (and 6) again. Nothing else changes.
 Rules for the plan:
 - Keep `what` and `why` to one sentence each. Don't write status, progress or "next" text anywhere;
   the page computes it and hand-written status goes stale.
+- `changes` summarizes the goal as before/after pairs by area, and `notes` adds short bullets under them
+  (what users notice, what is out of scope). They describe the end state, never progress.
 - List each PR in exactly one step, base first. A stack can span steps; the build links it.
 - `goal.deps` defaults to every step nothing else depends on.
 - Step state is derived from PRs. The only overrides are the two facts GitHub cannot show: `done`
