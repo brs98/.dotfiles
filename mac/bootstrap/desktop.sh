@@ -68,10 +68,10 @@ jq -e 'type == "object" and (.theme == null or (.theme | type == "string")) and 
 theme=$(jq -r '.theme // "catppuccin-mocha" | if . == "" then "catppuccin-mocha" else . end' <<< "$current")
 installed=$("$ricekit" config list --json)
 jq -e 'type == "array" and all(.[]; .name | type == "string")' <<< "$installed" >/dev/null || fail 'Unrecognized RiceKit config list JSON.'
-for config in sketchybar-colors jankyborders-colors wezterm-colors wezterm-config neovim-colors starship-prompt; do
+for config in sketchybar-colors jankyborders-colors wezterm-colors wezterm-config neovim-colors starship-prompt rex-colors; do
   if ! jq -e --arg name "$config" 'any(.[]; .name == $name)' <<< "$installed" >/dev/null; then
     case "$config" in
-      jankyborders-colors|starship-prompt) pending "Stow the repository RiceKit custom config $config first." ;;
+      jankyborders-colors|starship-prompt|rex-colors) pending "Stow the repository RiceKit custom config $config first." ;;
       *) "$ricekit" marketplace install "$config" ;;
     esac
   fi

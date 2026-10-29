@@ -1,0 +1,26 @@
+[metadata]
+name = "rex-colors"
+author = "Brandon Southwick"
+version = "1.0.0"
+description = "Rex terminal colors as a Ghostty theme, imported into the running Rex app"
+setup_instructions = """Rex must allow CLI actions: turn on Remote Control in Rex's Settings under Rex Server.
+
+Applying a theme renders ~/.config/rex/themes/RiceKit and imports it with
+`rex do client.theme.import`, which adds or updates the RiceKit custom theme and selects it.
+If Rex isn't running, re-apply the theme or import the file from Rex's theme picker later."""
+app = "rex"
+category = "terminal"
+type = "colors"
+
+[target.macos]
+# A path without an extension is a directory to RiceKit; the template lands inside it.
+path = "~/.config/rex/themes"
+strategy = "symlink"
+
+# Rex installs its CLI inside the app's server bundle, which isn't on RiceKit's PATH.
+# --autostart=false keeps a theme switch from starting a Rex server.
+[reload.macos]
+command = """REX="$HOME/Library/Application Support/com.superlogical.rex/RexServer/Versions/Current/Rex Server.app/Contents/MacOS/rex"; [ -x "$REX" ] || REX=$(command -v rex) || exit 0; "$REX" --autostart=false do client.theme.import path="$HOME/.config/rex/themes/RiceKit" >/dev/null 2>&1 || true"""
+
+[requires]
+colors = ["ansi", "semantic"]
