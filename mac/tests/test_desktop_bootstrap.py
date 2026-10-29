@@ -26,8 +26,8 @@ class DesktopBootstrapTest(unittest.TestCase):
         cli.write_text('''#!/bin/bash
 echo "ricekit $*" >> "$CALLS"
 case "$*" in
-  "current --json") echo '{"theme":"my-existing-theme","active_configs":["sketchybar-colors","jankyborders-colors","wezterm-colors","wezterm-config","neovim-colors","starship-prompt"]}' ;;
-  "config list --json") echo '[{"name":"sketchybar-colors"},{"name":"jankyborders-colors"},{"name":"wezterm-colors"},{"name":"wezterm-config"},{"name":"neovim-colors"},{"name":"starship-prompt"}]' ;;
+  "current --json") echo '{"theme":"my-existing-theme","active_configs":["sketchybar-colors","jankyborders-colors","wezterm-colors","wezterm-config","neovim-colors","starship-prompt","rex-colors"]}' ;;
+  "config list --json") echo '[{"name":"sketchybar-colors"},{"name":"jankyborders-colors"},{"name":"wezterm-colors"},{"name":"wezterm-config"},{"name":"neovim-colors"},{"name":"starship-prompt"},{"name":"rex-colors"}]' ;;
 esac
 ''')
         cli.chmod(0o755)

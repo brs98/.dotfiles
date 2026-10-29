@@ -18,9 +18,12 @@ verification failure stops installation. `/Applications` must already be writabl
 Install the Brewfile and Stow configs first. Required CLI tools include jq,
 SketchyBar, borders, and AeroSpace. The script preserves RiceKit's selected theme,
 using `catppuccin-mocha` only if none exists. It enables sketchybar-colors,
-jankyborders-colors, wezterm-colors, wezterm-config, neovim-colors, and
-starship-prompt. The latter and jankyborders-colors must come from this repository;
-the other missing integrations come from RiceKit's marketplace. The rejected
+jankyborders-colors, wezterm-colors, wezterm-config, neovim-colors,
+starship-prompt, and rex-colors. The last two and jankyborders-colors must come
+from this repository; the other missing integrations come from RiceKit's
+marketplace. rex-colors renders a Ghostty theme to `~/.config/rex/themes/RiceKit`
+and imports it into the running Rex app, which only accepts the import once
+Remote Control is on in Rex's Settings under Rex Server. The rejected
 upstream starship-colors reload hook is not used. Applying the selected theme on
 rerun refreshes generated files, including template edits; it can also update
 the wallpaper and run integration reload hooks. Themes remain user-selectable.
