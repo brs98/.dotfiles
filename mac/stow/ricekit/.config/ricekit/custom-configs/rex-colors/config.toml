@@ -19,8 +19,23 @@ strategy = "symlink"
 
 # Rex installs its CLI inside the app's server bundle, which isn't on RiceKit's PATH.
 # --autostart=false keeps a theme switch from starting a Rex server.
+# Import into each Rex app on this Mac: the path is local, and a bare `rex do`
+# refuses to pick when another Mac's app is also connected.
+# Errors go to ~/Library/Logs/ricekit-rex-colors.log.
 [reload.macos]
-command = """REX="$HOME/Library/Application Support/com.superlogical.rex/RexServer/Versions/Current/Rex Server.app/Contents/MacOS/rex"; [ -x "$REX" ] || REX=$(command -v rex) || exit 0; "$REX" --autostart=false do client.theme.import path="$HOME/.config/rex/themes/RiceKit" >/dev/null 2>&1 || true"""
+command = """
+REX="$HOME/Library/Application Support/com.superlogical.rex/RexServer/Versions/Current/Rex Server.app/Contents/MacOS/rex"
+[ -x "$REX" ] || REX=$(command -v rex) || exit 0
+JQ=$(command -v jq || echo /opt/homebrew/bin/jq)
+{
+  "$REX" --autostart=false client ls --json |
+    "$JQ" -r '.clients[] | select(.info.kind == "app" and .principal.transport == "unix") | .client_id' |
+    while read -r client; do
+      "$REX" --autostart=false -C "$client" do client.theme.import path="$HOME/.config/rex/themes/RiceKit"
+    done
+} >"$HOME/Library/Logs/ricekit-rex-colors.log" 2>&1
+true
+"""
 
 [requires]
 colors = ["ansi", "semantic"]
