@@ -102,6 +102,23 @@ def notify(title, body="", replace=None):
     return result.stdout.strip() or replace
 
 
+def osd(value=None, text="", close=False):
+    """Drive Omarchy's on-screen progress bar; returns False where it is unavailable."""
+    shell = shutil.which("omarchy-shell")
+    if not shell:
+        return False
+    if close:
+        command = [shell, "-q", "osd", "close"]
+    else:
+        # A bounded duration lets the bar disappear on its own if this process dies mid-update.
+        payload = {"icon": "\U000f01da", "value": str(round(value)), "max": "100", "progressText": text, "duration": "20000"}
+        command = [shell, "-q", "osd", "show", json.dumps(payload)]
+    try:
+        return subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def preserved(name):
     # BakkesMod's zip ships default settings; never replace the user's, or the injector's own record.
     return name in ("bakkesmod.log", "injectorversion.txt") or name.startswith("cfg/") or (name.startswith("data/") and name.endswith(".cfg"))
@@ -452,11 +469,14 @@ class Manager:
         if result.returncode:
             raise Problem("Heroic rejected the launch request. Open Heroic to check sign-in and game updates.")
 
-    def play(self, online=False, unverified=False):
+    def play(self, online=False, unverified=False, update=True):
         # Prepare under the lock, then launch without it: Heroic may block for the whole session.
         with self.lock():
             self.ready_to_launch()
             self.restore_underpass()
+            if online and update:
+                # Online play needs Epic's current build; BakkesMod support does not gate it.
+                self.update_latest()
             if online:
                 launcher = self.game / "Binaries/Win64/Launcher.exe"
                 if not launcher.is_file():
@@ -489,23 +509,46 @@ class Manager:
             return None
         return version if isinstance(version, str) and version.strip() else None
 
-    def update_game(self, target):
+    def update_latest(self):
+        """Install Epic's newest build before an online launch. Returns True when the game changed."""
+        self.stopped()
+        latest = self.latest_game_version()
+        if latest is None or latest == self.version:
+            # An unreachable check must not block play; Heroic still reports a needed update.
+            return False
+        try:
+            self.update_game(latest, "Installing the new patch before launch")
+        except (Problem, OSError, ValueError) as error:
+            notify("Rocket League update failed", str(error))
+            raise Problem(f"Rocket League couldn't update to the new patch: {error}") from error
+        return True
+
+    def update_game(self, target, reason="BakkesMod supports the new patch; installing it before launch"):
         command, env = self.legendary()
         previous = self.version
-        notice = notify("Updating Rocket League", "BakkesMod supports the new patch; installing it before launch")
+        notice = notify("Updating Rocket League", reason)
         # Legendary's log carries only progress; read it live and never store it.
         process = subprocess.Popen(command + ["-y", "update", "Sugar"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, errors="replace", env=env)
-        shown = 0.0
+        shown, last, use_osd = 0.0, None, True
         try:
             for line in process.stderr:
                 match = LEGENDARY_PROGRESS.search(line)
-                if match and time.monotonic() - shown >= 3:
+                if not match:
+                    continue
+                percent, eta = float(match[1]), match[2]
+                # Redraw on each new whole percent, and periodically so the bar never times out.
+                if use_osd and (int(percent) != last or time.monotonic() - shown >= 5):
+                    last, shown = int(percent), time.monotonic()
+                    use_osd = osd(percent, f"Updating Rocket League · {percent:.0f}% · {eta} left")
+                if not use_osd and time.monotonic() - shown >= 3:
                     shown = time.monotonic()
-                    notice = notify("Updating Rocket League", f"{float(match[1]):.0f}% · {match[2]} remaining", notice)
+                    notice = notify("Updating Rocket League", f"{percent:.0f}% · {eta} remaining", notice)
         except BaseException:
             process.terminate()
             process.wait()
             raise
+        finally:
+            osd(close=True)
         if process.wait():
             raise Problem("The Rocket League update failed. Open Heroic to check sign-in and free disk space.")
         self.installed()
@@ -698,6 +741,8 @@ def main():
     play = sub.add_parser("play", help="Repair and launch offline with BakkesMod")
     play.add_argument("--online", action="store_true", help="Launch normal Rocket League without the mod helper")
     play.add_argument("--try-unverified", action="store_true", help="Explicitly try offline when compatibility is unknown")
+    play.add_argument("--no-update", action="store_true", help="Skip installing Epic's latest build before an online launch")
+    sub.add_parser("update", help="Install Epic's latest Rocket League build without launching")
     mark = sub.add_parser("mark-working", help="Record a successfully tested combination (not a game backup)")
     mark.add_argument("--confirmed", action="store_true")
     sub.add_parser("workshop", help="Open workshop maps, updating the game and BakkesMod as needed")
@@ -707,14 +752,14 @@ def main():
     restore.add_argument("--after-game", action="store_true", help="Wait for the current Rocket League session to end first")
     restore.add_argument("--swap", help=argparse.SUPPRESS)
     args = parser.parse_args()
-    manager = Manager(online=args.command == "play" and args.online)
+    manager = Manager(online=(args.command == "play" and args.online) or args.command == "update")
     if args.command == "workshop":
         return manager.workshop()
     if args.command == "restore-underpass" and args.after_game:
         manager.restore_after_game(args.swap)
         return 0
     if args.command == "play":
-        manager.play(args.online, args.try_unverified)
+        manager.play(args.online, args.try_unverified, update=not args.no_update)
         return 0
     if args.command == "underpass":
         manager.play_underpass(args.map)
@@ -728,6 +773,8 @@ def main():
             manager.show(manager.repair())
         elif args.command == "undo-repair":
             manager.undo()
+        elif args.command == "update":
+            print("Rocket League updated to " + manager.version + "." if manager.update_latest() else "Rocket League is up to date (or the update check was unavailable).")
         elif args.command == "mark-working":
             manager.mark(args.confirmed)
         elif args.command == "restore-underpass":

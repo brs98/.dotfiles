@@ -64,9 +64,14 @@ class ManagerTests(unittest.TestCase):
         self.notify = patch.object(m, 'notify', return_value=None)
         self.notify.start()
         self.addCleanup(self.notify.stop)
+        self.osd = patch.object(m, 'osd', return_value=True)
+        self.osd_mock = self.osd.start()
+        self.addCleanup(self.osd.stop)
         self.output = contextlib.redirect_stdout(io.StringIO())
         self.output.__enter__()
         self.addCleanup(self.output.__exit__, None, None, None)
+        # Online launches check Epic for updates; never reach a real legendary.
+        self.fake_legendary('game-v1')
         self.manager = m.Manager()
 
     @staticmethod
@@ -394,6 +399,72 @@ elif 'update' in sys.argv:
         self.fake_legendary('game-v2', update_status=1)
         self.assertEqual(self.manager.prepare_offline(), 'underpass')
         m.notify.assert_any_call('Rocket League update failed', unittest.mock.ANY)
+
+    # --- Online launches install Epic's latest build first ---
+
+    def test_online_launch_installs_latest_build_before_launching(self):
+        self.supported('game-v1')  # BakkesMod support never gates online play.
+        self.fake_legendary('game-v2', update_to='game-v2')
+        with patch.object(m.Manager, 'launch') as launch:
+            self.manager.play(online=True)
+        self.assertEqual(self.manager.version, 'game-v2')
+        launch.assert_called_once()
+        history = (self.state / 'rocket-league/history.jsonl').read_text()
+        self.assertLess(history.index('"game-update"'), history.index('"launch-request"'))
+
+    def test_update_progress_shows_in_osd_and_closes(self):
+        self.fake_legendary('game-v2', update_to='game-v2')
+        self.manager.update_latest()
+        shown = [c for c in self.osd_mock.call_args_list if c.args]
+        self.assertEqual(shown[0].args[0], 50.0)
+        self.assertIn('50%', shown[0].args[1])
+        self.assertIn('00:00:01', shown[0].args[1])
+        self.assertEqual(self.osd_mock.call_args_list[-1], unittest.mock.call(close=True))
+
+    def test_failed_update_still_closes_osd(self):
+        self.fake_legendary('game-v2', update_status=1)
+        with self.assertRaises(m.Problem):
+            self.manager.update_latest()
+        self.assertEqual(self.osd_mock.call_args_list[-1], unittest.mock.call(close=True))
+
+    def test_online_launch_skips_update_when_current(self):
+        self.fake_legendary('game-v1')
+        with patch.object(m.Manager, 'launch') as launch, patch.object(m.Manager, 'update_game') as update:
+            self.manager.play(online=True)
+        update.assert_not_called()
+        launch.assert_called_once()
+
+    def test_failed_online_update_does_not_launch_outdated_game(self):
+        self.fake_legendary('game-v2', update_status=1)
+        with patch.object(m.Manager, 'launch') as launch, self.assertRaises(m.Problem):
+            self.manager.play(online=True)
+        launch.assert_not_called()
+        m.notify.assert_any_call('Rocket League update failed', unittest.mock.ANY)
+
+    def test_unreachable_update_check_still_launches(self):
+        with patch.object(m.Manager, 'latest_game_version', return_value=None), patch.object(m.Manager, 'launch') as launch:
+            self.manager.play(online=True)
+        launch.assert_called_once()
+
+    def test_online_launch_can_skip_the_update_check(self):
+        with patch.object(m.Manager, 'latest_game_version') as latest, patch.object(m.Manager, 'launch') as launch:
+            self.manager.play(online=True, update=False)
+        latest.assert_not_called()
+        launch.assert_called_once()
+
+    def test_update_command_installs_latest_without_launching(self):
+        self.fake_legendary('game-v2', update_to='game-v2')
+        with patch.object(m.Manager, 'launch') as launch:
+            self.assertTrue(self.manager.update_latest())
+            self.assertFalse(self.manager.update_latest())
+        launch.assert_not_called()
+        self.assertEqual(self.manager.version, 'game-v2')
+
+    def test_update_command_refuses_while_game_runs(self):
+        self.fake_legendary('game-v2', update_to='game-v2')
+        with patch.object(m, 'running', return_value=['rocketleague.exe']), self.assertRaises(m.Problem):
+            self.manager.update_latest()
+        self.assertEqual(self.manager.version, 'game-v1')
 
     def test_unreachable_feed_uses_known_working_pairing_or_underpass(self):
         self.supported('game-v1')

@@ -14,7 +14,9 @@ Both launch paths go through the manager's quiet preflight. The normal launcher 
 | `rocket-league repair` | Back up and atomically repair the launch helper and minimal Legendary version metadata. Close Rocket League and BakkesMod first. |
 | `rocket-league` | Launch normally online through Heroic. |
 | `rocket-league play` | Repair, check compatibility and request offline BakkesMod launch through Heroic. |
-| `rocket-league play --online` | Request launch through the official game launcher, without the BakkesMod helper. |
+| `rocket-league play --online` | Request launch through the official game launcher, without the BakkesMod helper. Installs Epic's latest build first, with progress in the Omarchy OSD; a failed update blocks the launch, an unreachable check does not. |
+| `rocket-league play --online --no-update` | Online launch without the update check (used by RL - Alt after updating through Main). |
+| `rocket-league update` | Install Epic's latest build now, without launching. |
 | `rocket-league play --try-unverified` | Explicitly test offline when the pairing cannot be verified. Leaves injector safe mode unchanged. |
 | `rocket-league workshop` | Update the game and BakkesMod when needed, then open workshop maps (falls back to Underpass when BakkesMod lags a patch). |
 | `rocket-league underpass <map>` | Launch offline without BakkesMod with `<map>` copied over Underpass; restored automatically after the session. |
@@ -23,6 +25,10 @@ Both launch paths go through the manager's quiet preflight. The normal launcher 
 | `rocket-league undo-repair` | Restore only the last integration repair, refusing to overwrite subsequent edits. |
 
 The existing Rocket League desktop entry launches through `rocket-league play --online`. The existing `rocket-league-bakkesmod` and `rocket-league-workshop-maps` commands route through the preflight and repair logic. The separate manager desktop entry is hidden.
+
+## Online launches update themselves
+
+**RL - Main** and **RL - Alt** install Epic's latest build before launching, regardless of BakkesMod support. Progress appears in Omarchy's on-screen progress bar (`omarchy-shell osd`), falling back to updating notifications where the OSD is unavailable. Alt updates through Main's Heroic profile, which owns the shared install. If BakkesMod lags the new patch, Workshop Maps falls back to Underpass until it catches up.
 
 ## Workshop Maps updates itself
 
