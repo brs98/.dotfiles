@@ -1,48 +1,40 @@
 {
-  "version": 1,
-  "idle": {
-    "screensaver": 901,
-    "lock": 900
-  },
   "bar": {
-    "position": "top",
-    "transparent": true,
-    "centerAnchor": "omarchy.clock",
+    "background": "opaque",
+    "id": "brandon.bar",
     "layout": {
+      "center": [
+        {
+          "format": "dddd HH:mm",
+          "formatAlt": "d MMMM 'W'ww yyyy",
+          "id": "omarchy.clock",
+          "verticalFormat": "HH\n—\nmm"
+        }
+      ],
+      "centerBegin": [
+        {
+          "id": "omarchy.indicators"
+        }
+      ],
+      "centerEnd": [
+        {
+          "id": "omarchy.weather"
+        },
+        {
+          "id": "brandon.lights"
+        }
+      ],
       "left": [
         {
           "id": "omarchy.menu"
         },
         {
-          "id": "omarchy.workspaces"
-        }
-      ],
-      "center": [
-        {
-          "id": "omarchy.indicators"
-        },
-        {
-          "id": "omarchy.clock",
-          "format": "dddd HH:mm",
-          "formatAlt": "d MMMM 'W'ww yyyy",
-          "verticalFormat": "HH\n—\nmm"
-        },
-        {
-          "id": "omarchy.keyboard-layout"
-        },
-        {
-          "id": "omarchy.weather"
-        },
-        {
-          "id": "omarchy.system-update"
+          "id": "brandon.workspaces"
         }
       ],
       "right": [
         {
           "id": "omarchy.tray"
-        },
-        {
-          "id": "omarchy.tailscale"
         },
         {
           "id": "brs98.instant-replay"
@@ -54,19 +46,45 @@
           "id": "omarchy.bluetooth"
         },
         {
+          "id": "omarchy.tailscale"
+        },
+        {
+          "id": "omarchy.monitor"
+        },
+        {
+          "id": "omarchy.system-update"
+        },
+        {
           "id": "omarchy.network"
         },
         {
           "id": "omarchy.audio"
         },
         {
-          "id": "omarchy.monitor"
-        },
-        {
           "id": "omarchy.power"
         }
-      ]
-    }
+      ],
+      "tray": []
+    },
+    "position": "top"
   },
-  "plugins": []
+  "disabledPlugins": [
+    "brandon.omarchy-news"
+  ],
+  "dock": {
+    "autohide": false
+  },
+  "idle": {
+    "lock": 900,
+    "screensaver": 901
+  },
+  "plugins": [
+    {
+      "id": "brs98.midi-piano"
+    },
+    {
+      "id": "brs98.ricekit-web"
+    }
+  ],
+  "version": 1
 }
